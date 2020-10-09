@@ -1,7 +1,7 @@
 This file contains the current targeted usage. It works as both a design document
 and a feature tracker. New commands and flags go here.
 
-* Basic usage overview
+* Usage overview
 
 Start the daemon with either one of:
 
@@ -17,16 +17,19 @@ The daemon doesn't do anything by itself. Interfacing with it is done through
 `mumctl`.
 
 * Basic commands
+The basic commands are the smallest subset of commands that allow the user to
+actually use mum for something. In this case it means connecting to a server,
+listing channels and connecting to channels.
 ** TODO server
 *** TODO connect
 #+BEGIN_SRC bash
-$ mumctl server connect localhost
+$ mumctl server connect localhost your_name
 connecting to localhost...
-connected
+connected as your_name
 root
 │  another person
 │  some person
-|  you
+|  your_name
 #+END_SRC
 ** TODO channel
 *** TODO list
@@ -80,4 +83,49 @@ you@localhost:65387/root (3)
   another person
   some person
   you
+#+END_SRC
+
+* More commands
+** server
+*** add
+Add a server with a name:
+#+BEGIN_SRC bash
+$ mumctl server add 127.0.0.1 loopback
+username: ***
+password: ***
+#+END_SRC
+
+Add a server without a name:
+#+BEGIN_SRC bash
+$ mumctl server add 127.0.0.1
+username: ***
+password: ***
+#+END_SRC
+
+Password can be skipped by entering blank.
+*** list
+#+BEGIN_SRC bash
+$ mumctl server list
+loopback  [4 / 100]
+127.0.0.1 [4 / 100]
+127.0.0.3 [OFFLINE]
+#+END_SRC
+*** config
+**** username
+#+BEGIN_SRC bash
+$ mumctl server config loopback set username xX_gamerboy_Xx
+#+END_SRC
+**** password
+#+BEGIN_SRC bash
+$ mumctl server config loopback set password ***
+#+END_SRC
+
+Optionally ask stdin
+#+BEGIN_SRC bash
+$ mumctl server config loopback set password
+enter password: ***
+#+END_SRC
+*** rename
+#+BEGIN_SRC bash
+$ mumctl server rename loopback my_server
 #+END_SRC
