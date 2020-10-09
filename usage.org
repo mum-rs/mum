@@ -1,21 +1,24 @@
-This file contains the current targeted usage.
+This file contains the current targeted usage. It works as both a design document
+and a feature tracker. New commands and flags go here.
 
 * Basic usage overview
 
 Start the daemon with either one of:
 
-- `$ mumd` for debugging
-- `$ mumd &|` (disowning)
+- `$ mumd`. Writes to stdout, ignores stdin. Can easily be disowned/started in
+  a screen/tmux.
+
+We want to support / explain how to do the following at some point:
+
 - `$ mumd --daemon`
 - systemd-service
-- Run in a `screen`/`tmux`/...
-- Other ways of keeping a binary running
 
-The daemon doesn't do anything by itself. Interface using `mumctl`.
+The daemon doesn't do anything by itself. Interfacing with it is done through
+`mumctl`.
 
 * Basic commands
-** server
-*** connect
+** TODO server
+*** TODO connect
 #+BEGIN_SRC bash
 $ mumctl server connect localhost
 connecting to localhost...
@@ -25,8 +28,8 @@ root
 │  some person
 |  you
 #+END_SRC
-** channel
-*** list
+** TODO channel
+*** TODO list
 #+BEGIN_SRC bash
 $ mumctl channel list
 root                 [3](4)
@@ -44,6 +47,7 @@ root                 [3](4)
       someone eating food
 #+END_SRC
 
+**** TODO --short
 #+BEGIN_SRC bash
 $ mumctl channel list --short
 root                 [3](4)
@@ -53,15 +57,13 @@ root                 [3](4)
 │  └─ subsubchannel  [2]
 └─ AFK               [1]
 #+END_SRC
-
-*** connect
+*** TODO connect
 #+BEGIN_SRC bash
 $ mumctl channel connect some channel
 connecting to some channel...
 connected
 #+END_SRC
-
-** status
+** TODO status
 #+BEGIN_SRC bash
 $ mumctl status
 connected to localhost:65837
