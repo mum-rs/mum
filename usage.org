@@ -125,6 +125,16 @@ Optionally ask stdin
 $ mumctl server config loopback set password
 enter password: ***
 #+END_SRC
+*** connect: handle invalid keys
+#+BEGIN_SRC bash
+server offered invalid key. what do you want to do?
+[I]nspect, [A]ccept, [D]eny, [C]ompare, [T]emporarily trust (default D):
+#+END_SRC
+- Inspect: Print the key digest and ask again.
+- Accept: Accept the key, connect to the server and trust the key.
+- Deny: Abort the connection. Do not trust the key.
+- Compare: Compare the key to a file to confirm legitimacy and ask again.
+- Temporarily trust: Accept the key and connect, but do not trust the key.
 *** rename
 #+BEGIN_SRC bash
 $ mumctl server rename loopback my_server
