@@ -1,0 +1,14 @@
+[package]
+name = "mumd"
+version = "0.1.0"
+authors = ["Gustav Sörnäs <gustav@sornas.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+#cursive = "0.15"
+#daemonize = "0.4"
+ipc-channel = "0.14"
+serde = { version = "1.0", features = ["derive"] }
+clap = "2.33"
