@@ -38,7 +38,7 @@ $ mumctl channel list
 root                 [3](4)
 │  another person
 │  some person
-|  you
+|  your_name
 ├─ some channel      [1]
 │     someone alone
 ├─ other channel     [0]
@@ -69,20 +69,20 @@ connected
 ** TODO status
 #+BEGIN_SRC bash
 $ mumctl status
-connected to localhost:65837
+connected to localhost:65837 as your_name
 currently in root with 2 other clients:
   root
   │  another person
   │  some person
-  |  you
+  |  your_name
 #+END_SRC
 
 #+BEGIN_SRC bash
 $ mumctl status --short
-you@localhost:65387/root (3)
+your_name@localhost:65387/root (3)
   another person
   some person
-  you
+  your_name
 #+END_SRC
 
 * More commands
