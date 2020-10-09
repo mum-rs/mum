@@ -1,0 +1,81 @@
+This file contains the current targeted usage.
+
+* Basic usage overview
+
+Start the daemon with either one of:
+
+- `$ mumd` for debugging
+- `$ mumd &|` (disowning)
+- `$ mumd --daemon`
+- systemd-service
+- Run in a `screen`/`tmux`/...
+- Other ways of keeping a binary running
+
+The daemon doesn't do anything by itself. Interface using `mumctl`.
+
+* Basic commands
+** server
+*** connect
+#+BEGIN_SRC bash
+$ mumctl server connect localhost
+connecting to localhost...
+connected
+root
+│  another person
+│  some person
+|  you
+#+END_SRC
+** channel
+*** list
+#+BEGIN_SRC bash
+$ mumctl channel list
+root                 [3](4)
+│  another person
+│  some person
+|  you
+├─ some channel      [1]
+│     someone alone
+├─ other channel     [0]
+├─ third channel     [0](2)
+│  └─ subsubchannel  [2]
+│        a user
+│        and another user
+└─ AFK               [1]
+      someone eating food
+#+END_SRC
+
+#+BEGIN_SRC bash
+$ mumctl channel list --short
+root                 [3](4)
+├─ some channel      [1]
+├─ other channel     [0]
+├─ third channel     [0](2)
+│  └─ subsubchannel  [2]
+└─ AFK               [1]
+#+END_SRC
+
+*** connect
+#+BEGIN_SRC bash
+$ mumctl channel connect some channel
+connecting to some channel...
+connected
+#+END_SRC
+
+** status
+#+BEGIN_SRC bash
+$ mumctl status
+connected to localhost:65837
+currently in root with 2 other clients:
+  root
+  │  another person
+  │  some person
+  |  you
+#+END_SRC
+
+#+BEGIN_SRC bash
+$ mumctl status --short
+you@localhost:65387/root (3)
+  another person
+  some person
+  you
+#+END_SRC
