@@ -158,6 +158,10 @@ async fn listen_tcp(
                 println!("Found user {}", msg.get_name());
                 audio.lock().unwrap().add_client(msg.get_session());
             }
+            ControlPacket::UserRemove(msg) => {
+                println!("User {} left", msg.get_session());
+                audio.lock().unwrap().remove_client(msg.get_session());
+            }
             _ => {}
         }
     }

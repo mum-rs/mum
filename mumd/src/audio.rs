@@ -87,6 +87,17 @@ impl Audio {
             }
         }
     }
+
+    pub fn remove_client(&self, session_id: u32) {
+        match self.client_streams.lock().unwrap().entry(session_id) {
+            Entry::Occupied(entry) => {
+                entry.remove();
+            }
+            Entry::Vacant(_) => {
+                eprintln!("tried to remove session id {} that doesn't exist", session_id);
+            }
+        }
+    }
 }
 
 impl ClientStream {
