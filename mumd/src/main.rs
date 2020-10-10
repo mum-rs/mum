@@ -21,12 +21,8 @@ use mumble_protocol::voice::VoicePacketPayload;
 use std::convert::Into;
 use std::convert::TryInto;
 
-use std::net::Ipv6Addr;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
-
-use tokio::net::UdpSocket;
-use tokio_util::udp::UdpFramed;
 
 use tokio::time::{self, Duration};
 
@@ -130,19 +126,6 @@ async fn handle_udp(
     server_addr: SocketAddr,
     crypt_state: oneshot::Receiver<ClientCryptState>,
 ) {
-    // Bind UDP socket
-    let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
-        .await
-        .expect("Failed to bind UDP socket");
-
-    // Wait for initial CryptState
-    let crypt_state = match crypt_state.await {
-        Ok(crypt_state) => crypt_state,
-        // disconnected before we received the CryptSetup packet, oh well
-        Err(_) => return,
-    };
-    println!("UDP ready!");
-
     let audio = Audio::new();
     audio.output_stream.play().unwrap();
 
@@ -156,8 +139,7 @@ async fn handle_udp(
         }
     ).unwrap();
 
-    // Wrap the raw UDP packets in Mumble's crypto and voice codec (CryptState does both)
-    let (mut sink, mut source) = UdpFramed::new(udp_socket, crypt_state).split();
+    let (mut sink, mut source) = network::connect_udp(server_addr, crypt_state).await;
 
     // Note: A normal application would also send periodic Ping packets, and its own audio
     //       via UDP. We instead trick the server into accepting us by sending it one
