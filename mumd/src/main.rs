@@ -1,3 +1,6 @@
+mod audio;
+use crate::audio::Audio;
+
 use argparse::ArgumentParser;
 use argparse::Store;
 use argparse::StoreTrue;
@@ -22,8 +25,6 @@ use std::net::Ipv6Addr;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
 
-use std::collections::VecDeque;
-
 use tokio::net::TcpStream;
 use tokio::net::UdpSocket;
 use tokio_tls::TlsConnector;
@@ -35,9 +36,6 @@ use tokio::time::{self, Duration};
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use cpal::{Sample, SampleFormat, OutputCallbackInfo, StreamConfig, SampleRate};
-use cpal::traits::DeviceTrait;
-use cpal::traits::HostTrait;
 use cpal::traits::StreamTrait;
 
 use opus::Channels;
@@ -166,51 +164,16 @@ async fn handle_udp(
     };
     println!("UDP ready!");
 
-    // initialize audio buffer
-    let audio_buf: VecDeque<f32> = VecDeque::new();
-    let audio_buf = Arc::new(Mutex::new(audio_buf));
-
-    let host = cpal::default_host();
-    let device = host.default_output_device().expect("default output device not found");
-    let mut supported_configs_range = device.supported_output_configs()
-                                            .expect("error querying configs");
-    let supported_config = supported_configs_range.next()
-                                                  .expect("no supported config?!")
-                                                  .with_sample_rate(SampleRate(48000));
-    let supported_sample_format = supported_config.sample_format();
-    let config: StreamConfig = supported_config.into();
-
-    let err_fn = |err| eprintln!("an error occurred on the output audio stream: {}", err);
-    // cpal callback:
-    //   pop from audio buf
-    //   if empty, fill rest with silence
-    fn curry_callback<T: Sample>(buf: Arc<Mutex<VecDeque<f32>>>)
-                                 -> impl FnMut(&mut [T],
-                                               &OutputCallbackInfo) + Send + 'static {
-        move |data: &mut [T], _info: &OutputCallbackInfo| {
-            let mut lock = buf.lock().unwrap();
-            for sample in data.iter_mut() {
-                *sample = Sample::from(&lock.pop_front().unwrap_or(0.0));
-            }
-        }
-    }
-    let stream_audio_buf = Arc::clone(&audio_buf);
-    let stream = match supported_sample_format {
-        SampleFormat::F32 => device.build_output_stream(&config, curry_callback::<f32>(stream_audio_buf), err_fn),
-        SampleFormat::I16 => device.build_output_stream(&config, curry_callback::<i16>(stream_audio_buf), err_fn),
-        SampleFormat::U16 => device.build_output_stream(&config, curry_callback::<u16>(stream_audio_buf), err_fn),
-    }.unwrap();
-    stream.play().unwrap();
-
-    println!("{} {}", config.sample_rate.0, config.channels);
+    let audio = Audio::new();
+    audio.output_stream.play().unwrap();
 
     // create opus decoder (might be expensive)
     let mut opus_decoder = opus::Decoder::new(
-        config.sample_rate.0 as u32,
-        match config.channels {
+        audio.output_config.sample_rate.0 as u32,
+        match audio.output_config.channels {
             1 => Channels::Mono,
             2 => Channels::Stereo,
-            _ => unimplemented!("ljudnörd (got {} channels, need 1 or 2)", config.channels)
+            _ => unimplemented!("ljudnörd (got {} channels, need 1 or 2)", audio.output_config.channels)
         }
     ).unwrap();
 
@@ -255,10 +218,10 @@ async fn handle_udp(
                 ..
             } => {
                 match payload {
-                    VoicePacketPayload::Opus(bytes, eot) => {
-                        let mut out: Vec<f32> = vec![0.0; bytes.len() * config.channels as usize * 4];
-                        opus_decoder.decode_float(&bytes[..], &mut out, false);
-                        let mut lock = audio_buf.lock().unwrap();
+                    VoicePacketPayload::Opus(bytes, _eot) => {
+                        let mut out: Vec<f32> = vec![0.0; bytes.len() * audio.output_config.channels as usize * 4];
+                        opus_decoder.decode_float(&bytes[..], &mut out, false).expect("error decoding");
+                        let mut lock = audio.output_buffer.lock().unwrap();
                         lock.extend(out);
                     },
                     _ => { unimplemented!("något fint"); }
