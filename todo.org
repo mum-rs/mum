@@ -1,0 +1,18 @@
+#+TITLE: Todo
+
+* Bättre error handling
+* Split audio input/output
+* Städa eskils mikrofonkod
+* Fixa att den blir ledsen om man andas fel
+* Ljudvolymen
+* REPL
+** quit (+ graceful exit)
+** connect
+** textmeddelanden
+* enum command
+* Kombinera flera ljudkällor rimligt (utan clipping)
+* Mindre pub
+* UDP crypt state resync?? Kommentar från exemplet
+* Refaktorera TCP-paket
+* Dela upp network.rs i network/tcp.rs, network/udp.rs
+* Coolare invalid cert-check
