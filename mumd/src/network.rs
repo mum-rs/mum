@@ -1,20 +1,18 @@
 use crate::audio::Audio;
 
 use bytes::Bytes;
-use mumble_protocol::voice::VoicePacketPayload;
-use opus::Channels;
-
-use futures::channel::oneshot;
-use futures::join;
 use futures::SinkExt;
 use futures::StreamExt;
+use futures::channel::oneshot;
+use futures::join;
 use futures_util::stream::{SplitSink, SplitStream};
-use mumble_protocol::control::msgs;
 use mumble_protocol::control::ClientControlCodec;
 use mumble_protocol::control::ControlCodec;
 use mumble_protocol::control::ControlPacket;
+use mumble_protocol::control::msgs;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
+use mumble_protocol::voice::VoicePacketPayload;
 use mumble_protocol::{Clientbound, Serverbound};
 use std::convert::Into;
 use std::convert::TryInto;
@@ -107,6 +105,7 @@ async fn listen_tcp(
     sink: Arc<Mutex<TcpSender>>,
     mut stream: TcpReceiver,
     crypt_state_sender: oneshot::Sender<ClientCryptState>,
+    audio: Arc<Mutex<Audio>>,
 ) {
     let mut crypt_state = None;
     let mut crypt_state_sender = Some(crypt_state_sender);
@@ -155,6 +154,10 @@ async fn listen_tcp(
             ControlPacket::Reject(msg) => {
                 println!("Login rejected: {:?}", msg);
             }
+            ControlPacket::UserState(msg) => {
+                println!("Found user {}", msg.get_name());
+                audio.lock().unwrap().add_client(msg.get_session());
+            }
             _ => {}
         }
     }
@@ -166,6 +169,7 @@ pub async fn handle_tcp(
     username: String,
     accept_invalid_cert: bool,
     crypt_state_sender: oneshot::Sender<ClientCryptState>,
+    audio: Arc<Mutex<Audio>>,
 ) {
     let (sink, stream) = connect_tcp(server_addr, server_host, accept_invalid_cert).await;
     let sink = Arc::new(Mutex::new(sink));
@@ -177,15 +181,14 @@ pub async fn handle_tcp(
 
     join!(
         send_pings(Arc::clone(&sink), 10),
-        listen_tcp(sink, stream, crypt_state_sender),
+        listen_tcp(sink, stream, crypt_state_sender, audio),
     );
 }
 
 async fn listen_udp(
     _sink: Arc<Mutex<UdpSender>>,
     mut source: UdpReceiver,
-    mut opus_decoder: opus::Decoder,
-    audio: Audio,
+    audio: Arc<Mutex<Audio>>,
 ) {
     while let Some(packet) = source.next().await {
         let (packet, _src_addr) = match packet {
@@ -203,27 +206,13 @@ async fn listen_udp(
                 continue;
             }
             VoicePacket::Audio {
+                session_id,
                 // seq_num,
                 payload,
                 // position_info,
                 ..
             } => {
-                match payload {
-                    VoicePacketPayload::Opus(bytes, _eot) => {
-                        let mut out: Vec<f32> =
-                            vec![0.0; bytes.len() * audio.output_config.channels as usize * 4];
-                        opus_decoder
-                            .decode_float(&bytes[..], &mut out, false)
-                            .expect("error decoding");
-                        let mut lock = audio.output_buffer.lock().unwrap();
-                        lock.extend(out);
-                    }
-                    _ => {
-                        unimplemented!("något fint");
-                    }
-                }
-
-                // decode paylout and put it in buffer
+                audio.lock().unwrap().decode_packet(session_id, payload);
 
                 // Got audio, naively echo it back
                 //let reply = VoicePacket::Audio {
@@ -259,21 +248,8 @@ async fn send_ping_udp(sink: &mut UdpSender, server_addr: SocketAddr) {
 pub async fn handle_udp(
     server_addr: SocketAddr,
     crypt_state: oneshot::Receiver<ClientCryptState>,
-    audio: Audio,
+    audio: Arc<Mutex<Audio>>,
 ) {
-    let opus_decoder = opus::Decoder::new(
-        audio.output_config.sample_rate.0 as u32,
-        match audio.output_config.channels {
-            1 => Channels::Mono,
-            2 => Channels::Stereo,
-            _ => unimplemented!(
-                "ljudnörd (got {} channels, need 1 or 2)",
-                audio.output_config.channels
-            ),
-        },
-    )
-    .unwrap();
-
     let (mut sink, source) = connect_udp(crypt_state).await;
 
     // Note: A normal application would also send periodic Ping packets, and its own audio
@@ -281,5 +257,5 @@ pub async fn handle_udp(
     //       dummy voice packet.
     send_ping_udp(&mut sink, server_addr).await;
 
-    listen_udp(Arc::new(Mutex::new(sink)), source, opus_decoder, audio).await;
+    listen_udp(Arc::new(Mutex::new(sink)), source, audio).await;
 }

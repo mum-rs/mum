@@ -10,6 +10,8 @@ use futures::channel::oneshot;
 use futures::join;
 use mumble_protocol::crypt::ClientCryptState;
 use std::net::ToSocketAddrs;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
@@ -47,6 +49,7 @@ async fn main() {
 
     let audio = Audio::new();
     audio.output_stream.play().unwrap();
+    let audio = Arc::new(Mutex::new(audio));
 
     // Run it
     join!(
@@ -56,7 +59,12 @@ async fn main() {
             username,
             accept_invalid_cert,
             crypt_state_sender,
+            Arc::clone(&audio),
         ),
-        network::handle_udp(server_addr, crypt_state_receiver, audio,)
+        network::handle_udp(
+            server_addr,
+            crypt_state_receiver,
+            audio,
+        )
     );
 }
