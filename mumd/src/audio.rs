@@ -1,6 +1,6 @@
-use cpal::{Sample, SampleFormat, OutputCallbackInfo, Stream, StreamConfig, SampleRate};
 use cpal::traits::DeviceTrait;
 use cpal::traits::HostTrait;
+use cpal::{OutputCallbackInfo, Sample, SampleFormat, SampleRate, Stream, StreamConfig};
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -11,17 +11,21 @@ pub struct Audio {
     pub output_stream: Stream,
 }
 
-impl Audio  {
+impl Audio {
     pub fn new() -> Self {
         let output_buffer = Arc::new(Mutex::new(VecDeque::new()));
 
         let host = cpal::default_host();
-        let device = host.default_output_device().expect("default output device not found");
-        let mut supported_configs_range = device.supported_output_configs()
-                                                .expect("error querying configs");
-        let supported_config = supported_configs_range.next()
-                                                    .expect("no supported config??")
-                                                    .with_sample_rate(SampleRate(48000));
+        let device = host
+            .default_output_device()
+            .expect("default output device not found");
+        let mut supported_configs_range = device
+            .supported_output_configs()
+            .expect("error querying configs");
+        let supported_config = supported_configs_range
+            .next()
+            .expect("no supported config??")
+            .with_sample_rate(SampleRate(48000));
         let supported_sample_format = supported_config.sample_format();
         let config: StreamConfig = supported_config.into();
 
@@ -29,10 +33,17 @@ impl Audio  {
 
         let stream_audio_buf = Arc::clone(&output_buffer);
         let stream = match supported_sample_format {
-            SampleFormat::F32 => device.build_output_stream(&config, curry_callback::<f32>(stream_audio_buf), err_fn),
-            SampleFormat::I16 => device.build_output_stream(&config, curry_callback::<i16>(stream_audio_buf), err_fn),
-            SampleFormat::U16 => device.build_output_stream(&config, curry_callback::<u16>(stream_audio_buf), err_fn),
-        }.unwrap();
+            SampleFormat::F32 => {
+                device.build_output_stream(&config, curry_callback::<f32>(stream_audio_buf), err_fn)
+            }
+            SampleFormat::I16 => {
+                device.build_output_stream(&config, curry_callback::<i16>(stream_audio_buf), err_fn)
+            }
+            SampleFormat::U16 => {
+                device.build_output_stream(&config, curry_callback::<u16>(stream_audio_buf), err_fn)
+            }
+        }
+        .unwrap();
 
         Self {
             output_buffer,
@@ -42,9 +53,9 @@ impl Audio  {
     }
 }
 
-fn curry_callback<T: Sample>(buf: Arc<Mutex<VecDeque<f32>>>)
-                            -> impl FnMut(&mut [T],
-                                        &OutputCallbackInfo) + Send + 'static {
+fn curry_callback<T: Sample>(
+    buf: Arc<Mutex<VecDeque<f32>>>,
+) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {
     move |data: &mut [T], _info: &OutputCallbackInfo| {
         let mut lock = buf.lock().unwrap();
         for sample in data.iter_mut() {
