@@ -61,10 +61,6 @@ async fn main() {
             crypt_state_sender,
             Arc::clone(&audio),
         ),
-        network::handle_udp(
-            server_addr,
-            crypt_state_receiver,
-            audio,
-        )
+        network::handle_udp(server_addr, crypt_state_receiver, audio,),
     );
 }

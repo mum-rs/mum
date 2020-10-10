@@ -1,15 +1,15 @@
 use crate::audio::Audio;
 
 use bytes::Bytes;
-use futures::SinkExt;
-use futures::StreamExt;
 use futures::channel::oneshot;
 use futures::join;
+use futures::SinkExt;
+use futures::StreamExt;
 use futures_util::stream::{SplitSink, SplitStream};
+use mumble_protocol::control::msgs;
 use mumble_protocol::control::ClientControlCodec;
 use mumble_protocol::control::ControlCodec;
 use mumble_protocol::control::ControlPacket;
-use mumble_protocol::control::msgs;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::voice::VoicePacketPayload;
@@ -217,17 +217,6 @@ async fn listen_udp(
                 ..
             } => {
                 audio.lock().unwrap().decode_packet(session_id, payload);
-
-                // Got audio, naively echo it back
-                //let reply = VoicePacket::Audio {
-                //    _dst: std::marker::PhantomData,
-                //    target: 0,      // normal speech
-                //    session_id: (), // unused for server-bound packets
-                //    seq_num,
-                //    payload,
-                //    position_info,
-                //};
-                //sink.send((reply, src_addr)).await.unwrap();
             }
         }
     }
@@ -249,6 +238,32 @@ async fn send_ping_udp(sink: &mut UdpSender, server_addr: SocketAddr) {
     .unwrap();
 }
 
+async fn send_voice_udp(
+    sink: Arc<Mutex<UdpSender>>,
+    server_addr: SocketAddr,
+    audio: Arc<Mutex<Audio>>,
+) {
+    let mut receiver = audio.lock().unwrap().take_receiver().unwrap();
+
+    let mut count = 0;
+    while let Some(payload) = receiver.recv().await {
+        let reply = VoicePacket::Audio {
+            _dst: std::marker::PhantomData,
+            target: 0,      // normal speech
+            session_id: (), // unused for server-bound packets
+            seq_num: count,
+            payload,
+            position_info: None,
+        };
+        count += 1;
+        sink.lock()
+            .unwrap()
+            .send((reply, server_addr))
+            .await
+            .unwrap();
+    }
+}
+
 pub async fn handle_udp(
     server_addr: SocketAddr,
     crypt_state: oneshot::Receiver<ClientCryptState>,
@@ -261,5 +276,9 @@ pub async fn handle_udp(
     //       dummy voice packet.
     send_ping_udp(&mut sink, server_addr).await;
 
-    listen_udp(Arc::new(Mutex::new(sink)), source, audio).await;
+    let sink = Arc::new(Mutex::new(sink));
+    join!(
+        listen_udp(Arc::clone(&sink), source, Arc::clone(&audio)),
+        send_voice_udp(sink, server_addr, audio)
+    );
 }
