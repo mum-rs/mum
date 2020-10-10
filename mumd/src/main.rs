@@ -1,4 +1,5 @@
 mod audio;
+mod network;
 use crate::audio::Audio;
 
 use argparse::ArgumentParser;
@@ -12,7 +13,6 @@ use futures::StreamExt;
 use futures::SinkExt;
 
 use mumble_protocol::control::msgs;
-use mumble_protocol::control::ClientControlCodec;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
@@ -25,10 +25,7 @@ use std::net::Ipv6Addr;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
 
-use tokio::net::TcpStream;
 use tokio::net::UdpSocket;
-use tokio_tls::TlsConnector;
-use tokio_util::codec::Decoder;
 use tokio_util::udp::UdpFramed;
 
 use tokio::time::{self, Duration};
@@ -50,25 +47,7 @@ async fn connect(
     // Wrap crypt_state_sender in Option, so we can call it only once
     let mut crypt_state_sender = Some(crypt_state_sender);
 
-    // Connect to server via TCP
-    let stream = TcpStream::connect(&server_addr).await.expect("Failed to connect to server:");
-    println!("TCP connected..");
-
-    // Wrap the connection in TLS
-    let mut builder = native_tls::TlsConnector::builder();
-    builder.danger_accept_invalid_certs(accept_invalid_cert);
-    let connector: TlsConnector = builder
-        .build()
-        .expect("Failed to create TLS connector")
-        .into();
-    let tls_stream = connector
-        .connect(&server_host, stream)
-        .await
-        .expect("Failed to connect TLS: {}");
-    println!("TLS connected..");
-
-    // Wrap the TLS stream with Mumble's client-side control-channel codec
-    let (sink, mut stream) = ClientControlCodec::new().framed(tls_stream).split();
+    let (sink, mut stream) = network::connect_tcp(server_addr, server_host, accept_invalid_cert).await;
     let sink = Arc::new(Mutex::new(sink));
 
     // Handshake (omitting `Version` message for brevity)
