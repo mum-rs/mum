@@ -2,8 +2,8 @@
 
 * Bättre error handling
 * Split audio input/output
-* Städa eskils mikrofonkod
 * Fixa att den blir ledsen om man andas fel
+Det ser ut att vara klienter med lägre bitrate som orsakar problem.
 * Ljudvolymen
 * REPL
 ** quit (+ graceful exit)
@@ -16,3 +16,4 @@
 * Refaktorera TCP-paket
 * Dela upp network.rs i network/tcp.rs, network/udp.rs
 * Coolare invalid cert-check
+* Bättre logging
