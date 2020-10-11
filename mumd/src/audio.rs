@@ -195,10 +195,14 @@ impl ClientStream {
     fn decode_packet(&mut self, payload: VoicePacketPayload, channels: usize) {
         match payload {
             VoicePacketPayload::Opus(bytes, _eot) => {
-                let mut out: Vec<f32> = vec![0.0; bytes.len() * channels * 4];
-                self.opus_decoder
-                    .decode_float(&bytes, &mut out, false)
+                let mut out: Vec<f32> = vec![0.0; bytes.len() * channels * 4 + 1000];
+                if bytes.len() != 120 {
+                    println!("{}", bytes.len());
+                }
+                let parsed = self.opus_decoder
+                    .decode_float(&bytes, &mut out, true)
                     .expect("error decoding"); //FIXME sometimes panics here
+                out.truncate(parsed);
                 self.buffer.extend(out);
             }
             _ => {
