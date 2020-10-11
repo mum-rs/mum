@@ -103,17 +103,26 @@ impl Audio {
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<f32>(input_encoder, input_sender),
+                input_callback::<f32>(input_encoder,
+                                      input_sender,
+                                      input_config.sample_rate.0,
+                                      10.0),
                 err_fn,
             ),
             SampleFormat::I16 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<i16>(input_encoder, input_sender),
+                input_callback::<i16>(input_encoder,
+                                      input_sender,
+                                      input_config.sample_rate.0,
+                                      10.0),
                 err_fn,
             ),
             SampleFormat::U16 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<u16>(input_encoder, input_sender),
+                input_callback::<u16>(input_encoder,
+                                      input_sender,
+                                      input_config.sample_rate.0,
+                                      10.0),
                 err_fn,
             ),
         }
@@ -185,7 +194,7 @@ impl ClientStream {
                 match channels {
                     1 => Channels::Mono,
                     2 => Channels::Stereo,
-                    _ => unimplemented!("only 1 or 2 channels supported, got {})", channels),
+                    _ => unimplemented!("only 1 or 2 channels supported, got {}", channels),
                 },
             )
             .unwrap(),
@@ -260,15 +269,26 @@ fn output_curry_callback<T: Sample + AddAssign + SaturatingAdd>(
 fn input_callback<T: Sample>(
     mut opus_encoder: opus::Encoder,
     mut input_sender: Sender<VoicePacketPayload>,
+    sample_rate: u32,
+    opus_frame_size_ms: f32,
 ) -> impl FnMut(&[T], &InputCallbackInfo) + Send + 'static {
+    if ! (   opus_frame_size_ms ==  2.5
+          || opus_frame_size_ms ==  5.0
+          || opus_frame_size_ms == 10.0
+          || opus_frame_size_ms == 20.0) {
+        panic!("Unsupported opus frame size {}", opus_frame_size_ms);
+    }
+    let opus_frame_size = (opus_frame_size_ms * sample_rate as f32) as u32 / 1000;
+
+
     let buf = Arc::new(Mutex::new(VecDeque::new()));
     move |data: &[T], _info: &InputCallbackInfo| {
         let mut buf = buf.lock().unwrap();
         let out: Vec<f32> = data.iter().map(|e| e.to_f32()).collect();
         buf.extend(out);
-        while buf.len() >= 2880 {
-            let tail = buf.split_off(2880);
-            let mut opus_buf: Vec<u8> = vec![0; 100_000];
+        while buf.len() >= opus_frame_size as usize {
+            let tail = buf.split_off(opus_frame_size as usize);
+            let mut opus_buf: Vec<u8> = vec![0; opus_frame_size as usize];
             let result = opus_encoder
                 .encode_float(&Vec::from(buf.clone()), &mut opus_buf)
                 .unwrap();
