@@ -155,7 +155,7 @@ async fn listen_tcp(
                 println!("Login rejected: {:?}", msg);
             }
             ControlPacket::UserState(msg) => {
-                println!("Found user {}", msg.get_name());
+                println!("Found user {} with id {}", msg.get_name(), msg.get_session());
                 audio.lock().unwrap().add_client(msg.get_session());
             }
             ControlPacket::UserRemove(msg) => {
