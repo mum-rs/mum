@@ -3,18 +3,24 @@
 * Bättre error handling
 * Split audio input/output
 * Ljudvolymen
+Via kommando, inget automatiskt
 * REPL
 ** quit (+ graceful exit)
 ** connect
 ** textmeddelanden
 * enum command
 * Kombinera flera ljudkällor rimligt (utan clipping)
+Compression. https://docs.rs/compressor/0.3.0/compressor/
 * Mindre pub
+Urk
 * UDP crypt state resync?? Kommentar från exemplet
 Se Mumble.proto: CryptSetup. Både server och klient kan skicka en tom request
 för att skaffa en ny crypt.
 * Refaktorera TCP-paket
 * Dela upp network.rs i network/tcp.rs, network/udp.rs
 * Coolare invalid cert-check
-* Bättre logging
+Fråga användaren vad som ska hända om ett invalid cert dyker upp istället för
+att ha det som en flagga vid start
+* Bättre logging :gustav:
 https://crates.io/crates/log
+* Få igång mumctl
