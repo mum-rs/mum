@@ -82,7 +82,7 @@ async fn main() {
 
     // Run it
     join!(
-        network::handle_tcp(
+        network::tcp::handle(
             server_state,
             server_addr,
             server_host,
@@ -91,7 +91,7 @@ async fn main() {
             crypt_state_sender,
             Arc::clone(&audio),
         ),
-        network::handle_udp(
+        network::udp::handle(
             server_addr,
             crypt_state_receiver,
             audio,
