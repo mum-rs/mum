@@ -1,0 +1,3 @@
+#+TITLE: mum
+
+Mumble client/daemon pair (think mpc(1)) written in Rust.
