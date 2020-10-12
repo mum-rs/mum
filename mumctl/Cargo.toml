@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+#clap = "2.33"
 #cursive = "0.15"
-ipc-channel = "0.14"
-serde = { version = "1.0", features = ["derive"] }
-clap = "2.33"
+#ipc-channel = "0.14"
+#serde = { version = "1.0", features = ["derive"] }

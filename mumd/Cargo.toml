@@ -7,23 +7,20 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-daemonize = "0.4"
-ipc-channel = "0.14"
-serde = { version = "1.0", features = ["derive"] }
-clap = "2.33"
-mumble-protocol = "0.3"
-cpal = { git = "https://github.com/RustAudio/cpal" }
-opus = "0.2"
-futures-util = "0.3"
-
-bytes = "0.5"
-byteorder = "1"
-protobuf = "2"
-openssl = { version = "0.10", optional = true }
-
 argparse = "0.2"
+bytes = "0.5"
+cpal = { git = "https://github.com/RustAudio/cpal" }
 futures = "0.3"
+futures-util = "0.3"
+mumble-protocol = "0.3"
 native-tls = "0.2"
+openssl = { version = "0.10", optional = true }
+opus = "0.2"
 tokio = { version = "0.2", features = ["full"] }
-tokio-util = { version = "0.3", features = ["codec", "udp"] }
 tokio-tls = "0.3"
+tokio-util = { version = "0.3", features = ["codec", "udp"] }
+
+#clap = "2.33"
+#compressor = "0.3"
+#daemonize = "0.4"
+#ipc-channel = "0.14"
