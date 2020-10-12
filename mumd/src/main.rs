@@ -1,6 +1,9 @@
 mod audio;
 mod network;
+mod command;
+mod state;
 use crate::audio::Audio;
+use crate::state::Server;
 
 use argparse::ArgumentParser;
 use argparse::Store;
@@ -51,9 +54,12 @@ async fn main() {
     audio.output_stream.play().unwrap();
     let audio = Arc::new(Mutex::new(audio));
 
+    let server_state = Arc::new(Mutex::new(Server::new()));
+
     // Run it
     join!(
         network::handle_tcp(
+            server_state,
             server_addr,
             server_host,
             username,
@@ -61,6 +67,10 @@ async fn main() {
             crypt_state_sender,
             Arc::clone(&audio),
         ),
-        network::handle_udp(server_addr, crypt_state_receiver, audio,),
+        network::handle_udp(
+            server_addr,
+            crypt_state_receiver,
+            audio,
+        ),
     );
 }

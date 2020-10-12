@@ -1,4 +1,5 @@
 use crate::audio::Audio;
+use crate::state::Server;
 
 use bytes::Bytes;
 use futures::channel::oneshot;
@@ -102,6 +103,7 @@ async fn authenticate(sink: Arc<Mutex<TcpSender>>, username: String) {
 }
 
 async fn listen_tcp(
+    server: Arc<Mutex<Server>>,
     sink: Arc<Mutex<TcpSender>>,
     mut stream: TcpReceiver,
     crypt_state_sender: oneshot::Sender<ClientCryptState>,
@@ -141,26 +143,50 @@ async fn listen_tcp(
                         .expect("Server sent server_nonce with incorrect size"),
                 ));
             }
-            ControlPacket::ServerSync(_) => {
+            ControlPacket::ServerSync(msg) => {
                 println!("Logged in!");
                 if let Some(sender) = crypt_state_sender.take() {
-                    let _ = sender.send(
+                    sender.send(
                         crypt_state
                             .take()
                             .expect("Server didn't send us any CryptSetup packet!"),
                     );
                 }
+                let mut server = server.lock().unwrap();
+                server.parse_server_sync(msg);
+                match &server.welcome_text {
+                    Some(s) => println!("Welcome: {}", s),
+                    None => println!("No welcome found"),
+                }
+                for (_, channel) in server.channels() {
+                    println!("Found channel {}", channel.name());
+                }
+                sink.lock().unwrap().send(msgs::UserList::new().into()).await.unwrap();
             }
             ControlPacket::Reject(msg) => {
                 println!("Login rejected: {:?}", msg);
             }
             ControlPacket::UserState(msg) => {
-                println!("Found user {} with id {}", msg.get_name(), msg.get_session());
                 audio.lock().unwrap().add_client(msg.get_session());
+                let mut server = server.lock().unwrap();
+                let session = msg.get_session();
+                server.parse_user_state(msg);
+                let user = server.users().get(&session).unwrap();
+                println!("User {} connected to {}",
+                         user.name(),
+                         user.channel());
             }
             ControlPacket::UserRemove(msg) => {
                 println!("User {} left", msg.get_session());
                 audio.lock().unwrap().remove_client(msg.get_session());
+            }
+            ControlPacket::ChannelState(msg) => {
+                server.lock().unwrap().parse_channel_state(msg);
+            }
+            ControlPacket::ChannelRemove(msg) => {}
+            ControlPacket::UserList(msg) => {
+                println!("User list received");
+                println!("{:?}", msg);
             }
             _ => {}
         }
@@ -168,6 +194,7 @@ async fn listen_tcp(
 }
 
 pub async fn handle_tcp(
+    server: Arc<Mutex<Server>>,
     server_addr: SocketAddr,
     server_host: String,
     username: String,
@@ -185,7 +212,7 @@ pub async fn handle_tcp(
 
     join!(
         send_pings(Arc::clone(&sink), 10),
-        listen_tcp(sink, stream, crypt_state_sender, audio),
+        listen_tcp(server, sink, stream, crypt_state_sender, audio),
     );
 }
 
