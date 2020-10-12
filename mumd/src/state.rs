@@ -35,6 +35,17 @@ impl Server {
         }
     }
 
+    pub fn parse_channel_remove(&mut self, msg: Box<msgs::ChannelRemove>) {
+        if !msg.has_channel_id() {
+            warn!("Can't parse channel remove without channel id");
+            return;
+        }
+        match self.channels.entry(msg.get_channel_id()) {
+            Entry::Vacant(_) => { warn!("Attempted to remove channel that doesn't exist"); }
+            Entry::Occupied(e) => { e.remove(); }
+        }
+    }
+
     pub fn parse_user_state(&mut self, msg: Box<msgs::UserState>) {
         if !msg.has_session() {
             warn!("Can't parse user state without session");
