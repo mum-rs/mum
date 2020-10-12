@@ -1,3 +1,4 @@
+use log::*;
 use mumble_protocol::control::msgs;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
@@ -25,7 +26,7 @@ impl Server {
 
     pub fn parse_channel_state(&mut self, msg: Box<msgs::ChannelState>) {
         if !msg.has_channel_id() {
-            eprintln!("Can't parse channel state without channel id");
+            warn!("Can't parse channel state without channel id");
             return;
         }
         match self.channels.entry(msg.get_channel_id()) {
@@ -36,7 +37,7 @@ impl Server {
 
     pub fn parse_user_state(&mut self, msg: Box<msgs::UserState>) {
         if !msg.has_session() {
-            eprintln!("Can't parse user state without session");
+            warn!("Can't parse user state without session");
             return;
         }
         match self.users.entry(msg.get_session()) {
