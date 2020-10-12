@@ -5,6 +5,7 @@ use bytes::Bytes;
 use futures::channel::oneshot;
 use futures::{join, SinkExt, StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
+use log::*;
 use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPacket};
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
@@ -35,7 +36,7 @@ async fn connect_tcp(
     let stream = TcpStream::connect(&server_addr)
         .await
         .expect("failed to connect to server:");
-    println!("TCP connected");
+    debug!("TCP connected");
 
     let mut builder = native_tls::TlsConnector::builder();
     builder.danger_accept_invalid_certs(accept_invalid_cert);
@@ -47,7 +48,7 @@ async fn connect_tcp(
         .connect(&server_host, stream)
         .await
         .expect("failed to connect TLS: {}");
-    println!("TLS connected");
+    debug!("TLS connected");
 
     // Wrap the TLS stream with Mumble's client-side control-channel codec
     ClientControlCodec::new().framed(tls_stream).split()
@@ -67,7 +68,7 @@ pub async fn connect_udp(
         // disconnected before we received the CryptSetup packet, oh well
         Err(_) => panic!("disconnect before crypt packet received"), //TODO exit gracefully
     };
-    println!("UDP ready!");
+    debug!("UDP connected");
 
     // Wrap the raw UDP packets in Mumble's crypto and voice codec (CryptState does both)
     UdpFramed::new(udp_socket, crypt_state).split()
@@ -77,7 +78,7 @@ async fn send_pings(sink: Arc<Mutex<TcpSender>>, delay_seconds: u64) {
     let mut interval = time::interval(Duration::from_secs(delay_seconds));
     loop {
         interval.tick().await;
-        println!("Sending ping");
+        trace!("Sending ping");
         let msg = msgs::Ping::new();
         sink.lock().unwrap().send(msg.into()).await.unwrap();
     }
@@ -104,7 +105,7 @@ async fn listen_tcp(
         //TODO handle types separately
         match packet.unwrap() {
             ControlPacket::TextMessage(mut msg) => {
-                println!(
+                info!(
                     "Got message from user with session ID {}: {}",
                     msg.get_actor(),
                     msg.get_message()
@@ -117,7 +118,7 @@ async fn listen_tcp(
                 lock.send(response.into()).await.unwrap();
             }
             ControlPacket::CryptSetup(msg) => {
-                println!("crypt setup");
+                debug!("Crypt setup");
                 // Wait until we're fully connected before initiating UDP voice
                 crypt_state = Some(ClientCryptState::new_from(
                     msg.get_key()
@@ -132,7 +133,7 @@ async fn listen_tcp(
                 ));
             }
             ControlPacket::ServerSync(msg) => {
-                println!("Logged in!");
+                info!("Logged in");
                 if let Some(sender) = crypt_state_sender.take() {
                     sender.send(
                         crypt_state
@@ -143,16 +144,16 @@ async fn listen_tcp(
                 let mut server = server.lock().unwrap();
                 server.parse_server_sync(msg);
                 match &server.welcome_text {
-                    Some(s) => println!("Welcome: {}", s),
-                    None => println!("No welcome found"),
+                    Some(s) => info!("Welcome: {}", s),
+                    None => info!("No welcome received"),
                 }
                 for (_, channel) in server.channels() {
-                    println!("Found channel {}", channel.name());
+                    info!("Found channel {}", channel.name());
                 }
                 sink.lock().unwrap().send(msgs::UserList::new().into()).await.unwrap();
             }
             ControlPacket::Reject(msg) => {
-                println!("Login rejected: {:?}", msg);
+                warn!("Login rejected: {:?}", msg);
             }
             ControlPacket::UserState(msg) => {
                 audio.lock().unwrap().add_client(msg.get_session());
@@ -160,22 +161,19 @@ async fn listen_tcp(
                 let session = msg.get_session();
                 server.parse_user_state(msg);
                 let user = server.users().get(&session).unwrap();
-                println!("User {} connected to {}",
+                info!("User {} connected to {}",
                          user.name(),
                          user.channel());
             }
             ControlPacket::UserRemove(msg) => {
-                println!("User {} left", msg.get_session());
+                info!("User {} left", msg.get_session());
                 audio.lock().unwrap().remove_client(msg.get_session());
             }
             ControlPacket::ChannelState(msg) => {
+                debug!("Channel state received");
                 server.lock().unwrap().parse_channel_state(msg);
             }
             ControlPacket::ChannelRemove(msg) => {}
-            ControlPacket::UserList(msg) => {
-                println!("User list received");
-                println!("{:?}", msg);
-            }
             _ => {}
         }
     }
@@ -196,7 +194,7 @@ pub async fn handle_tcp(
     // Handshake (omitting `Version` message for brevity)
     authenticate(Arc::clone(&sink), username).await;
 
-    println!("Logging in..");
+    info!("Logging in...");
 
     join!(
         send_pings(Arc::clone(&sink), 10),
@@ -213,7 +211,7 @@ async fn listen_udp(
         let (packet, _src_addr) = match packet {
             Ok(packet) => packet,
             Err(err) => {
-                eprintln!("Got an invalid UDP packet: {}", err);
+                warn!("Got an invalid UDP packet: {}", err);
                 // To be expected, considering this is the internet, just ignore it
                 continue;
             }

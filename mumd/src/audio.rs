@@ -4,6 +4,7 @@ use cpal::traits::HostTrait;
 use cpal::{
     InputCallbackInfo, OutputCallbackInfo, Sample, SampleFormat, SampleRate, Stream, StreamConfig,
 };
+use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use opus::Channels;
 use std::collections::hash_map::Entry;
@@ -62,7 +63,7 @@ impl Audio {
         let input_supported_sample_format = input_supported_config.sample_format();
         let input_config: StreamConfig = input_supported_config.into();
 
-        let err_fn = |err| eprintln!("an error occurred on the output audio stream: {}", err);
+        let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
 
         let client_streams = Arc::new(Mutex::new(HashMap::new()));
         let output_stream = match output_supported_sample_format {
@@ -90,7 +91,7 @@ impl Audio {
                 1 => Channels::Mono,
                 2 => Channels::Stereo,
                 _ => unimplemented!(
-                    "only 1 or 2 channels supported, got {})",
+                    "Only 1 or 2 channels supported, got {})",
                     input_config.channels
                 ),
             },
@@ -147,7 +148,7 @@ impl Audio {
                     .decode_packet(payload, self.output_config.channels as usize);
             }
             Entry::Vacant(_) => {
-                eprintln!("cannot find session id {}", session_id);
+                warn!("Can't find session id {}", session_id);
             }
         }
     }
@@ -155,7 +156,7 @@ impl Audio {
     pub fn add_client(&self, session_id: u32) {
         match self.client_streams.lock().unwrap().entry(session_id) {
             Entry::Occupied(_) => {
-                eprintln!("session id {} already exists", session_id);
+                warn!("Session id {} already exists", session_id);
             }
             Entry::Vacant(entry) => {
                 entry.insert(ClientStream::new(
@@ -172,8 +173,8 @@ impl Audio {
                 entry.remove();
             }
             Entry::Vacant(_) => {
-                eprintln!(
-                    "tried to remove session id {} that doesn't exist",
+                warn!(
+                    "Tried to remove session id {} that doesn't exist",
                     session_id
                 );
             }
@@ -194,7 +195,7 @@ impl ClientStream {
                 match channels {
                     1 => Channels::Mono,
                     2 => Channels::Stereo,
-                    _ => unimplemented!("only 1 or 2 channels supported, got {}", channels),
+                    _ => unimplemented!("Only 1 or 2 channels supported, got {}", channels),
                 },
             )
             .unwrap(),
@@ -207,12 +208,12 @@ impl ClientStream {
                 let mut out: Vec<f32> = vec![0.0; 720 * channels * 4]; //720 is because that is the max size of packet we can get that we want to decode
                 let parsed = self.opus_decoder
                     .decode_float(&bytes, &mut out, false)
-                    .expect("error decoding");
+                    .expect("Error decoding");
                 out.truncate(parsed);
                 self.buffer.extend(out);
             }
             _ => {
-                unimplemented!("payload type not supported");
+                unimplemented!("Payload type not supported");
             }
         }
     }
