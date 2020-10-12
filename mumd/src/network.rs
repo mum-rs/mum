@@ -135,7 +135,7 @@ async fn listen_tcp(
             ControlPacket::ServerSync(msg) => {
                 info!("Logged in");
                 if let Some(sender) = crypt_state_sender.take() {
-                    sender.send(
+                    let _ = sender.send(
                         crypt_state
                             .take()
                             .expect("Server didn't send us any CryptSetup packet!"),
@@ -173,7 +173,9 @@ async fn listen_tcp(
                 debug!("Channel state received");
                 server.lock().unwrap().parse_channel_state(msg);
             }
-            ControlPacket::ChannelRemove(msg) => {}
+            ControlPacket::ChannelRemove(msg) => {
+                server.lock().unwrap().parse_channel_remove(msg);
+            }
             _ => {}
         }
     }
