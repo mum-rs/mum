@@ -90,6 +90,7 @@ impl State {
 
     pub fn audio(&self) -> &Audio { &self.audio }
     pub fn audio_mut(&mut self) -> &mut Audio { &mut self.audio }
+    pub fn packet_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> { self.packet_sender.clone() }
     pub fn initialized_receiver(&self) -> watch::Receiver<bool> { self.initialized_watcher.1.clone() }
     pub fn server_mut(&mut self) -> &mut Server { &mut self.server }
     pub fn username(&self) -> &str { &self.username }

@@ -82,14 +82,14 @@ async fn authenticate(sink: Arc<Mutex<TcpSender>>, username: String) {
     sink.lock().unwrap().send(msg.into()).await.unwrap();
 }
 
-//TODO move somewhere else (main?) and send through packet_sender
-async fn send_pings(sink: Arc<Mutex<TcpSender>>, delay_seconds: u64) {
+async fn send_pings(packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
+                    delay_seconds: u64) {
     let mut interval = time::interval(Duration::from_secs(delay_seconds));
     loop {
         interval.tick().await;
         trace!("Sending ping");
         let msg = msgs::Ping::new();
-        sink.lock().unwrap().send(msg.into()).await.unwrap();
+        packet_sender.send(msg.into()).unwrap();
     }
 }
 
