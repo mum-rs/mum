@@ -1,5 +1,4 @@
 use crate::state::State;
-use crate::command::Command;
 use log::*;
 
 use futures::channel::oneshot;
@@ -32,17 +31,15 @@ pub async fn handle(
     crypt_state_sender: oneshot::Sender<ClientCryptState>,
     packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
 ) {
-    let (sink, stream) = connect(server_addr, server_host, accept_invalid_cert).await;
-    let sink = Arc::new(Mutex::new(sink));
-
+    let (mut sink, stream) = connect(server_addr, server_host, accept_invalid_cert).await;
 
     // Handshake (omitting `Version` message for brevity)
-    authenticate(Arc::clone(&sink), state.lock().unwrap().username().to_string()).await;
+    authenticate(&mut sink, state.lock().unwrap().username().to_string()).await;
 
     info!("Logging in...");
 
     join!(
-        send_pings(Arc::clone(&sink), 10),
+        send_pings(state.lock().unwrap().packet_sender(), 10),
         listen(state, stream, crypt_state_sender),
         send_packets(sink, packet_receiver),
     );
@@ -74,12 +71,11 @@ async fn connect(
     ClientControlCodec::new().framed(tls_stream).split()
 }
 
-//TODO &mut sink?
-async fn authenticate(sink: Arc<Mutex<TcpSender>>, username: String) {
+async fn authenticate(sink: &mut TcpSender, username: String) {
     let mut msg = msgs::Authenticate::new();
     msg.set_username(username);
     msg.set_opus(true);
-    sink.lock().unwrap().send(msg.into()).await.unwrap();
+    sink.send(msg.into()).await.unwrap();
 }
 
 async fn send_pings(packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
@@ -93,11 +89,11 @@ async fn send_pings(packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbou
     }
 }
 
-async fn send_packets(sink: Arc<Mutex<TcpSender>>,
+async fn send_packets(mut sink: TcpSender,
                       mut packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>) {
 
     while let Some(packet) = packet_receiver.recv().await {
-        sink.lock().unwrap().send(packet).await.unwrap();
+        sink.send(packet).await.unwrap();
     }
 }
 
