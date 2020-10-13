@@ -1,5 +1,3 @@
-#+TITLE: Todo
-
 * Next
 ** enum command
 ** Få igång mumctl
