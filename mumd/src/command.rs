@@ -1,4 +1,4 @@
-enum Command {
+pub enum Command {
     ChannelJoin {
         channel_id: u32,
     },

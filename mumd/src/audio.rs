@@ -1,6 +1,5 @@
 use bytes::Bytes;
-use cpal::traits::DeviceTrait;
-use cpal::traits::HostTrait;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
     InputCallbackInfo, OutputCallbackInfo, Sample, SampleFormat, SampleRate, Stream, StreamConfig,
 };
@@ -30,7 +29,7 @@ pub struct Audio {
     pub input_buffer: Arc<Mutex<VecDeque<f32>>>,
     input_channel_receiver: Option<Receiver<VoicePacketPayload>>,
 
-    client_streams: Arc<Mutex<HashMap<u32, ClientStream>>>,
+    client_streams: Arc<Mutex<HashMap<u32, ClientStream>>>, //TODO move to user state
 }
 
 //TODO split into input/output
@@ -128,6 +127,8 @@ impl Audio {
             ),
         }
         .unwrap();
+
+        output_stream.play().unwrap();
 
         Self {
             output_config,

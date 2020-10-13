@@ -2,21 +2,22 @@ mod audio;
 mod network;
 mod command;
 mod state;
-use crate::audio::Audio;
-use crate::state::Server;
+use crate::state::State;
 
 use argparse::ArgumentParser;
 use argparse::Store;
 use argparse::StoreTrue;
 use colored::*;
-use cpal::traits::StreamTrait;
 use futures::channel::oneshot;
 use futures::join;
 use log::*;
+use mumble_protocol::control::ControlPacket;
 use mumble_protocol::crypt::ClientCryptState;
+use mumble_protocol::voice::Serverbound;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
 use std::sync::Mutex;
+use tokio::sync::mpsc;
 
 #[tokio::main]
 async fn main() {
@@ -73,28 +74,24 @@ async fn main() {
     // Oneshot channel for setting UDP CryptState from control task
     // For simplicity we don't deal with re-syncing, real applications would have to.
     let (crypt_state_sender, crypt_state_receiver) = oneshot::channel::<ClientCryptState>();
+    let (packet_sender, packet_receiver) = mpsc::channel::<ControlPacket<Serverbound>>(10);
 
-    let audio = Audio::new();
-    audio.output_stream.play().unwrap();
-    let audio = Arc::new(Mutex::new(audio));
-
-    let server_state = Arc::new(Mutex::new(Server::new()));
+    let state = Arc::new(Mutex::new(State::new(packet_sender, username)));
 
     // Run it
     join!(
         network::tcp::handle(
-            server_state,
+            Arc::clone(&state),
             server_addr,
             server_host,
-            username,
             accept_invalid_cert,
             crypt_state_sender,
-            Arc::clone(&audio),
+            packet_receiver,
         ),
         network::udp::handle(
+            state,
             server_addr,
             crypt_state_receiver,
-            audio,
         ),
     );
 }

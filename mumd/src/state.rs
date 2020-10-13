@@ -1,7 +1,88 @@
 use log::*;
+use crate::audio::Audio;
+use crate::command::Command;
 use mumble_protocol::control::msgs;
+use mumble_protocol::control::ControlPacket;
+use mumble_protocol::voice::Serverbound;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use tokio::sync::mpsc;
+
+pub struct State {
+    server: Server,
+    audio: Audio,
+
+    packet_sender: mpsc::Sender<ControlPacket<Serverbound>>,
+
+    username: String,
+    session_id: Option<u32>, //FIXME set
+}
+
+impl State {
+    pub fn new(packet_sender: mpsc::Sender<ControlPacket<Serverbound>>,
+               username: String) -> Self {
+        Self {
+            server: Server::new(),
+            audio: Audio::new(),
+            packet_sender,
+            username,
+            session_id: None,
+        }
+    }
+
+    //TODO result
+    pub async fn handle_command(&mut self, command: Command) {
+        match command {
+            Command::ChannelJoin{channel_id} => {
+                if self.session_id.is_none() {
+                    warn!("Tried to join channel but we don't have a session id");
+                    return;
+                }
+                let mut msg = msgs::UserState::new();
+                msg.set_session(self.session_id.unwrap());
+                msg.set_channel_id(channel_id);
+                self.packet_sender.send(msg.into()).await.unwrap();
+            }
+            _ => {}
+        }
+    }
+
+    pub fn parse_initial_user_state(&mut self, msg: Box<msgs::UserState>) {
+        if !msg.has_session() {
+            warn!("Can't parse user state without session");
+            return;
+        }
+        if !msg.has_name() {
+            warn!("Missing name in initial user state");
+        } else {
+            if msg.get_name() == self.username {
+                match self.session_id {
+                    None => {
+                        debug!("Found our session id: {}", msg.get_session());
+                        self.session_id = Some(msg.get_session());
+                    }
+                    Some(session) => {
+                        if session != msg.get_session() {
+                            error!("Got two different session IDs ({} and {}) for ourselves",
+                                session,
+                                msg.get_session());
+                        } else {
+                            debug!("Got our session ID twice");
+                        }
+                    }
+                }
+            }
+        }
+        self.server.parse_user_state(msg);
+    }
+
+    pub fn audio(&self) -> &Audio { &self.audio }
+    pub fn audio_mut(&mut self) -> &mut Audio { &mut self.audio }
+
+    pub fn username(&self) -> &str { &self.username }
+
+    pub fn server_mut(&mut self) -> &mut Server { &mut self.server }
+}
 
 pub struct Server {
     channels: HashMap<u32, Channel>,

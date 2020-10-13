@@ -1,4 +1,4 @@
-use crate::audio::Audio;
+use crate::state::State;
 use log::*;
 
 use bytes::Bytes;
@@ -36,10 +36,28 @@ pub async fn connect(
     UdpFramed::new(udp_socket, crypt_state).split()
 }
 
+pub async fn handle(
+    state: Arc<Mutex<State>>,
+    server_addr: SocketAddr,
+    crypt_state: oneshot::Receiver<ClientCryptState>,
+) {
+    let (mut sink, source) = connect(crypt_state).await;
+
+    // Note: A normal application would also send periodic Ping packets, and its own audio
+    //       via UDP. We instead trick the server into accepting us by sending it one
+    //       dummy voice packet.
+    send_ping(&mut sink, server_addr).await;
+
+    let sink = Arc::new(Mutex::new(sink));
+    join!(
+        listen(Arc::clone(&state), source),
+        send_voice(state, sink, server_addr)
+    );
+}
+
 async fn listen(
-    _sink: Arc<Mutex<UdpSender>>,
+    state: Arc<Mutex<State>>,
     mut source: UdpReceiver,
-    audio: Arc<Mutex<Audio>>,
 ) {
     while let Some(packet) = source.next().await {
         let (packet, _src_addr) = match packet {
@@ -63,7 +81,7 @@ async fn listen(
                 // position_info,
                 ..
             } => {
-                audio.lock().unwrap().decode_packet(session_id, payload);
+                state.lock().unwrap().audio().decode_packet(session_id, payload);
             }
         }
     }
@@ -86,11 +104,11 @@ async fn send_ping(sink: &mut UdpSender, server_addr: SocketAddr) {
 }
 
 async fn send_voice(
+    state: Arc<Mutex<State>>,
     sink: Arc<Mutex<UdpSender>>,
     server_addr: SocketAddr,
-    audio: Arc<Mutex<Audio>>,
 ) {
-    let mut receiver = audio.lock().unwrap().take_receiver().unwrap();
+    let mut receiver = state.lock().unwrap().audio_mut().take_receiver().unwrap();
 
     let mut count = 0;
     while let Some(payload) = receiver.recv().await {
@@ -111,21 +129,3 @@ async fn send_voice(
     }
 }
 
-pub async fn handle(
-    server_addr: SocketAddr,
-    crypt_state: oneshot::Receiver<ClientCryptState>,
-    audio: Arc<Mutex<Audio>>,
-) {
-    let (mut sink, source) = connect(crypt_state).await;
-
-    // Note: A normal application would also send periodic Ping packets, and its own audio
-    //       via UDP. We instead trick the server into accepting us by sending it one
-    //       dummy voice packet.
-    send_ping(&mut sink, server_addr).await;
-
-    let sink = Arc::new(Mutex::new(sink));
-    join!(
-        listen(Arc::clone(&sink), source, Arc::clone(&audio)),
-        send_voice(sink, server_addr, audio)
-    );
-}
