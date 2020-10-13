@@ -162,7 +162,11 @@ async fn listen(
                 let mut state = state.lock().unwrap();
                 let session = msg.get_session();
                 state.audio_mut().add_client(msg.get_session()); //TODO
-                state.parse_initial_user_state(msg); //TODO only if actually initiating state
+                if *state.initialized_receiver().borrow() {
+                    state.server_mut().parse_user_state(msg);
+                } else {
+                    state.parse_initial_user_state(msg);
+                }
                 let server = state.server_mut();
                 let user = server.users().get(&session).unwrap();
                 info!("User {} connected to {}",
@@ -175,7 +179,7 @@ async fn listen(
             }
             ControlPacket::ChannelState(msg) => {
                 debug!("Channel state received");
-                state.lock().unwrap().server_mut().parse_channel_state(msg);
+                state.lock().unwrap().server_mut().parse_channel_state(msg); //TODO parse initial if initial
             }
             ControlPacket::ChannelRemove(msg) => {
                 state.lock().unwrap().server_mut().parse_channel_remove(msg);
