@@ -2,7 +2,9 @@ mod audio;
 mod network;
 mod command;
 mod state;
+
 use crate::state::State;
+use crate::command::Command;
 
 use argparse::ArgumentParser;
 use argparse::Store;
@@ -15,13 +17,13 @@ use mumble_protocol::control::ControlPacket;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::Serverbound;
 use std::net::ToSocketAddrs;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
 #[tokio::main]
 async fn main() {
     // setup logger
+    //TODO? add newline before message if it contains newlines
     fern::Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
@@ -74,9 +76,12 @@ async fn main() {
     // Oneshot channel for setting UDP CryptState from control task
     // For simplicity we don't deal with re-syncing, real applications would have to.
     let (crypt_state_sender, crypt_state_receiver) = oneshot::channel::<ClientCryptState>();
-    let (packet_sender, packet_receiver) = mpsc::channel::<ControlPacket<Serverbound>>(10);
+    let (packet_sender, packet_receiver) = mpsc::unbounded_channel::<ControlPacket<Serverbound>>();
+    let (command_sender, command_receiver) = mpsc::unbounded_channel::<Command>();
 
-    let state = Arc::new(Mutex::new(State::new(packet_sender, username)));
+    command_sender.send(Command::ChannelJoin{channel_id: 1}).unwrap();
+    let state = State::new(packet_sender, command_sender, username);
+    let state = Arc::new(Mutex::new(state));
 
     // Run it
     join!(
@@ -89,9 +94,13 @@ async fn main() {
             packet_receiver,
         ),
         network::udp::handle(
-            state,
+            Arc::clone(&state),
             server_addr,
             crypt_state_receiver,
+        ),
+        command::handle(
+            state,
+            command_receiver,
         ),
     );
 }

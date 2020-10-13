@@ -27,7 +27,7 @@ pub struct Audio {
     pub input_config: StreamConfig,
     pub input_stream: Stream,
     pub input_buffer: Arc<Mutex<VecDeque<f32>>>,
-    input_channel_receiver: Option<Receiver<VoicePacketPayload>>,
+    input_channel_receiver: Option<Receiver<VoicePacketPayload>>, //TODO unbounded? mbe ring buffer and drop the first packet
 
     client_streams: Arc<Mutex<HashMap<u32, ClientStream>>>, //TODO move to user state
 }

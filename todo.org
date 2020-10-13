@@ -1,13 +1,12 @@
 #+TITLE: Todo
 
-* Next
+* Current
 ** enum command
 *** Flytta ping
 *** Resterande (grundläggande) commands
 *** Flytta ljudgrejer till client state
-*** Flagga när vi tar emot initial state
-*** Börja lyssna efter paket att skicka först när state tagits emot
-Använd en oneshot-kanal (future)
+
+* Next
 ** Få igång mumctl
 ** Split audio input/output
 ** Refaktorera TCP-paket
@@ -15,7 +14,7 @@ Använd en oneshot-kanal (future)
 ** Hantera fler TCP-paket
 ** Tolka diffs när nytt state kommer in
 
-* backburner
+* Later
 ** Kombinera flera ljudkällor rimligt (utan clipping)
 Compression. https://docs.rs/compressor/0.3.0/compressor/
 ** UDP crypt state resync?? Kommentar från exemplet

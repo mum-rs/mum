@@ -6,25 +6,33 @@ use mumble_protocol::control::ControlPacket;
 use mumble_protocol::voice::Serverbound;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 pub struct State {
     server: Server,
     audio: Audio,
 
-    packet_sender: mpsc::Sender<ControlPacket<Serverbound>>,
+    packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
+    command_sender: mpsc::UnboundedSender<Command>,
+
+    initialized_watcher: (watch::Sender<bool>, watch::Receiver<bool>),
 
     username: String,
     session_id: Option<u32>,
 }
 
 impl State {
-    pub fn new(packet_sender: mpsc::Sender<ControlPacket<Serverbound>>,
-               username: String) -> Self {
+    pub fn new(
+        packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
+        command_sender: mpsc::UnboundedSender<Command>,
+        username: String,
+    ) -> Self {
         Self {
             server: Server::new(),
             audio: Audio::new(),
             packet_sender,
+            command_sender,
+            initialized_watcher: watch::channel(false),
             username,
             session_id: None,
         }
@@ -41,7 +49,7 @@ impl State {
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.session_id.unwrap());
                 msg.set_channel_id(channel_id);
-                self.packet_sender.send(msg.into()).await.unwrap();
+                self.packet_sender.send(msg.into()).unwrap();
             }
             _ => {}
         }
@@ -76,12 +84,15 @@ impl State {
         self.server.parse_user_state(msg);
     }
 
+    pub fn initialized(&self) {
+        self.initialized_watcher.0.broadcast(true).unwrap();
+    }
+
     pub fn audio(&self) -> &Audio { &self.audio }
     pub fn audio_mut(&mut self) -> &mut Audio { &mut self.audio }
-
-    pub fn username(&self) -> &str { &self.username }
-
+    pub fn initialized_receiver(&self) -> watch::Receiver<bool> { self.initialized_watcher.1.clone() }
     pub fn server_mut(&mut self) -> &mut Server { &mut self.server }
+    pub fn username(&self) -> &str { &self.username }
 }
 
 pub struct Server {
@@ -146,7 +157,6 @@ impl Server {
         &self.users
     }
 }
-
 
 pub struct Channel {
     description: Option<String>,

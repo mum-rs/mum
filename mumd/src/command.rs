@@ -1,3 +1,9 @@
+use crate::state::State;
+
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
+
+#[derive(Debug)]
 pub enum Command {
     ChannelJoin {
         channel_id: u32,
@@ -11,4 +17,17 @@ pub enum Command {
     },
     ServerDisconnect,
     Status,
+}
+
+pub async fn handle(
+    state: Arc<Mutex<State>>,
+    mut command_receiver: mpsc::UnboundedReceiver<Command>,
+) {
+    // wait until we can send packages
+    let mut initialized_receiver = state.lock().unwrap().initialized_receiver();
+    while matches!(initialized_receiver.recv().await, Some(false)) {}
+
+    while let Some(command) = command_receiver.recv().await {
+        state.lock().unwrap().handle_command(command).await;
+    }
 }

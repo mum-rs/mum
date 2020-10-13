@@ -30,7 +30,7 @@ pub async fn handle(
     server_host: String,
     accept_invalid_cert: bool,
     crypt_state_sender: oneshot::Sender<ClientCryptState>,
-    packet_receiver: mpsc::Receiver<ControlPacket<Serverbound>>,
+    packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
 ) {
     let (sink, stream) = connect(server_addr, server_host, accept_invalid_cert).await;
     let sink = Arc::new(Mutex::new(sink));
@@ -94,7 +94,7 @@ async fn send_pings(sink: Arc<Mutex<TcpSender>>, delay_seconds: u64) {
 }
 
 async fn send_packets(sink: Arc<Mutex<TcpSender>>,
-                      mut packet_receiver: mpsc::Receiver<ControlPacket<Serverbound>>) {
+                      mut packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>) {
 
     while let Some(packet) = packet_receiver.recv().await {
         sink.lock().unwrap().send(packet).await.unwrap();
@@ -153,8 +153,7 @@ async fn listen(
                 for (_, channel) in server.channels() {
                     info!("Found channel {}", channel.name());
                 }
-                //TODO start listening for packets to send here
-                state.handle_command(Command::ChannelJoin{channel_id: 1}).await;
+                state.initialized();
             }
             ControlPacket::Reject(msg) => {
                 warn!("Login rejected: {:?}", msg);
