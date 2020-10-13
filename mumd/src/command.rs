@@ -1,5 +1,6 @@
-use crate::state::State;
+use crate::state::{Channel, Server, State};
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -19,14 +20,23 @@ pub enum Command {
     Status,
 }
 
+#[derive(Debug)]
+pub enum CommandResponse {
+    ChannelList {
+        channels: HashMap<u32, Channel>,
+    },
+    Status {
+        username: String,
+        server_state: Server,
+    }
+}
+
 pub async fn handle(
     state: Arc<Mutex<State>>,
     mut command_receiver: mpsc::UnboundedReceiver<Command>,
+    command_response_sender: mpsc::UnboundedSender<Result<Option<CommandResponse>, ()>>,
 ) {
-    // wait until we can send packages
-    let mut initialized_receiver = state.lock().unwrap().initialized_receiver();
-    while matches!(initialized_receiver.recv().await, Some(false)) {}
-
+    //TODO err if not connected
     while let Some(command) = command_receiver.recv().await {
         state.lock().unwrap().handle_command(command).await;
     }

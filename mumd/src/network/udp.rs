@@ -1,3 +1,4 @@
+use crate::network::ConnectionInfo;
 use crate::state::State;
 use log::*;
 
@@ -11,6 +12,7 @@ use mumble_protocol::Serverbound;
 use std::net::{Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
+use tokio::sync::watch;
 use tokio_util::udp::UdpFramed;
 
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
@@ -38,20 +40,27 @@ pub async fn connect(
 
 pub async fn handle(
     state: Arc<Mutex<State>>,
-    server_addr: SocketAddr,
+    mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     crypt_state: oneshot::Receiver<ClientCryptState>,
 ) {
+    let connection_info = loop {
+        match connection_info_receiver.recv().await {
+            None => { return; }
+            Some(None) => {}
+            Some(Some(connection_info)) => { break connection_info; }
+        }
+    };
     let (mut sink, source) = connect(crypt_state).await;
 
     // Note: A normal application would also send periodic Ping packets, and its own audio
     //       via UDP. We instead trick the server into accepting us by sending it one
     //       dummy voice packet.
-    send_ping(&mut sink, server_addr).await;
+    send_ping(&mut sink, connection_info.socket_addr).await;
 
     let sink = Arc::new(Mutex::new(sink));
     join!(
         listen(Arc::clone(&state), source),
-        send_voice(state, sink, server_addr)
+        send_voice(state, sink, connection_info.socket_addr),
     );
 }
 

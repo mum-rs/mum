@@ -1,12 +1,21 @@
 use log::*;
 use crate::audio::Audio;
-use crate::command::Command;
+use crate::command::{Command, CommandResponse};
+use crate::network::ConnectionInfo;
 use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::voice::Serverbound;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StatePhase {
+    Disconnected,
+    Connecting,
+    Connected,
+}
 
 pub struct State {
     server: Server,
@@ -14,10 +23,11 @@ pub struct State {
 
     packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
     command_sender: mpsc::UnboundedSender<Command>,
+    connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
 
-    initialized_watcher: (watch::Sender<bool>, watch::Receiver<bool>),
+    phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
 
-    username: String,
+    username: Option<String>,
     session_id: Option<u32>,
 }
 
@@ -25,6 +35,7 @@ impl State {
     pub fn new(
         packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
         command_sender: mpsc::UnboundedSender<Command>,
+        connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
         username: String,
     ) -> Self {
         Self {
@@ -32,26 +43,50 @@ impl State {
             audio: Audio::new(),
             packet_sender,
             command_sender,
-            initialized_watcher: watch::channel(false),
-            username,
+            connection_info_sender,
+            phase_watcher: watch::channel(StatePhase::Disconnected),
+            username: None,
             session_id: None,
         }
     }
 
-    //TODO result
-    pub async fn handle_command(&mut self, command: Command) {
+    pub async fn handle_command(&mut self, command: Command) -> Result<Option<CommandResponse>, ()> {
         match command {
             Command::ChannelJoin{channel_id} => {
                 if self.session_id.is_none() {
                     warn!("Tried to join channel but we don't have a session id");
-                    return;
+                    return Err(());
                 }
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.session_id.unwrap());
                 msg.set_channel_id(channel_id);
                 self.packet_sender.send(msg.into()).unwrap();
+                Ok(None)
             }
-            _ => {}
+            Command::ChannelList => {
+                Ok(Some(CommandResponse::ChannelList{channels: self.server.channels.clone()}))
+            }
+            Command::ServerConnect{host, port, username, accept_invalid_cert} => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
+                    warn!("Tried to connect to a server while already connected");
+                    return Err(());
+                }
+                self.username = Some(username);
+                self.phase_watcher.0.broadcast(StatePhase::Connecting).unwrap();
+                let socket_addr = (host.as_ref(), port)
+                    .to_socket_addrs()
+                    .expect("Failed to parse server address")
+                    .next()
+                    .expect("Failed to resolve server address");
+                self.connection_info_sender.broadcast(Some(ConnectionInfo::new(
+                    socket_addr,
+                    host,
+                    accept_invalid_cert,
+                )));
+                while !matches!(self.phase_receiver().recv().await.unwrap(), StatePhase::Connected) {}
+                Ok(None)
+            }
+            _ => { Ok(None) }
         }
     }
 
@@ -63,7 +98,7 @@ impl State {
         if !msg.has_name() {
             warn!("Missing name in initial user state");
         } else {
-            if msg.get_name() == self.username {
+            if msg.get_name() == self.username.as_ref().unwrap() {
                 match self.session_id {
                     None => {
                         debug!("Found our session id: {}", msg.get_session());
@@ -85,17 +120,18 @@ impl State {
     }
 
     pub fn initialized(&self) {
-        self.initialized_watcher.0.broadcast(true).unwrap();
+        self.phase_watcher.0.broadcast(StatePhase::Connected).unwrap();
     }
 
     pub fn audio(&self) -> &Audio { &self.audio }
     pub fn audio_mut(&mut self) -> &mut Audio { &mut self.audio }
     pub fn packet_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> { self.packet_sender.clone() }
-    pub fn initialized_receiver(&self) -> watch::Receiver<bool> { self.initialized_watcher.1.clone() }
+    pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> { self.phase_watcher.1.clone() }
     pub fn server_mut(&mut self) -> &mut Server { &mut self.server }
-    pub fn username(&self) -> &str { &self.username }
+    pub fn username(&self) -> Option<&String> { self.username.as_ref() }
 }
 
+#[derive(Debug)]
 pub struct Server {
     channels: HashMap<u32, Channel>,
     users: HashMap<u32, User>,
@@ -159,6 +195,7 @@ impl Server {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Channel {
     description: Option<String>,
     links: Vec<u32>,
@@ -212,6 +249,7 @@ impl Channel {
     }
 }
 
+#[derive(Debug)]
 pub struct User {
     channel: u32,
     comment: Option<String>,

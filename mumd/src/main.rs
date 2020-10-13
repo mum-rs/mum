@@ -3,8 +3,9 @@ mod network;
 mod command;
 mod state;
 
+use crate::network::ConnectionInfo;
+use crate::command::{Command, CommandResponse};
 use crate::state::State;
-use crate::command::Command;
 
 use argparse::ArgumentParser;
 use argparse::Store;
@@ -16,9 +17,8 @@ use log::*;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::Serverbound;
-use std::net::ToSocketAddrs;
 use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 #[tokio::main]
 async fn main() {
@@ -67,40 +67,49 @@ async fn main() {
         );
         ap.parse_args_or_exit();
     }
-    let server_addr = (server_host.as_ref(), server_port)
-        .to_socket_addrs()
-        .expect("Failed to parse server address")
-        .next()
-        .expect("Failed to resolve server address");
 
     // Oneshot channel for setting UDP CryptState from control task
     // For simplicity we don't deal with re-syncing, real applications would have to.
     let (crypt_state_sender, crypt_state_receiver) = oneshot::channel::<ClientCryptState>();
     let (packet_sender, packet_receiver) = mpsc::unbounded_channel::<ControlPacket<Serverbound>>();
     let (command_sender, command_receiver) = mpsc::unbounded_channel::<Command>();
+    let (command_response_sender, command_response_receiver) = mpsc::unbounded_channel::<Result<Option<CommandResponse>, ()>>();
+    let (connection_info_sender, connection_info_receiver) = watch::channel::<Option<ConnectionInfo>>(None);
+
+    command_sender.send(Command::ServerConnect{host: server_host, port: server_port, username: username.clone(), accept_invalid_cert});
 
     command_sender.send(Command::ChannelJoin{channel_id: 1}).unwrap();
-    let state = State::new(packet_sender, command_sender, username);
+    let state = State::new(packet_sender, command_sender.clone(), connection_info_sender, username);
     let state = Arc::new(Mutex::new(state));
 
     // Run it
     join!(
         network::tcp::handle(
             Arc::clone(&state),
-            server_addr,
-            server_host,
-            accept_invalid_cert,
+            connection_info_receiver.clone(),
             crypt_state_sender,
             packet_receiver,
         ),
         network::udp::handle(
             Arc::clone(&state),
-            server_addr,
+            connection_info_receiver.clone(),
             crypt_state_receiver,
         ),
         command::handle(
             state,
             command_receiver,
+            command_response_sender,
+        ),
+        send_commands(
+            command_sender,
+            command_response_receiver,
         ),
     );
+}
+
+async fn send_commands(
+    command_sender: mpsc::UnboundedSender<Command>,
+    command_response_receiver: mpsc::UnboundedReceiver<Result<Option<CommandResponse>, ()>>,
+) {
+
 }

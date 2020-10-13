@@ -1,4 +1,5 @@
-use crate::state::State;
+use crate::network::ConnectionInfo;
+use crate::state::{State, StatePhase};
 use log::*;
 
 use futures::channel::oneshot;
@@ -11,7 +12,7 @@ use std::convert::{Into, TryInto};
 use std::net::{SocketAddr};
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio::time::{self, Duration};
 use tokio_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};
@@ -25,16 +26,24 @@ type TcpReceiver =
 
 pub async fn handle(
     state: Arc<Mutex<State>>,
-    server_addr: SocketAddr,
-    server_host: String,
-    accept_invalid_cert: bool,
+    mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     crypt_state_sender: oneshot::Sender<ClientCryptState>,
     packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
 ) {
-    let (mut sink, stream) = connect(server_addr, server_host, accept_invalid_cert).await;
+    let connection_info = loop {
+        match connection_info_receiver.recv().await {
+            None => { return; }
+            Some(None) => {}
+            Some(Some(connection_info)) => { break connection_info; }
+        }
+    };
+    let (mut sink, stream) = connect(connection_info.socket_addr,
+                                        connection_info.hostname,
+                                        connection_info.accept_invalid_cert)
+        .await;
 
     // Handshake (omitting `Version` message for brevity)
-    authenticate(&mut sink, state.lock().unwrap().username().to_string()).await;
+    authenticate(&mut sink, state.lock().unwrap().username().unwrap().to_string()).await;
 
     info!("Logging in...");
 
@@ -158,10 +167,10 @@ async fn listen(
                 let mut state = state.lock().unwrap();
                 let session = msg.get_session();
                 state.audio_mut().add_client(msg.get_session()); //TODO
-                if *state.initialized_receiver().borrow() {
-                    state.server_mut().parse_user_state(msg);
-                } else {
+                if *state.phase_receiver().borrow() == StatePhase::Connecting {
                     state.parse_initial_user_state(msg);
+                } else {
+                    state.server_mut().parse_user_state(msg);
                 }
                 let server = state.server_mut();
                 let user = server.users().get(&session).unwrap();
