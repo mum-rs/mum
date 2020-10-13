@@ -15,7 +15,7 @@ pub struct State {
     packet_sender: mpsc::Sender<ControlPacket<Serverbound>>,
 
     username: String,
-    session_id: Option<u32>, //FIXME set
+    session_id: Option<u32>,
 }
 
 impl State {

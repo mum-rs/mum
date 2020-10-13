@@ -2,6 +2,12 @@
 
 * Next
 ** enum command
+*** Flytta ping
+*** Resterande (grundläggande) commands
+*** Flytta ljudgrejer till client state
+*** Flagga när vi tar emot initial state
+*** Börja lyssna efter paket att skicka först när state tagits emot
+Använd en oneshot-kanal (future)
 ** Få igång mumctl
 ** Split audio input/output
 ** Refaktorera TCP-paket
