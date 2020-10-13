@@ -2,7 +2,6 @@
 
 * Current
 ** enum command
-*** Flytta ping
 *** Resterande (grundläggande) commands
 *** Flytta ljudgrejer till client state
 
