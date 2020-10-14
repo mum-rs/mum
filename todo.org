@@ -7,6 +7,7 @@
 ** Refaktorera TCP-paket
 ** Hantera fler TCP-paket
 ** Tolka diffs när nytt state kommer in
+** Lägg till ett sätt att stänga av daemonen
 
 * Later
 ** Kombinera flera ljudkällor rimligt (utan clipping)
