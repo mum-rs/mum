@@ -50,11 +50,12 @@ impl State {
         }
     }
 
+    //TODO? move bool inside Result
     pub async fn handle_command(&mut self, command: Command) -> (bool, Result<Option<CommandResponse>, ()>) {
         match command {
             Command::ChannelJoin{channel_id} => {
-                if self.session_id.is_none() {
-                    warn!("Tried to join channel but we don't have a session id");
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    warn!("Not connected");
                     return (false, Err(()));
                 }
                 let mut msg = msgs::UserState::new();
@@ -64,6 +65,10 @@ impl State {
                 (false, Ok(None))
             }
             Command::ChannelList => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    warn!("Not connected");
+                    return (false, Err(()));
+                }
                 (false, Ok(Some(CommandResponse::ChannelList{channels: self.server.channels.clone()})))
             }
             Command::ServerConnect{host, port, username, accept_invalid_cert} => {
@@ -85,7 +90,17 @@ impl State {
                 )));
                 (true, Ok(None))
             }
-            _ => { (true, Ok(None)) }
+            Command::Status => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    warn!("Not connected");
+                    return (false, Err(()));
+                }
+                (false, Ok(Some(CommandResponse::Status{
+                    username: self.username.clone(),
+                    server_state: self.server.clone(),
+                })))
+            }
+            _ => { (false, Ok(None)) }
         }
     }
 
@@ -130,7 +145,7 @@ impl State {
     pub fn username(&self) -> Option<&String> { self.username.as_ref() }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Server {
     channels: HashMap<u32, Channel>,
     users: HashMap<u32, User>,
@@ -248,7 +263,7 @@ impl Channel {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct User {
     channel: u32,
     comment: Option<String>,

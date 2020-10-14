@@ -27,7 +27,7 @@ pub enum CommandResponse {
         channels: HashMap<u32, Channel>,
     },
     Status {
-        username: String,
+        username: Option<String>,
         server_state: Server,
     }
 }
@@ -41,11 +41,12 @@ pub async fn handle(
     while let Some(command) = command_receiver.recv().await {
         debug!("Parsing command {:?}", command);
         let mut state = state.lock().unwrap();
-        let (wait_for_connected, _) = state.handle_command(command).await;
+        let (wait_for_connected, command_response) = state.handle_command(command).await;
         if wait_for_connected {
             let mut watcher = state.phase_receiver();
             drop(state);
             while !matches!(watcher.recv().await.unwrap(), StatePhase::Connected) {}
         }
+        command_response_sender.send(command_response).unwrap();
     }
 }

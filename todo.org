@@ -2,16 +2,16 @@
 
 * Current
 ** enum command
-*** Resterande (grundläggande) commands
-*** Flytta ljudgrejer till client state
+*** Disconnect command :eskil:
+** Få igång mumctl :gustav:
 
 * Next
-** Få igång mumctl
+** Flytta ljudgrejer till client state
 ** Split audio input/output
 ** Refaktorera TCP-paket
-** impl debug på structs
 ** Hantera fler TCP-paket
 ** Tolka diffs när nytt state kommer in
+** Lägg till en newline i början av logmeddelandet om meddelandet innehåller minst en (annan) newline
 
 * Later
 ** Kombinera flera ljudkällor rimligt (utan clipping)
