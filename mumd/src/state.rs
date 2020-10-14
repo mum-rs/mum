@@ -50,26 +50,26 @@ impl State {
         }
     }
 
-    pub async fn handle_command(&mut self, command: Command) -> Result<Option<CommandResponse>, ()> {
+    pub async fn handle_command(&mut self, command: Command) -> (bool, Result<Option<CommandResponse>, ()>) {
         match command {
             Command::ChannelJoin{channel_id} => {
                 if self.session_id.is_none() {
                     warn!("Tried to join channel but we don't have a session id");
-                    return Err(());
+                    return (false, Err(()));
                 }
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.session_id.unwrap());
                 msg.set_channel_id(channel_id);
                 self.packet_sender.send(msg.into()).unwrap();
-                Ok(None)
+                (false, Ok(None))
             }
             Command::ChannelList => {
-                Ok(Some(CommandResponse::ChannelList{channels: self.server.channels.clone()}))
+                (false, Ok(Some(CommandResponse::ChannelList{channels: self.server.channels.clone()})))
             }
             Command::ServerConnect{host, port, username, accept_invalid_cert} => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
                     warn!("Tried to connect to a server while already connected");
-                    return Err(());
+                    return (false, Err(()));
                 }
                 self.username = Some(username);
                 self.phase_watcher.0.broadcast(StatePhase::Connecting).unwrap();
@@ -83,10 +83,9 @@ impl State {
                     host,
                     accept_invalid_cert,
                 )));
-                while !matches!(self.phase_receiver().recv().await.unwrap(), StatePhase::Connected) {}
-                Ok(None)
+                (true, Ok(None))
             }
-            _ => { Ok(None) }
+            _ => { (true, Ok(None)) }
         }
     }
 

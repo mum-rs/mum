@@ -1,8 +1,9 @@
-use crate::state::{Channel, Server, State};
+use crate::state::{Channel, Server, State, StatePhase};
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
+use log::*;
 
 #[derive(Debug)]
 pub enum Command {
@@ -38,6 +39,13 @@ pub async fn handle(
 ) {
     //TODO err if not connected
     while let Some(command) = command_receiver.recv().await {
-        state.lock().unwrap().handle_command(command).await;
+        debug!("Parsing command {:?}", command);
+        let mut state = state.lock().unwrap();
+        let (wait_for_connected, _) = state.handle_command(command).await;
+        if wait_for_connected {
+            let mut watcher = state.phase_receiver();
+            drop(state);
+            while !matches!(watcher.recv().await.unwrap(), StatePhase::Connected) {}
+        }
     }
 }
