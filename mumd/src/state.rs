@@ -18,7 +18,7 @@ pub enum StatePhase {
 }
 
 pub struct State {
-    server: Server,
+    server: Option<Server>,
     audio: Audio,
 
     packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
@@ -38,7 +38,7 @@ impl State {
         connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
     ) -> Self {
         Self {
-            server: Server::new(),
+            server: None,
             audio: Audio::new(),
             packet_sender,
             command_sender,
@@ -68,13 +68,14 @@ impl State {
                     warn!("Not connected");
                     return (false, Err(()));
                 }
-                (false, Ok(Some(CommandResponse::ChannelList{channels: self.server.channels.clone()})))
+                (false, Ok(Some(CommandResponse::ChannelList{channels: self.server.as_ref().unwrap().channels.clone()})))
             }
             Command::ServerConnect{host, port, username, accept_invalid_cert} => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
                     warn!("Tried to connect to a server while already connected");
                     return (false, Err(()));
                 }
+                self.server = Some(Server::new());
                 self.username = Some(username);
                 self.phase_watcher.0.broadcast(StatePhase::Connecting).unwrap();
                 let socket_addr = (host.as_ref(), port)
@@ -96,10 +97,14 @@ impl State {
                 }
                 (false, Ok(Some(CommandResponse::Status{
                     username: self.username.clone(),
-                    server_state: self.server.clone(),
+                    server_state: self.server.clone().unwrap(),
                 })))
             }
             Command::ServerDisconnect => {
+                self.session_id = None;
+                self.username = None;
+                self.server = None;
+
                 self.phase_watcher.0.broadcast(StatePhase::Disconnected).unwrap();
                 (false, Ok(None))
             }
@@ -132,7 +137,7 @@ impl State {
                 }
             }
         }
-        self.server.parse_user_state(msg);
+        self.server.as_mut().unwrap().parse_user_state(msg);
     }
 
     pub fn initialized(&self) {
@@ -143,7 +148,7 @@ impl State {
     pub fn audio_mut(&mut self) -> &mut Audio { &mut self.audio }
     pub fn packet_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> { self.packet_sender.clone() }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> { self.phase_watcher.1.clone() }
-    pub fn server_mut(&mut self) -> &mut Server { &mut self.server }
+    pub fn server_mut(&mut self) -> Option<&mut Server> { self.server.as_mut() }
     pub fn username(&self) -> Option<&String> { self.username.as_ref() }
 }
 

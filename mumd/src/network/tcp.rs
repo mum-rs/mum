@@ -247,7 +247,7 @@ async fn listen(
                                 ).await;
                             }
                             let mut state = state.lock().unwrap();
-                            let server = state.server_mut();
+                            let server = state.server_mut().unwrap();
                             server.parse_server_sync(msg);
                             match &server.welcome_text {
                                 Some(s) => info!("Welcome: {}", s),
@@ -268,9 +268,9 @@ async fn listen(
                             if *state.phase_receiver().borrow() == StatePhase::Connecting {
                                 state.parse_initial_user_state(msg);
                             } else {
-                                state.server_mut().parse_user_state(msg);
+                                state.server_mut().unwrap().parse_user_state(msg);
                             }
-                            let server = state.server_mut();
+                            let server = state.server_mut().unwrap();
                             let user = server.users().get(&session).unwrap();
                             info!("User {} connected to {}",
                                   user.name(),
@@ -282,10 +282,10 @@ async fn listen(
                         }
                         ControlPacket::ChannelState(msg) => {
                             debug!("Channel state received");
-                            state.lock().unwrap().server_mut().parse_channel_state(msg); //TODO parse initial if initial
+                            state.lock().unwrap().server_mut().unwrap().parse_channel_state(msg); //TODO parse initial if initial
                         }
                         ControlPacket::ChannelRemove(msg) => {
-                            state.lock().unwrap().server_mut().parse_channel_remove(msg);
+                            state.lock().unwrap().server_mut().unwrap().parse_channel_remove(msg);
                         }
                         _ => {}
                     }
