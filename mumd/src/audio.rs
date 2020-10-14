@@ -283,7 +283,10 @@ fn input_callback<T: Sample>(
         || opus_frame_size_blocks == 4
         || opus_frame_size_blocks == 8)
     {
-        panic!("Unsupported amount of opus frame blocks {}", opus_frame_size_blocks);
+        panic!(
+            "Unsupported amount of opus frame blocks {}",
+            opus_frame_size_blocks
+        );
     }
     let opus_frame_size = opus_frame_size_blocks * sample_rate / 400;
 
