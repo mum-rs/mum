@@ -3,7 +3,7 @@ use crate::state::{State, StatePhase};
 use log::*;
 
 use bytes::Bytes;
-use futures::{join, select, pin_mut, SinkExt, StreamExt, FutureExt};
+use futures::{join, pin_mut, select, FutureExt, SinkExt, StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
@@ -11,7 +11,7 @@ use mumble_protocol::Serverbound;
 use std::net::{Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
-use tokio::sync::{watch, oneshot, mpsc};
+use tokio::sync::{mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
 
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
@@ -27,9 +27,13 @@ pub async fn handle(
     loop {
         let connection_info = loop {
             match connection_info_receiver.recv().await {
-                None => { return; }
+                None => {
+                    return;
+                }
                 Some(None) => {}
-                Some(Some(connection_info)) => { break connection_info; }
+                Some(Some(connection_info)) => {
+                    break connection_info;
+                }
             }
         };
         let (mut sink, source) = connect(&mut crypt_state).await;
@@ -44,7 +48,12 @@ pub async fn handle(
         let phase_watcher = state.lock().unwrap().phase_receiver();
         join!(
             listen(Arc::clone(&state), source, phase_watcher.clone()),
-            send_voice(sink, connection_info.socket_addr, phase_watcher, &mut receiver),
+            send_voice(
+                sink,
+                connection_info.socket_addr,
+                phase_watcher,
+                &mut receiver
+            ),
         );
 
         debug!("Fully disconnected UDP stream, waiting for new connection info");
@@ -78,7 +87,10 @@ async fn listen(
 ) {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
-        while !matches!(phase_watcher.recv().await.unwrap(), StatePhase::Disconnected) {}
+        while !matches!(
+            phase_watcher.recv().await.unwrap(),
+            StatePhase::Disconnected
+        ) {}
         tx.send(true).unwrap();
     };
 
@@ -122,7 +134,11 @@ async fn listen(
                             // position_info,
                             ..
                         } => {
-                            state.lock().unwrap().audio().decode_packet(session_id, payload);
+                            state
+                                .lock()
+                                .unwrap()
+                                .audio()
+                                .decode_packet(session_id, payload);
                         }
                     }
                 }
@@ -159,7 +175,10 @@ async fn send_voice(
 ) {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
-        while !matches!(phase_watcher.recv().await.unwrap(), StatePhase::Disconnected) {}
+        while !matches!(
+            phase_watcher.recv().await.unwrap(),
+            StatePhase::Disconnected
+        ) {}
         tx.send(true).unwrap();
     };
 
@@ -206,4 +225,3 @@ async fn send_voice(
 
     debug!("UDP sender process killed");
 }
-

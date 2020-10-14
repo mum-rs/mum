@@ -1,9 +1,9 @@
 use crate::state::{Channel, Server, State, StatePhase};
 
+use log::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
-use log::*;
 
 #[derive(Clone, Debug)]
 pub enum Command {
@@ -29,7 +29,7 @@ pub enum CommandResponse {
     Status {
         username: Option<String>,
         server_state: Server,
-    }
+    },
 }
 
 pub async fn handle(

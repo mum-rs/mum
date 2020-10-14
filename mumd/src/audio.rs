@@ -103,26 +103,32 @@ impl Audio {
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<f32>(input_encoder,
-                                      input_sender,
-                                      input_config.sample_rate.0,
-                                      10.0),
+                input_callback::<f32>(
+                    input_encoder,
+                    input_sender,
+                    input_config.sample_rate.0,
+                    10.0,
+                ),
                 err_fn,
             ),
             SampleFormat::I16 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<i16>(input_encoder,
-                                      input_sender,
-                                      input_config.sample_rate.0,
-                                      10.0),
+                input_callback::<i16>(
+                    input_encoder,
+                    input_sender,
+                    input_config.sample_rate.0,
+                    10.0,
+                ),
                 err_fn,
             ),
             SampleFormat::U16 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<u16>(input_encoder,
-                                      input_sender,
-                                      input_config.sample_rate.0,
-                                      10.0),
+                input_callback::<u16>(
+                    input_encoder,
+                    input_sender,
+                    input_config.sample_rate.0,
+                    10.0,
+                ),
                 err_fn,
             ),
         }
@@ -207,7 +213,8 @@ impl ClientStream {
         match payload {
             VoicePacketPayload::Opus(bytes, _eot) => {
                 let mut out: Vec<f32> = vec![0.0; 720 * channels * 4]; //720 is because that is the max size of packet we can get that we want to decode
-                let parsed = self.opus_decoder
+                let parsed = self
+                    .opus_decoder
                     .decode_float(&bytes, &mut out, false)
                     .expect("Error decoding");
                 out.truncate(parsed);
@@ -271,14 +278,14 @@ fn input_callback<T: Sample>(
     sample_rate: u32,
     opus_frame_size_ms: f32,
 ) -> impl FnMut(&[T], &InputCallbackInfo) + Send + 'static {
-    if ! (   opus_frame_size_ms ==  2.5
-          || opus_frame_size_ms ==  5.0
-          || opus_frame_size_ms == 10.0
-          || opus_frame_size_ms == 20.0) {
+    if !(opus_frame_size_ms == 2.5
+        || opus_frame_size_ms == 5.0
+        || opus_frame_size_ms == 10.0
+        || opus_frame_size_ms == 20.0)
+    {
         panic!("Unsupported opus frame size {}", opus_frame_size_ms);
     }
     let opus_frame_size = (opus_frame_size_ms * sample_rate as f32) as u32 / 1000;
-
 
     let buf = Arc::new(Mutex::new(VecDeque::new()));
     move |data: &[T], _info: &InputCallbackInfo| {
@@ -293,9 +300,9 @@ fn input_callback<T: Sample>(
                 .unwrap();
             opus_buf.truncate(result);
             let bytes = Bytes::copy_from_slice(&opus_buf);
-            match input_sender
-                .try_send(VoicePacketPayload::Opus(bytes, false)) { //TODO handle full buffer / disconnect
-                Ok(_) => {},
+            match input_sender.try_send(VoicePacketPayload::Opus(bytes, false)) {
+                //TODO handle full buffer / disconnect
+                Ok(_) => {}
                 Err(_e) => {
                     //warn!("Error sending audio packet: {:?}", e);
                 }

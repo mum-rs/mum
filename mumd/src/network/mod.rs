@@ -11,11 +11,7 @@ pub struct ConnectionInfo {
 }
 
 impl ConnectionInfo {
-    pub fn new(
-        socket_addr: SocketAddr,
-        hostname: String,
-        accept_invalid_cert: bool,
-    ) -> Self {
+    pub fn new(socket_addr: SocketAddr, hostname: String, accept_invalid_cert: bool) -> Self {
         Self {
             socket_addr,
             hostname,

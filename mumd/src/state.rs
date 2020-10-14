@@ -1,12 +1,12 @@
-use log::*;
 use crate::audio::Audio;
 use crate::command::{Command, CommandResponse};
 use crate::network::ConnectionInfo;
+use log::*;
 use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::voice::Serverbound;
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
 
@@ -50,9 +50,12 @@ impl State {
     }
 
     //TODO? move bool inside Result
-    pub async fn handle_command(&mut self, command: Command) -> (bool, Result<Option<CommandResponse>, ()>) {
+    pub async fn handle_command(
+        &mut self,
+        command: Command,
+    ) -> (bool, Result<Option<CommandResponse>, ()>) {
         match command {
-            Command::ChannelJoin{channel_id} => {
+            Command::ChannelJoin { channel_id } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     warn!("Not connected");
                     return (false, Err(()));
@@ -68,26 +71,41 @@ impl State {
                     warn!("Not connected");
                     return (false, Err(()));
                 }
-                (false, Ok(Some(CommandResponse::ChannelList{channels: self.server.as_ref().unwrap().channels.clone()})))
+                (
+                    false,
+                    Ok(Some(CommandResponse::ChannelList {
+                        channels: self.server.as_ref().unwrap().channels.clone(),
+                    })),
+                )
             }
-            Command::ServerConnect{host, port, username, accept_invalid_cert} => {
+            Command::ServerConnect {
+                host,
+                port,
+                username,
+                accept_invalid_cert,
+            } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
                     warn!("Tried to connect to a server while already connected");
                     return (false, Err(()));
                 }
                 self.server = Some(Server::new());
                 self.username = Some(username);
-                self.phase_watcher.0.broadcast(StatePhase::Connecting).unwrap();
+                self.phase_watcher
+                    .0
+                    .broadcast(StatePhase::Connecting)
+                    .unwrap();
                 let socket_addr = (host.as_ref(), port)
                     .to_socket_addrs()
                     .expect("Failed to parse server address")
                     .next()
                     .expect("Failed to resolve server address");
-                self.connection_info_sender.broadcast(Some(ConnectionInfo::new(
-                    socket_addr,
-                    host,
-                    accept_invalid_cert,
-                ))).unwrap();
+                self.connection_info_sender
+                    .broadcast(Some(ConnectionInfo::new(
+                        socket_addr,
+                        host,
+                        accept_invalid_cert,
+                    )))
+                    .unwrap();
                 (true, Ok(None))
             }
             Command::Status => {
@@ -95,17 +113,23 @@ impl State {
                     warn!("Not connected");
                     return (false, Err(()));
                 }
-                (false, Ok(Some(CommandResponse::Status{
-                    username: self.username.clone(),
-                    server_state: self.server.clone().unwrap(),
-                })))
+                (
+                    false,
+                    Ok(Some(CommandResponse::Status {
+                        username: self.username.clone(),
+                        server_state: self.server.clone().unwrap(),
+                    })),
+                )
             }
             Command::ServerDisconnect => {
                 self.session_id = None;
                 self.username = None;
                 self.server = None;
 
-                self.phase_watcher.0.broadcast(StatePhase::Disconnected).unwrap();
+                self.phase_watcher
+                    .0
+                    .broadcast(StatePhase::Disconnected)
+                    .unwrap();
                 (false, Ok(None))
             }
         }
@@ -127,9 +151,11 @@ impl State {
                     }
                     Some(session) => {
                         if session != msg.get_session() {
-                            error!("Got two different session IDs ({} and {}) for ourselves",
+                            error!(
+                                "Got two different session IDs ({} and {}) for ourselves",
                                 session,
-                                msg.get_session());
+                                msg.get_session()
+                            );
                         } else {
                             debug!("Got our session ID twice");
                         }
@@ -141,15 +167,30 @@ impl State {
     }
 
     pub fn initialized(&self) {
-        self.phase_watcher.0.broadcast(StatePhase::Connected).unwrap();
+        self.phase_watcher
+            .0
+            .broadcast(StatePhase::Connected)
+            .unwrap();
     }
 
-    pub fn audio(&self) -> &Audio { &self.audio }
-    pub fn audio_mut(&mut self) -> &mut Audio { &mut self.audio }
-    pub fn packet_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> { self.packet_sender.clone() }
-    pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> { self.phase_watcher.1.clone() }
-    pub fn server_mut(&mut self) -> Option<&mut Server> { self.server.as_mut() }
-    pub fn username(&self) -> Option<&String> { self.username.as_ref() }
+    pub fn audio(&self) -> &Audio {
+        &self.audio
+    }
+    pub fn audio_mut(&mut self) -> &mut Audio {
+        &mut self.audio
+    }
+    pub fn packet_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> {
+        self.packet_sender.clone()
+    }
+    pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
+        self.phase_watcher.1.clone()
+    }
+    pub fn server_mut(&mut self) -> Option<&mut Server> {
+        self.server.as_mut()
+    }
+    pub fn username(&self) -> Option<&String> {
+        self.username.as_ref()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -180,7 +221,9 @@ impl Server {
             return;
         }
         match self.channels.entry(msg.get_channel_id()) {
-            Entry::Vacant(e) => { e.insert(Channel::new(msg)); },
+            Entry::Vacant(e) => {
+                e.insert(Channel::new(msg));
+            }
             Entry::Occupied(mut e) => e.get_mut().parse_channel_state(msg),
         }
     }
@@ -191,8 +234,12 @@ impl Server {
             return;
         }
         match self.channels.entry(msg.get_channel_id()) {
-            Entry::Vacant(_) => { warn!("Attempted to remove channel that doesn't exist"); }
-            Entry::Occupied(e) => { e.remove(); }
+            Entry::Vacant(_) => {
+                warn!("Attempted to remove channel that doesn't exist");
+            }
+            Entry::Occupied(e) => {
+                e.remove();
+            }
         }
     }
 
@@ -202,7 +249,9 @@ impl Server {
             return;
         }
         match self.users.entry(msg.get_session()) {
-            Entry::Vacant(e) => { e.insert(User::new(msg)); },
+            Entry::Vacant(e) => {
+                e.insert(User::new(msg));
+            }
             Entry::Occupied(mut e) => e.get_mut().parse_user_state(msg),
         }
     }
@@ -279,11 +328,11 @@ pub struct User {
     priority_speaker: bool,
     recording: bool,
 
-    suppress: bool, // by me
+    suppress: bool,  // by me
     self_mute: bool, // by self
     self_deaf: bool, // by self
-    mute: bool, // by admin
-    deaf: bool, // by admin
+    mute: bool,      // by admin
+    deaf: bool,      // by admin
 }
 
 impl User {
@@ -301,20 +350,13 @@ impl User {
                 None
             },
             name: msg.take_name(),
-            priority_speaker: msg.has_priority_speaker()
-                              && msg.get_priority_speaker(),
-            recording: msg.has_recording()
-                       && msg.get_recording(),
-            suppress: msg.has_suppress()
-                      && msg.get_suppress(),
-            self_mute: msg.has_self_mute()
-                       && msg.get_self_mute(),
-            self_deaf: msg.has_self_deaf()
-                       && msg.get_self_deaf(),
-            mute: msg.has_mute()
-                  && msg.get_mute(),
-            deaf: msg.has_deaf()
-                  && msg.get_deaf(),
+            priority_speaker: msg.has_priority_speaker() && msg.get_priority_speaker(),
+            recording: msg.has_recording() && msg.get_recording(),
+            suppress: msg.has_suppress() && msg.get_suppress(),
+            self_mute: msg.has_self_mute() && msg.get_self_mute(),
+            self_deaf: msg.has_self_deaf() && msg.get_self_deaf(),
+            mute: msg.has_mute() && msg.get_mute(),
+            deaf: msg.has_deaf() && msg.get_deaf(),
         }
     }
 
