@@ -186,7 +186,7 @@ async fn send_packets(
         }
 
         //clears queue of remaining packets
-        while let Ok(_) = packet_receiver.try_recv() {}
+        while packet_receiver.try_recv().is_ok() {}
 
         sink.close().await.unwrap();
     };
@@ -270,12 +270,12 @@ async fn listen(
                             }
                             let mut state = state.lock().unwrap();
                             let server = state.server_mut().unwrap();
-                            server.parse_server_sync(msg);
+                            server.parse_server_sync(*msg);
                             match &server.welcome_text {
                                 Some(s) => info!("Welcome: {}", s),
                                 None => info!("No welcome received"),
                             }
-                            for (_, channel) in server.channels() {
+                            for channel in server.channels().values() {
                                 info!("Found channel {}", channel.name());
                             }
                             state.initialized();
@@ -288,9 +288,9 @@ async fn listen(
                             let session = msg.get_session();
                             state.audio_mut().add_client(msg.get_session()); //TODO
                             if *state.phase_receiver().borrow() == StatePhase::Connecting {
-                                state.parse_initial_user_state(msg);
+                                state.parse_initial_user_state(*msg);
                             } else {
-                                state.server_mut().unwrap().parse_user_state(msg);
+                                state.server_mut().unwrap().parse_user_state(*msg);
                             }
                             let server = state.server_mut().unwrap();
                             let user = server.users().get(&session).unwrap();
@@ -311,7 +311,7 @@ async fn listen(
                                 .unwrap()
                                 .server_mut()
                                 .unwrap()
-                                .parse_channel_state(msg); //TODO parse initial if initial
+                                .parse_channel_state(*msg); //TODO parse initial if initial
                         }
                         ControlPacket::ChannelRemove(msg) => {
                             state
@@ -319,7 +319,7 @@ async fn listen(
                                 .unwrap()
                                 .server_mut()
                                 .unwrap()
-                                .parse_channel_remove(msg);
+                                .parse_channel_remove(*msg);
                         }
                         _ => {}
                     }

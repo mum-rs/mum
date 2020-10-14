@@ -119,13 +119,13 @@ async fn main() {
 }
 
 async fn send_commands(command_sender: mpsc::UnboundedSender<Command>, connect_command: Command) {
-    command_sender.send(connect_command.clone());
+    command_sender.send(connect_command.clone()).unwrap();
     tokio::time::delay_for(Duration::from_secs(2)).await;
-    command_sender.send(Command::ServerDisconnect);
+    command_sender.send(Command::ServerDisconnect).unwrap();
     tokio::time::delay_for(Duration::from_secs(2)).await;
-    command_sender.send(connect_command.clone());
+    command_sender.send(connect_command.clone()).unwrap();
     tokio::time::delay_for(Duration::from_secs(2)).await;
-    command_sender.send(Command::ServerDisconnect);
+    command_sender.send(Command::ServerDisconnect).unwrap();
 
     debug!("Finished sending commands");
 }

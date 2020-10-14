@@ -107,7 +107,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
-                    10.0,
+                    4, // 10 ms
                 ),
                 err_fn,
             ),
@@ -117,7 +117,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
-                    10.0,
+                    4, // 10 ms
                 ),
                 err_fn,
             ),
@@ -127,7 +127,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
-                    10.0,
+                    4, // 10 ms
                 ),
                 err_fn,
             ),
@@ -276,16 +276,16 @@ fn input_callback<T: Sample>(
     mut opus_encoder: opus::Encoder,
     mut input_sender: Sender<VoicePacketPayload>,
     sample_rate: u32,
-    opus_frame_size_ms: f32,
+    opus_frame_size_blocks: u32, // blocks of 2.5ms
 ) -> impl FnMut(&[T], &InputCallbackInfo) + Send + 'static {
-    if !(opus_frame_size_ms == 2.5
-        || opus_frame_size_ms == 5.0
-        || opus_frame_size_ms == 10.0
-        || opus_frame_size_ms == 20.0)
+    if !(opus_frame_size_blocks == 1
+        || opus_frame_size_blocks == 2
+        || opus_frame_size_blocks == 4
+        || opus_frame_size_blocks == 8)
     {
-        panic!("Unsupported opus frame size {}", opus_frame_size_ms);
+        panic!("Unsupported amount of opus frame blocks {}", opus_frame_size_blocks);
     }
-    let opus_frame_size = (opus_frame_size_ms * sample_rate as f32) as u32 / 1000;
+    let opus_frame_size = opus_frame_size_blocks * sample_rate / 400;
 
     let buf = Arc::new(Mutex::new(VecDeque::new()));
     move |data: &[T], _info: &InputCallbackInfo| {

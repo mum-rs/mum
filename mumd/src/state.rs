@@ -135,30 +135,28 @@ impl State {
         }
     }
 
-    pub fn parse_initial_user_state(&mut self, msg: Box<msgs::UserState>) {
+    pub fn parse_initial_user_state(&mut self, msg: msgs::UserState) {
         if !msg.has_session() {
             warn!("Can't parse user state without session");
             return;
         }
         if !msg.has_name() {
             warn!("Missing name in initial user state");
-        } else {
-            if msg.get_name() == self.username.as_ref().unwrap() {
-                match self.session_id {
-                    None => {
-                        debug!("Found our session id: {}", msg.get_session());
-                        self.session_id = Some(msg.get_session());
-                    }
-                    Some(session) => {
-                        if session != msg.get_session() {
-                            error!(
-                                "Got two different session IDs ({} and {}) for ourselves",
-                                session,
-                                msg.get_session()
-                            );
-                        } else {
-                            debug!("Got our session ID twice");
-                        }
+        } else if msg.get_name() == self.username.as_ref().unwrap() {
+            match self.session_id {
+                None => {
+                    debug!("Found our session id: {}", msg.get_session());
+                    self.session_id = Some(msg.get_session());
+                }
+                Some(session) => {
+                    if session != msg.get_session() {
+                        error!(
+                            "Got two different session IDs ({} and {}) for ourselves",
+                            session,
+                            msg.get_session()
+                        );
+                    } else {
+                        debug!("Got our session ID twice");
                     }
                 }
             }
@@ -209,13 +207,13 @@ impl Server {
         }
     }
 
-    pub fn parse_server_sync(&mut self, mut msg: Box<msgs::ServerSync>) {
+    pub fn parse_server_sync(&mut self, mut msg: msgs::ServerSync) {
         if msg.has_welcome_text() {
             self.welcome_text = Some(msg.take_welcome_text());
         }
     }
 
-    pub fn parse_channel_state(&mut self, msg: Box<msgs::ChannelState>) {
+    pub fn parse_channel_state(&mut self, msg: msgs::ChannelState) {
         if !msg.has_channel_id() {
             warn!("Can't parse channel state without channel id");
             return;
@@ -228,7 +226,7 @@ impl Server {
         }
     }
 
-    pub fn parse_channel_remove(&mut self, msg: Box<msgs::ChannelRemove>) {
+    pub fn parse_channel_remove(&mut self, msg: msgs::ChannelRemove) {
         if !msg.has_channel_id() {
             warn!("Can't parse channel remove without channel id");
             return;
@@ -243,7 +241,7 @@ impl Server {
         }
     }
 
-    pub fn parse_user_state(&mut self, msg: Box<msgs::UserState>) {
+    pub fn parse_user_state(&mut self, msg: msgs::UserState) {
         if !msg.has_session() {
             warn!("Can't parse user state without session");
             return;
@@ -276,7 +274,7 @@ pub struct Channel {
 }
 
 impl Channel {
-    pub fn new(mut msg: Box<msgs::ChannelState>) -> Self {
+    pub fn new(mut msg: msgs::ChannelState) -> Self {
         Self {
             description: if msg.has_description() {
                 Some(msg.take_description())
@@ -295,7 +293,7 @@ impl Channel {
         }
     }
 
-    pub fn parse_channel_state(&mut self, mut msg: Box<msgs::ChannelState>) {
+    pub fn parse_channel_state(&mut self, mut msg: msgs::ChannelState) {
         if msg.has_description() {
             self.description = Some(msg.take_description());
         }
@@ -336,7 +334,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(mut msg: Box<msgs::UserState>) -> Self {
+    pub fn new(mut msg: msgs::UserState) -> Self {
         Self {
             channel: msg.get_channel_id(),
             comment: if msg.has_comment() {
@@ -360,7 +358,7 @@ impl User {
         }
     }
 
-    pub fn parse_user_state(&mut self, mut msg: Box<msgs::UserState>) {
+    pub fn parse_user_state(&mut self, mut msg: msgs::UserState) {
         if msg.has_channel_id() {
             self.channel = msg.get_channel_id();
         }
