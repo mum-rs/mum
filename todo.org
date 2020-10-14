@@ -9,7 +9,6 @@
 ** Refaktorera TCP-paket
 ** Hantera fler TCP-paket
 ** Tolka diffs när nytt state kommer in
-** Lägg till en newline i början av logmeddelandet om meddelandet innehåller minst en (annan) newline
 
 * Later
 ** Kombinera flera ljudkällor rimligt (utan clipping)
