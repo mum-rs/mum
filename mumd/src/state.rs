@@ -100,7 +100,10 @@ impl State {
                     server_state: self.server.clone(),
                 })))
             }
-            _ => { (false, Ok(None)) }
+            Command::ServerDisconnect => {
+                self.phase_watcher.0.broadcast(StatePhase::Disconnected).unwrap();
+                (false, Ok(None))
+            }
         }
     }
 

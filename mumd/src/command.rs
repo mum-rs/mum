@@ -49,4 +49,6 @@ pub async fn handle(
         }
         command_response_sender.send(command_response).unwrap();
     }
+
+    debug!("Finished handling commands");
 }

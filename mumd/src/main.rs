@@ -11,14 +11,18 @@ use argparse::ArgumentParser;
 use argparse::Store;
 use argparse::StoreTrue;
 use colored::*;
-use futures::channel::oneshot;
-use futures::join;
+use tokio::sync::oneshot;
+use futures::{join, select};
 use log::*;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::Serverbound;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
+use std::thread;
+use std::time::Duration;
+use tokio::stream::StreamExt;
+use futures::FutureExt;
 
 #[tokio::main]
 async fn main() {
@@ -79,7 +83,7 @@ async fn main() {
 
     command_sender.send(Command::ChannelList).unwrap();
     command_sender.send(Command::ServerConnect{host: server_host, port: server_port, username: username.clone(), accept_invalid_cert});
-    command_sender.send(Command::ChannelJoin{channel_id: 1}).unwrap();
+    //command_sender.send(Command::ChannelJoin{channel_id: 1}).unwrap();
     command_sender.send(Command::ChannelList).unwrap();
     let state = State::new(packet_sender, command_sender.clone(), connection_info_sender, username);
     let state = Arc::new(Mutex::new(state));
@@ -102,16 +106,28 @@ async fn main() {
             command_receiver,
             command_response_sender,
         ),
+        send_commands(
+            command_sender
+        ),
         receive_command_responses(
             command_response_receiver,
         ),
     );
 }
 
+async fn send_commands(command_sender: mpsc::UnboundedSender<Command>) {
+    tokio::time::delay_for(Duration::from_secs(5)).await;
+    command_sender.send(Command::ServerDisconnect);
+
+    debug!("Finished sending commands");
+}
+
 async fn receive_command_responses(
     mut command_response_receiver: mpsc::UnboundedReceiver<Result<Option<CommandResponse>, ()>>,
 ) {
     while let Some(command_response) = command_response_receiver.recv().await {
-        debug!("{:#?}", command_response);
+        debug!("{:?}", command_response);
     }
+
+    debug!("Finished receiving commands");
 }
