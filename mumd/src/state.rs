@@ -36,7 +36,6 @@ impl State {
         packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
         command_sender: mpsc::UnboundedSender<Command>,
         connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
-        username: String,
     ) -> Self {
         Self {
             server: Server::new(),
@@ -87,7 +86,7 @@ impl State {
                     socket_addr,
                     host,
                     accept_invalid_cert,
-                )));
+                ))).unwrap();
                 (true, Ok(None))
             }
             Command::Status => {

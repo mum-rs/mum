@@ -16,7 +16,6 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::{self, Duration};
 use tokio_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};
-use futures_util::core_reexport::cell::RefCell;
 
 type TcpSender = SplitSink<
     Framed<TlsStream<TcpStream>, ControlCodec<Serverbound, Clientbound>>,
@@ -44,7 +43,7 @@ pub async fn handle(
         .await;
 
     // Handshake (omitting `Version` message for brevity)
-    let mut state_lock = state.lock().unwrap();
+    let state_lock = state.lock().unwrap();
     authenticate(&mut sink, state_lock.username().unwrap().to_string()).await;
     let phase_watcher = state_lock.phase_receiver();
     let packet_sender = state_lock.packet_sender();
@@ -102,7 +101,7 @@ async fn send_pings(
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
         while !matches!(phase_watcher.recv().await.unwrap(), StatePhase::Disconnected) {}
-        tx.send(true);
+        tx.send(true).unwrap();
     };
 
     let mut interval = time::interval(Duration::from_secs(delay_seconds));
@@ -141,7 +140,7 @@ async fn send_packets(
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
         while !matches!(phase_watcher.recv().await.unwrap(), StatePhase::Disconnected) {}
-        tx.send(true);
+        tx.send(true).unwrap();
     };
 
     let main_block = async {
@@ -191,7 +190,7 @@ async fn listen(
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
         while !matches!(phase_watcher.recv().await.unwrap(), StatePhase::Disconnected) {}
-        tx.send(true);
+        tx.send(true).unwrap();
     };
 
     let listener_block = async {

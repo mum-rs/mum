@@ -75,7 +75,7 @@ async fn listen(
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
         while !matches!(phase_watcher.recv().await.unwrap(), StatePhase::Disconnected) {}
-        tx.send(true);
+        tx.send(true).unwrap();
     };
 
     let main_block = async {
@@ -185,7 +185,7 @@ async fn send_voice(
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
         while !matches!(phase_watcher.recv().await.unwrap(), StatePhase::Disconnected) {}
-        tx.send(true);
+        tx.send(true).unwrap();
     };
 
     let main_block = async {

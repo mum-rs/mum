@@ -12,17 +12,14 @@ use argparse::Store;
 use argparse::StoreTrue;
 use colored::*;
 use tokio::sync::oneshot;
-use futures::{join, select};
+use futures::join;
 use log::*;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::Serverbound;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
-use std::thread;
 use std::time::Duration;
-use tokio::stream::StreamExt;
-use futures::FutureExt;
 
 #[tokio::main]
 async fn main() {
@@ -85,7 +82,7 @@ async fn main() {
     command_sender.send(Command::ServerConnect{host: server_host, port: server_port, username: username.clone(), accept_invalid_cert});
     //command_sender.send(Command::ChannelJoin{channel_id: 1}).unwrap();
     command_sender.send(Command::ChannelList).unwrap();
-    let state = State::new(packet_sender, command_sender.clone(), connection_info_sender, username);
+    let state = State::new(packet_sender, command_sender.clone(), connection_info_sender);
     let state = Arc::new(Mutex::new(state));
 
     // Run it
