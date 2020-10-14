@@ -63,7 +63,7 @@ pub async fn connect(
     let crypt_state = match crypt_state.recv().await {
         Some(crypt_state) => crypt_state,
         // disconnected before we received the CryptSetup packet, oh well
-        None => panic!("disconnect before crypt packet received"), //TODO exit gracefully
+        None => panic!("Disconnect before crypt packet received"), //TODO exit gracefully
     };
     debug!("UDP connected");
 
@@ -204,6 +204,6 @@ async fn send_voice(
 
     join!(main_block, phase_transition_block);
 
-    debug!("UDP listener process killed");
+    debug!("UDP sender process killed");
 }
 
