@@ -23,11 +23,11 @@ use tokio::sync::{mpsc, watch};
 #[tokio::main]
 async fn main() {
     // setup logger
-    //TODO? add newline before message if it contains newlines
     fern::Dispatch::new()
         .format(|out, message, record| {
+            let message = message.to_string();
             out.finish(format_args!(
-                "{} {}:{} {}",
+                "{} {}:{}{}{}",
                 //TODO runtime flag that disables color
                 match record.level() {
                     Level::Error => "ERROR".red(),
@@ -38,6 +38,7 @@ async fn main() {
                 },
                 record.file().unwrap(),
                 record.line().unwrap(),
+                if message.chars().any(|e| e == '\n') { "\n" } else { " " },
                 message
             ))
         })
