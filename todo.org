@@ -1,13 +1,15 @@
+* Current
+** Få igång mumctl :gustav:
+
 * Next
-** enum command
-** Få igång mumctl
+** Flytta ljudgrejer till client state
 ** Split audio input/output
 ** Refaktorera TCP-paket
-** impl debug på structs
 ** Hantera fler TCP-paket
 ** Tolka diffs när nytt state kommer in
+** Lägg till ett sätt att stänga av daemonen
 
-* backburner
+* Later
 ** Kombinera flera ljudkällor rimligt (utan clipping)
 Compression. https://docs.rs/compressor/0.3.0/compressor/
 ** UDP crypt state resync?? Kommentar från exemplet

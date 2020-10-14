@@ -1,6 +1,5 @@
 use bytes::Bytes;
-use cpal::traits::DeviceTrait;
-use cpal::traits::HostTrait;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{
     InputCallbackInfo, OutputCallbackInfo, Sample, SampleFormat, SampleRate, Stream, StreamConfig,
 };
@@ -28,9 +27,9 @@ pub struct Audio {
     pub input_config: StreamConfig,
     pub input_stream: Stream,
     pub input_buffer: Arc<Mutex<VecDeque<f32>>>,
-    input_channel_receiver: Option<Receiver<VoicePacketPayload>>,
+    input_channel_receiver: Option<Receiver<VoicePacketPayload>>, //TODO unbounded? mbe ring buffer and drop the first packet
 
-    client_streams: Arc<Mutex<HashMap<u32, ClientStream>>>,
+    client_streams: Arc<Mutex<HashMap<u32, ClientStream>>>, //TODO move to user state
 }
 
 //TODO split into input/output
@@ -104,30 +103,38 @@ impl Audio {
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<f32>(input_encoder,
-                                      input_sender,
-                                      input_config.sample_rate.0,
-                                      10.0),
+                input_callback::<f32>(
+                    input_encoder,
+                    input_sender,
+                    input_config.sample_rate.0,
+                    4, // 10 ms
+                ),
                 err_fn,
             ),
             SampleFormat::I16 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<i16>(input_encoder,
-                                      input_sender,
-                                      input_config.sample_rate.0,
-                                      10.0),
+                input_callback::<i16>(
+                    input_encoder,
+                    input_sender,
+                    input_config.sample_rate.0,
+                    4, // 10 ms
+                ),
                 err_fn,
             ),
             SampleFormat::U16 => input_device.build_input_stream(
                 &input_config,
-                input_callback::<u16>(input_encoder,
-                                      input_sender,
-                                      input_config.sample_rate.0,
-                                      10.0),
+                input_callback::<u16>(
+                    input_encoder,
+                    input_sender,
+                    input_config.sample_rate.0,
+                    4, // 10 ms
+                ),
                 err_fn,
             ),
         }
         .unwrap();
+
+        output_stream.play().unwrap();
 
         Self {
             output_config,
@@ -206,7 +213,8 @@ impl ClientStream {
         match payload {
             VoicePacketPayload::Opus(bytes, _eot) => {
                 let mut out: Vec<f32> = vec![0.0; 720 * channels * 4]; //720 is because that is the max size of packet we can get that we want to decode
-                let parsed = self.opus_decoder
+                let parsed = self
+                    .opus_decoder
                     .decode_float(&bytes, &mut out, false)
                     .expect("Error decoding");
                 out.truncate(parsed);
@@ -268,16 +276,19 @@ fn input_callback<T: Sample>(
     mut opus_encoder: opus::Encoder,
     mut input_sender: Sender<VoicePacketPayload>,
     sample_rate: u32,
-    opus_frame_size_ms: f32,
+    opus_frame_size_blocks: u32, // blocks of 2.5ms
 ) -> impl FnMut(&[T], &InputCallbackInfo) + Send + 'static {
-    if ! (   opus_frame_size_ms ==  2.5
-          || opus_frame_size_ms ==  5.0
-          || opus_frame_size_ms == 10.0
-          || opus_frame_size_ms == 20.0) {
-        panic!("Unsupported opus frame size {}", opus_frame_size_ms);
+    if !(opus_frame_size_blocks == 1
+        || opus_frame_size_blocks == 2
+        || opus_frame_size_blocks == 4
+        || opus_frame_size_blocks == 8)
+    {
+        panic!(
+            "Unsupported amount of opus frame blocks {}",
+            opus_frame_size_blocks
+        );
     }
-    let opus_frame_size = (opus_frame_size_ms * sample_rate as f32) as u32 / 1000;
-
+    let opus_frame_size = opus_frame_size_blocks * sample_rate / 400;
 
     let buf = Arc::new(Mutex::new(VecDeque::new()));
     move |data: &[T], _info: &InputCallbackInfo| {
@@ -292,9 +303,13 @@ fn input_callback<T: Sample>(
                 .unwrap();
             opus_buf.truncate(result);
             let bytes = Bytes::copy_from_slice(&opus_buf);
-            input_sender
-                .try_send(VoicePacketPayload::Opus(bytes, false))
-                .unwrap(); //TODO handle full buffer / disconnect
+            match input_sender.try_send(VoicePacketPayload::Opus(bytes, false)) {
+                //TODO handle full buffer / disconnect
+                Ok(_) => {}
+                Err(_e) => {
+                    //warn!("Error sending audio packet: {:?}", e);
+                }
+            }
             *buf = tail;
         }
     }
