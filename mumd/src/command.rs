@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use log::*;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Command {
     ChannelJoin {
         channel_id: u32,

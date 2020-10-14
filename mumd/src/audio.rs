@@ -293,9 +293,13 @@ fn input_callback<T: Sample>(
                 .unwrap();
             opus_buf.truncate(result);
             let bytes = Bytes::copy_from_slice(&opus_buf);
-            input_sender
-                .try_send(VoicePacketPayload::Opus(bytes, false))
-                .unwrap(); //TODO handle full buffer / disconnect
+            match input_sender
+                .try_send(VoicePacketPayload::Opus(bytes, false)) { //TODO handle full buffer / disconnect
+                Ok(_) => {},
+                Err(_e) => {
+                    //warn!("Error sending audio packet: {:?}", e);
+                }
+            }
             *buf = tail;
         }
     }
