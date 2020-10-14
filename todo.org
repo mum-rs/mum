@@ -1,6 +1,4 @@
 * Current
-** enum command
-*** Disconnect command :eskil:
 ** Få igång mumctl :gustav:
 
 * Next
