@@ -7,8 +7,6 @@ use std::fs;
 fn main() {
     setup_logger();
 
-    // MUMCTL
-    //temp send command and channel to listener
     debug!("Creating channel");
     let (tx_client, rx_client): (IpcSender<Result<Option<CommandResponse>, ()>>,
                                  IpcReceiver<Result<Option<CommandResponse>, ()>>) = ipc::channel().unwrap();
