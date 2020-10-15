@@ -1,54 +1,33 @@
-use crate::state::{Channel, Server, State, StatePhase};
+use crate::state::{State, StatePhase};
 
+use ipc_channel::ipc::IpcSender;
 use log::*;
-use std::collections::HashMap;
+use mumlib::command::{Command, CommandResponse};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
-#[derive(Clone, Debug)]
-pub enum Command {
-    ChannelJoin {
-        channel_id: u32,
-    },
-    ChannelList,
-    ServerConnect {
-        host: String,
-        port: u16,
-        username: String,
-        accept_invalid_cert: bool, //TODO ask when connecting
-    },
-    ServerDisconnect,
-    Status,
-}
-
-#[derive(Debug)]
-pub enum CommandResponse {
-    ChannelList {
-        channels: HashMap<u32, Channel>,
-    },
-    Status {
-        username: Option<String>,
-        server_state: Server,
-    },
-}
-
 pub async fn handle(
     state: Arc<Mutex<State>>,
-    mut command_receiver: mpsc::UnboundedReceiver<Command>,
-    command_response_sender: mpsc::UnboundedSender<Result<Option<CommandResponse>, ()>>,
+    mut command_receiver: mpsc::UnboundedReceiver<(Command, IpcSender<Result<Option<CommandResponse>, ()>>)>,
 ) {
-    //TODO err if not connected
-    while let Some(command) = command_receiver.recv().await {
-        debug!("Parsing command {:?}", command);
+    debug!("Begin listening for commands");
+    loop {
+        debug!("Enter loop");
+        let command = command_receiver.recv().await.unwrap();
+        debug!("Received command {:?}", command.0);
         let mut state = state.lock().unwrap();
-        let (wait_for_connected, command_response) = state.handle_command(command).await;
+        let (wait_for_connected, command_response) = state.handle_command(command.0).await;
         if wait_for_connected {
             let mut watcher = state.phase_receiver();
             drop(state);
             while !matches!(watcher.recv().await.unwrap(), StatePhase::Connected) {}
         }
-        command_response_sender.send(command_response).unwrap();
+        command.1.send(command_response).unwrap();
     }
+    //TODO err if not connected
+    //while let Some(command) = command_receiver.recv().await {
+    //    debug!("Parsing command {:?}", command);
+    //}
 
-    debug!("Finished handling commands");
+    //debug!("Finished handling commands");
 }

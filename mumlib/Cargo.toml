@@ -1,18 +1,15 @@
 [package]
-name = "mumctl"
+name = "mumlib"
 version = "0.1.0"
 authors = ["Gustav Sörnäs <gustav@sornas.net>",
            "Eskil Queseth <eskilq@kth.se>"]
-license = "MIT"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mumlib = { path = "../mumlib" }
-
+colored = "2.0"
+fern = "0.5"
 log = "0.4"
-ipc-channel = "0.14"
-
-#clap = "2.33"
-#cursive = "0.15"
+mumble-protocol = "0.3"
+serde = { version = "1.0", features = ["derive"] }
