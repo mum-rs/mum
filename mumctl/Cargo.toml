@@ -11,8 +11,8 @@ edition = "2018"
 [dependencies]
 mumlib = { path = "../mumlib" }
 
+clap = { version = "2.33", features = ["yaml"] }
 log = "0.4"
 ipc-channel = "0.14"
 
-#clap = "2.33"
 #cursive = "0.15"
