@@ -9,6 +9,7 @@ use mumlib::command::{Command, CommandResponse};
 use mumlib::state::Server;
 use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
+use mumlib::error::Error;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatePhase {
@@ -50,12 +51,17 @@ impl State {
     pub async fn handle_command(
         &mut self,
         command: Command,
-    ) -> (bool, Result<Option<CommandResponse>, ()>) {
+    ) -> (bool, mumlib::error::Result<Option<CommandResponse>>) {
         match command {
             Command::ChannelJoin { channel_id } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     warn!("Not connected");
-                    return (false, Err(()));
+                    return (false, Err(Error::DisconnectedError));
+                }
+                if let Some(server) = &self.server {
+                    if !server.channels().contains_key(&channel_id) {
+                        return (false, Err(Error::InvalidChannelIdError));
+                    }
                 }
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.session_id.unwrap());
@@ -66,7 +72,7 @@ impl State {
             Command::ChannelList => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     warn!("Not connected");
-                    return (false, Err(()));
+                    return (false, Err(Error::DisconnectedError));
                 }
                 (
                     false,
@@ -83,7 +89,7 @@ impl State {
             } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
                     warn!("Tried to connect to a server while already connected");
-                    return (false, Err(()));
+                    return (false, Err(Error::AlreadyConnectedError));
                 }
                 self.server = Some(Server::new());
                 self.username = Some(username);
@@ -91,11 +97,14 @@ impl State {
                     .0
                     .broadcast(StatePhase::Connecting)
                     .unwrap();
-                let socket_addr = (host.as_ref(), port)
-                    .to_socket_addrs()
-                    .expect("Failed to parse server address")
-                    .next()
-                    .expect("Failed to resolve server address");
+
+                let socket_addr = match (host.as_ref(), port).to_socket_addrs().map(|mut e| e.next()) {
+                    Ok(Some(v)) => v,
+                    _ => {
+                        warn!("Error parsing server addr");
+                        return (false, Err(Error::InvalidServerAddrError));
+                    }
+                };
                 self.connection_info_sender
                     .broadcast(Some(ConnectionInfo::new(
                         socket_addr,
@@ -108,13 +117,13 @@ impl State {
             Command::Status => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     warn!("Not connected");
-                    return (false, Err(()));
+                    return (false, Err(Error::DisconnectedError));
                 }
                 (
                     false,
                     Ok(Some(CommandResponse::Status {
                         username: self.username.clone(),
-                        server_state: self.server.clone().unwrap(),
+                        server_state: self.server.clone().unwrap(), //guaranteed not to panic because if we are connected, server is guaranteed to be Some
                     })),
                 )
             }
