@@ -7,6 +7,7 @@ use std::fs;
 
 fn main() {
     setup_logger();
+    debug!("Logger up!");
 
     let matches = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -33,6 +34,7 @@ fn main() {
         .subcommand(SubCommand::with_name("status"))
         .get_matches();
 
+    debug!("Matching clap");
     let command =
         if let Some(matches) = matches.subcommand_matches("server") {
             if let Some(matches) = matches.subcommand_matches("connect") {
@@ -64,17 +66,18 @@ fn main() {
         } else {
             None
         };
+    debug!("Matched {:#?}", &command);
 
-    debug!("Creating channel");
+    debug!("Creating CommandResponse-channel");
     let (tx_client, rx_client): (IpcSender<Result<Option<CommandResponse>, ()>>,
                                  IpcReceiver<Result<Option<CommandResponse>, ()>>) = ipc::channel().unwrap();
 
     let server_name = fs::read_to_string("/var/tmp/mumd-oneshot").unwrap(); //TODO don't panic
-    info!("Sending {:#?}", command);
+    info!("Sending {:#?}\n to {}", command, server_name);
     let tx0 = IpcSender::connect(server_name).unwrap();
     tx0.send((command.unwrap(), tx_client)).unwrap();
 
-    debug!("Reading response");
+    debug!("Waiting for response");
     let response = rx_client.recv().unwrap();
-    debug!("\n{:#?}", response);
+    debug!("Received {:#?}", response);
 }
