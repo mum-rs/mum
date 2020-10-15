@@ -1,4 +1,4 @@
-use clap::{App, Arg, SubCommand};
+use clap::{App, AppSettings, Arg, SubCommand};
 use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
@@ -9,6 +9,7 @@ fn main() {
     setup_logger();
 
     let matches = App::new("mumctl")
+        .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(SubCommand::with_name("server")
                     .subcommand(SubCommand::with_name("connect")
                                 .arg(Arg::with_name("host")
