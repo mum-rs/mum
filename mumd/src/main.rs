@@ -37,7 +37,6 @@ async fn main() {
     );
     let state = Arc::new(Mutex::new(state));
 
-    // Run it
     let (_, _, _, e) = join!(
         network::tcp::handle(
             Arc::clone(&state),
@@ -54,7 +53,7 @@ async fn main() {
             state,
             command_receiver,
         ),
-        spawn_blocking(move || {
+        spawn_blocking(move || { // IpcSender is blocking
             receive_oneshot_commands(command_sender);
         }),
     );
@@ -68,7 +67,7 @@ fn receive_oneshot_commands(
         // create listener
         let (server, server_name): (IpcOneShotServer<(Command, IpcSender<mumlib::error::Result<Option<CommandResponse>>>)>, String) = IpcOneShotServer::new().unwrap();
         fs::write("/var/tmp/mumd-oneshot", &server_name).unwrap();
-        debug!("Listening for command at {}...", server_name);
+        debug!("Listening to {}", server_name);
 
         // receive command and response channel
         let (_, conn): (_, (Command, IpcSender<mumlib::error::Result<Option<CommandResponse>>>)) = server.accept().unwrap();

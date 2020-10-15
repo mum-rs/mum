@@ -191,6 +191,10 @@ impl Audio {
     pub fn take_receiver(&mut self) -> Option<Receiver<VoicePacketPayload>> {
         self.input_channel_receiver.take()
     }
+
+    pub fn clear_clients(&mut self) {
+        self.client_streams.lock().unwrap().clear();
+    }
 }
 
 impl ClientStream {

@@ -13,7 +13,7 @@ pub enum Command {
         host: String,
         port: u16,
         username: String,
-        accept_invalid_cert: bool, //TODO ask when connecting
+        accept_invalid_cert: bool,
     },
     ServerDisconnect,
     Status,

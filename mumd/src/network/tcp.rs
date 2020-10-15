@@ -286,8 +286,8 @@ async fn listen(
                         ControlPacket::UserState(msg) => {
                             let mut state = state.lock().unwrap();
                             let session = msg.get_session();
-                            state.audio_mut().add_client(msg.get_session()); //TODO
                             if *state.phase_receiver().borrow() == StatePhase::Connecting {
+                                state.audio_mut().add_client(msg.get_session());
                                 state.parse_initial_user_state(*msg);
                             } else {
                                 state.server_mut().unwrap().parse_user_state(*msg);
