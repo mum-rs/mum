@@ -35,49 +35,47 @@ fn main() {
         .get_matches();
 
     debug!("Matching clap");
-    let command =
-        if let Some(matches) = matches.subcommand_matches("server") {
-            if let Some(matches) = matches.subcommand_matches("connect") {
-                let host = matches.value_of("host").unwrap();
-                let username = matches.value_of("username").unwrap();
-                Some(Command::ServerConnect {
-                    host: host.to_string(),
-                    port: 64738u16, //TODO
-                    username: username.to_string(),
-                    accept_invalid_cert: true, //TODO
-                })
-            } else {
-                None
-            }
-        } else if let Some(matches) = matches.subcommand_matches("channel") {
-            if let Some(matches) = matches.subcommand_matches("list") {
-                if matches.is_present("short") {
-                    None //TODO
-                } else {
-                    None //TODO
-                }
-            } else if let Some(_matches) = matches.subcommand_matches("connect") {
+    if let Some(matches) = matches.subcommand_matches("server") {
+        if let Some(matches) = matches.subcommand_matches("connect") {
+            let host = matches.value_of("host").unwrap();
+            let username = matches.value_of("username").unwrap();
+            send_command(Command::ServerConnect {
+                host: host.to_string(),
+                port: 64738u16, //TODO
+                username: username.to_string(),
+                accept_invalid_cert: true, //TODO
+            }).unwrap();
+        } else if let Some(_) = matches.subcommand_matches("disconnect") {
+            send_command(Command::ServerDisconnect).unwrap();
+        }
+    } else if let Some(matches) = matches.subcommand_matches("channel") {
+        if let Some(matches) = matches.subcommand_matches("list") {
+            let res = send_command(Command::ChannelList).unwrap().unwrap();
+            println!("{:#?}", res);
+            /*if matches.is_present("short") {
                 None //TODO
             } else {
-                None
-            }
-        } else if let Some(_matches) = matches.subcommand_matches("status") {
-            None //TODO
-        } else {
-            None
-        };
-    debug!("Matched {:#?}", &command);
+                None //TODO
+            };*/
+        } else if let Some(matches) = matches.subcommand_matches("connect") {
+            send_command(Command::ChannelJoin {
+                channel_id: matches.value_of("channel").unwrap().parse::<u32>().unwrap()
+            }).unwrap();
+        }
+    } else if let Some(matches) = matches.subcommand_matches("status") {
+        let res = send_command(Command::Status).unwrap().unwrap();
+        println!("{:#?}", res);
+    };
+}
 
-    debug!("Creating CommandResponse-channel");
+fn send_command(command: Command) -> Result<Option<CommandResponse>, ()> {
     let (tx_client, rx_client): (IpcSender<Result<Option<CommandResponse>, ()>>,
                                  IpcReceiver<Result<Option<CommandResponse>, ()>>) = ipc::channel().unwrap();
 
     let server_name = fs::read_to_string("/var/tmp/mumd-oneshot").unwrap(); //TODO don't panic
-    info!("Sending {:#?}\n to {}", command, server_name);
-    let tx0 = IpcSender::connect(server_name).unwrap();
-    tx0.send((command.unwrap(), tx_client)).unwrap();
 
-    debug!("Waiting for response");
-    let response = rx_client.recv().unwrap();
-    debug!("Received {:#?}", response);
+    let tx0 = IpcSender::connect(server_name).unwrap();
+    tx0.send((command, tx_client)).unwrap();
+
+    rx_client.recv().unwrap()
 }
