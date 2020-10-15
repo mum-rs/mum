@@ -1,5 +1,5 @@
 * Current
-** Få igång mumctl :gustav:
+** Städa mumctl
 
 * Next
 ** Flytta ljudgrejer till client state
