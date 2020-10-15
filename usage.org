@@ -20,8 +20,8 @@ The daemon doesn't do anything by itself. Interfacing with it is done through
 The basic commands are the smallest subset of commands that allow the user to
 actually use mum for something. In this case it means connecting to a server,
 listing channels and connecting to channels.
-** TODO server
-*** TODO connect
+** DONE server
+*** DONE connect
 #+BEGIN_SRC bash
 $ mumctl server connect localhost your_name
 connecting to localhost...
@@ -31,8 +31,8 @@ root
 │  some person
 |  your_name
 #+END_SRC
-** TODO channel
-*** TODO list
+** DONE channel
+*** DONE list
 #+BEGIN_SRC bash
 $ mumctl channel list
 root                 [3](4)
@@ -60,13 +60,13 @@ root                 [3](4)
 │  └─ subsubchannel  [2]
 └─ AFK               [1]
 #+END_SRC
-*** TODO connect
+*** DONE connect
 #+BEGIN_SRC bash
 $ mumctl channel connect some channel
 connecting to some channel...
 connected
 #+END_SRC
-** TODO status
+** DONE status
 #+BEGIN_SRC bash
 $ mumctl status
 connected to localhost:65837 as your_name

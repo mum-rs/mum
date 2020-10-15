@@ -5,4 +5,5 @@
 members = [
     "mumd",
     "mumctl",
+    "mumlib"
 ]

@@ -9,18 +9,20 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+mumlib = { path = "../mumlib" }
+
 argparse = "0.2"
 bytes = "0.5"
-colored = "2.0"
 cpal = { git = "https://github.com/RustAudio/cpal" }
-fern = "0.5"
 futures = "0.3"
 futures-util = "0.3"
+ipc-channel = "0.14"
 log = "0.4"
 mumble-protocol = "0.3"
 native-tls = "0.2"
 openssl = { version = "0.10", optional = true }
 opus = "0.2"
+serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "0.2", features = ["full"] }
 tokio-tls = "0.3"
 tokio-util = { version = "0.3", features = ["codec", "udp"] }
@@ -28,4 +30,3 @@ tokio-util = { version = "0.3", features = ["codec", "udp"] }
 #clap = "2.33"
 #compressor = "0.3"
 #daemonize = "0.4"
-#ipc-channel = "0.14"
