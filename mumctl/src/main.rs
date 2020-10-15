@@ -32,7 +32,13 @@ fn main() {
                                 .arg(Arg::with_name("channel")
                                      .required(true))))
         .subcommand(SubCommand::with_name("status"))
-        .subcommand(SubCommand::with_name("completions"));
+        .subcommand(SubCommand::with_name("completions")
+                    .arg(Arg::with_name("zsh")
+                         .long("zsh"))
+                    .arg(Arg::with_name("bash")
+                         .long("bash"))
+                    .arg(Arg::with_name("fish")
+                         .long("fish")));
 
     let matches = app.clone().get_matches();
 
