@@ -1,15 +1,15 @@
-use clap::{App, AppSettings, Arg, SubCommand};
+use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
-use std::fs;
+use std::{fs, io};
 
 fn main() {
     setup_logger();
     debug!("Logger up!");
 
-    let matches = App::new("mumctl")
+    let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(SubCommand::with_name("server")
                     .setting(AppSettings::ArgRequiredElseHelp)
@@ -32,7 +32,9 @@ fn main() {
                                 .arg(Arg::with_name("channel")
                                      .required(true))))
         .subcommand(SubCommand::with_name("status"))
-        .get_matches();
+        .subcommand(SubCommand::with_name("completions"));
+
+    let matches = app.clone().get_matches();
 
     debug!("Matching clap");
     if let Some(matches) = matches.subcommand_matches("server") {
@@ -49,7 +51,7 @@ fn main() {
             send_command(Command::ServerDisconnect).unwrap();
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
-        if let Some(matches) = matches.subcommand_matches("list") {
+        if let Some(_matches) = matches.subcommand_matches("list") {
             let res = send_command(Command::ChannelList).unwrap().unwrap();
             println!("{:#?}", res);
             /*if matches.is_present("short") {
@@ -62,9 +64,24 @@ fn main() {
                 channel_id: matches.value_of("channel").unwrap().parse::<u32>().unwrap()
             }).unwrap();
         }
-    } else if let Some(matches) = matches.subcommand_matches("status") {
+    } else if let Some(_matches) = matches.subcommand_matches("status") {
         let res = send_command(Command::Status).unwrap().unwrap();
         println!("{:#?}", res);
+    } else if let Some(matches) = matches.subcommand_matches("completions") {
+            app.gen_completions_to("mumctl",
+                                   match matches.value_of("shell").unwrap_or("zsh") {
+                                       "bash" => {
+                                           Shell::Bash
+                                       },
+                                       "fish" => {
+                                           Shell::Fish
+                                       },
+                                       _ => {
+                                           Shell::Zsh
+                                       },
+                                   },
+                                   &mut io::stdout());
+            return;
     };
 }
 
