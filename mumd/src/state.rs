@@ -125,6 +125,7 @@ impl State {
                 self.session_id = None;
                 self.username = None;
                 self.server = None;
+                self.audio.clear_clients();
 
                 self.phase_watcher
                     .0
