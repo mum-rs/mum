@@ -1,6 +1,5 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use ipc_channel::ipc::{self, IpcSender};
-use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
 use std::{fs, io};
