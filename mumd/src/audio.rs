@@ -13,6 +13,7 @@ use std::ops::AddAssign;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::watch;
 
 struct ClientStream {
     buffer: VecDeque<f32>, //TODO ring buffer?
@@ -28,6 +29,7 @@ pub struct Audio {
     pub input_stream: Stream,
     pub input_buffer: Arc<Mutex<VecDeque<f32>>>,
     input_channel_receiver: Option<Receiver<VoicePacketPayload>>, //TODO unbounded? mbe ring buffer and drop the first packet
+    input_volume_sender: watch::Sender<f32>,
 
     client_streams: Arc<Mutex<HashMap<u32, ClientStream>>>, //TODO move to user state
 }
@@ -99,6 +101,8 @@ impl Audio {
         .unwrap();
         let (input_sender, input_receiver) = mpsc::channel(100);
 
+        let (input_volume_sender, input_volume_receiver) = watch::channel::<f32>(1.0);
+
         let input_buffer = Arc::new(Mutex::new(VecDeque::new()));
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
@@ -107,6 +111,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
+                    input_volume_receiver.clone(),
                     4, // 10 ms
                 ),
                 err_fn,
@@ -117,6 +122,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
+                    input_volume_receiver.clone(),
                     4, // 10 ms
                 ),
                 err_fn,
@@ -127,6 +133,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
+                    input_volume_receiver.clone(),
                     4, // 10 ms
                 ),
                 err_fn,
@@ -142,6 +149,7 @@ impl Audio {
             input_config,
             input_stream,
             input_buffer,
+            input_volume_sender,
             input_channel_receiver: Some(input_receiver),
             client_streams,
         }
@@ -194,6 +202,10 @@ impl Audio {
 
     pub fn clear_clients(&mut self) {
         self.client_streams.lock().unwrap().clear();
+    }
+
+    pub fn set_input_volume(&self, input_volume: f32) {
+        self.input_volume_sender.broadcast(input_volume).unwrap();
     }
 }
 
@@ -280,6 +292,7 @@ fn input_callback<T: Sample>(
     mut opus_encoder: opus::Encoder,
     mut input_sender: Sender<VoicePacketPayload>,
     sample_rate: u32,
+    input_volume_receiver: watch::Receiver<f32>,
     opus_frame_size_blocks: u32, // blocks of 2.5ms
 ) -> impl FnMut(&[T], &InputCallbackInfo) + Send + 'static {
     if !(opus_frame_size_blocks == 1
@@ -297,7 +310,10 @@ fn input_callback<T: Sample>(
     let buf = Arc::new(Mutex::new(VecDeque::new()));
     move |data: &[T], _info: &InputCallbackInfo| {
         let mut buf = buf.lock().unwrap();
-        let out: Vec<f32> = data.iter().map(|e| e.to_f32()).collect();
+        let input_volume = *input_volume_receiver.borrow();
+        let out: Vec<f32> = data.iter().map(|e| e.to_f32())
+                                       .map(|e| e * input_volume)
+                                       .collect();
         buf.extend(out);
         while buf.len() >= opus_frame_size as usize {
             let tail = buf.split_off(opus_frame_size as usize);
