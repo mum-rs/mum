@@ -61,14 +61,6 @@ fn main() {
                 username: username.to_string(),
                 accept_invalid_cert: true, //TODO
             }));
-            /*if let Err(e) = send_command(Command::ServerConnect {
-                host: host.to_string(),
-                port: 64738u16, //TODO
-                username: username.to_string(),
-                accept_invalid_cert: true, //TODO
-            }) {
-                println!("{} {}", "error:".red(), e);
-            }*/
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
             err_print!(send_command(Command::ServerDisconnect));
         }
@@ -77,11 +69,6 @@ fn main() {
             match send_command(Command::ChannelList) {
                 Ok(res) => {
                     println!("{:#?}", res.unwrap());
-                    /*if matches.is_present("short") {
-                        None //TODO
-                    } else {
-                        None //TODO
-                    };*/
                 }
                 Err(e) => println!("{} {}", "error:".red(), e),
             }
@@ -94,11 +81,6 @@ fn main() {
         match send_command(Command::Status) {
             Ok(res) => {
                 println!("{:#?}", res.unwrap());
-                /*if matches.is_present("short") {
-                    None //TODO
-                } else {
-                    None //TODO
-                };*/
             }
             Err(e) => println!("{} {}", "error:".red(), e),
         }
