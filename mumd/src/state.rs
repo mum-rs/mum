@@ -59,7 +59,7 @@ impl State {
                 }
                 if let Some(server) = &self.server {
                     if !server.channels().contains_key(&channel_id) {
-                        return (false, Err(Error::InvalidChannelIdError));
+                        return (false, Err(Error::InvalidChannelIdError(channel_id)));
                     }
                 }
                 let mut msg = msgs::UserState::new();
@@ -97,7 +97,7 @@ impl State {
                     Ok(Some(v)) => v,
                     _ => {
                         warn!("Error parsing server addr");
-                        return (false, Err(Error::InvalidServerAddrError));
+                        return (false, Err(Error::InvalidServerAddrError(host, port)));
                     }
                 };
                 self.connection_info_sender
