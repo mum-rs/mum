@@ -1,5 +1,5 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand};
-use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
+use ipc_channel::ipc::{self, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
@@ -16,7 +16,6 @@ macro_rules! err_print {
 
 fn main() {
     setup_logger();
-    debug!("Logger up!");
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -73,8 +72,9 @@ fn main() {
                 Err(e) => println!("{} {}", "error:".red(), e),
             }
         } else if let Some(matches) = matches.subcommand_matches("connect") {
+            let channel_arg = matches.value_of("channel").unwrap();
             err_print!(send_command(Command::ChannelJoin {
-                channel_id: matches.value_of("channel").unwrap().parse::<u32>().unwrap()
+                channel_identifier: channel_arg.to_string()
             }));
         }
     } else if let Some(_matches) = matches.subcommand_matches("status") {

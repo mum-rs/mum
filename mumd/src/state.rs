@@ -53,18 +53,25 @@ impl State {
         command: Command,
     ) -> (bool, mumlib::error::Result<Option<CommandResponse>>) {
         match command {
-            Command::ChannelJoin { channel_id } => {
+            Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return (false, Err(Error::DisconnectedError));
                 }
-                if let Some(server) = &self.server {
-                    if !server.channels().contains_key(&channel_id) {
-                        return (false, Err(Error::InvalidChannelIdError(channel_id)));
-                    }
-                }
+
+                let channels = self.server()
+                    .unwrap()
+                    .channels();
+                let mut idents = channels.iter()
+                    .map(|e| (e.0, e.1.path(channels)));
+
+                let id = match idents.find(|e| e.1.ends_with(&channel_identifier)) {
+                    Some(v) => *v.0,
+                    None => return (false, Err(Error::InvalidChannelIdentifierError(channel_identifier))),
+                };
+
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.session_id.unwrap());
-                msg.set_channel_id(channel_id);
+                msg.set_channel_id(id);
                 self.packet_sender.send(msg.into()).unwrap();
                 (false, Ok(None))
             }
@@ -73,7 +80,7 @@ impl State {
                     return (false, Err(Error::DisconnectedError));
                 }
                 (false, Ok(Some(CommandResponse::ChannelList {
-                        channels: self.server.as_ref().unwrap().channels().clone(),
+                        channels: self.server().unwrap().channels().clone(),
                     })),
                 )
             }
@@ -187,6 +194,9 @@ impl State {
     }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
         self.phase_watcher.1.clone()
+    }
+    pub fn server(&self) -> Option<&Server> {
+        self.server.as_ref()
     }
     pub fn server_mut(&mut self) -> Option<&mut Server> {
         self.server.as_mut()

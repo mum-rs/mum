@@ -128,6 +128,13 @@ impl Channel {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    pub fn path(&self, channels: &HashMap<u32, Channel>) -> String {
+        match &self.parent {
+            Some(t) => format!("{}/{}", channels.get(t).unwrap().path(channels), self.name),
+            None => self.name.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

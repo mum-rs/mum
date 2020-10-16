@@ -8,7 +8,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     DisconnectedError,
     AlreadyConnectedError,
-    InvalidChannelIdError(u32),
+    InvalidChannelIdentifierError(String),
     InvalidServerAddrError(String, u16),
 }
 
@@ -17,7 +17,7 @@ impl Display for Error {
         match self {
             Error::DisconnectedError => write!(f, "Not connected to a server"),
             Error::AlreadyConnectedError => write!(f, "Already connected to a server"),
-            Error::InvalidChannelIdError(id) => write!(f, "Invalid channel id: {}", id),
+            Error::InvalidChannelIdentifierError(id) => write!(f, "Couldn't find channel {}", id),
             Error::InvalidServerAddrError(addr, port) => write!(f, "Invalid server address: {}:{}", addr, port),
         }
     }
