@@ -55,7 +55,6 @@ impl State {
         match command {
             Command::ChannelJoin { channel_id } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    warn!("Not connected");
                     return (false, Err(Error::DisconnectedError));
                 }
                 if let Some(server) = &self.server {
@@ -71,12 +70,9 @@ impl State {
             }
             Command::ChannelList => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    warn!("Not connected");
                     return (false, Err(Error::DisconnectedError));
                 }
-                (
-                    false,
-                    Ok(Some(CommandResponse::ChannelList {
+                (false, Ok(Some(CommandResponse::ChannelList {
                         channels: self.server.as_ref().unwrap().channels().clone(),
                     })),
                 )
@@ -88,7 +84,6 @@ impl State {
                 accept_invalid_cert,
             } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
-                    warn!("Tried to connect to a server while already connected");
                     return (false, Err(Error::AlreadyConnectedError));
                 }
                 self.server = Some(Server::new());
@@ -116,7 +111,6 @@ impl State {
             }
             Command::Status => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    warn!("Not connected");
                     return (false, Err(Error::DisconnectedError));
                 }
                 (
@@ -128,6 +122,10 @@ impl State {
                 )
             }
             Command::ServerDisconnect => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return (false, Err(Error::DisconnectedError));
+                }
+
                 self.session_id = None;
                 self.username = None;
                 self.server = None;
