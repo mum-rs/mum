@@ -4,6 +4,15 @@ use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
 use std::{fs, io};
+use colored::Colorize;
+
+macro_rules! err_print {
+    ($func:expr) => {
+        if let Err(e) = $func {
+            println!("{} {}", "error:".red(), e);
+        }
+    };
+}
 
 fn main() {
     setup_logger();
@@ -41,36 +50,40 @@ fn main() {
                          .long("fish")));
 
     let matches = app.clone().get_matches();
-
-    debug!("Matching clap");
+    
     if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("connect") {
             let host = matches.value_of("host").unwrap();
             let username = matches.value_of("username").unwrap();
-            send_command(Command::ServerConnect {
+            err_print!(send_command(Command::ServerConnect {
                 host: host.to_string(),
                 port: 64738u16, //TODO
                 username: username.to_string(),
                 accept_invalid_cert: true, //TODO
-            }).unwrap();
+            }));
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
-            send_command(Command::ServerDisconnect).unwrap();
+            err_print!(send_command(Command::ServerDisconnect));
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
         if let Some(_matches) = matches.subcommand_matches("list") {
-            let res = send_command(Command::ChannelList).unwrap().unwrap();
-            println!("{:#?}", res);
-            /*if matches.is_present("short") {
-                None //TODO
-            } else {
-                None //TODO
-            };*/
+            match send_command(Command::ChannelList) {
+                Ok(res) => {
+                    println!("{:#?}", res.unwrap());
+                }
+                Err(e) => println!("{} {}", "error:".red(), e),
+            }
         } else if let Some(matches) = matches.subcommand_matches("connect") {
-            send_command(Command::ChannelJoin {
+            err_print!(send_command(Command::ChannelJoin {
                 channel_id: matches.value_of("channel").unwrap().parse::<u32>().unwrap()
-            }).unwrap();
+            }));
         }
     } else if let Some(_matches) = matches.subcommand_matches("status") {
+        match send_command(Command::Status) {
+            Ok(res) => {
+                println!("{:#?}", res.unwrap());
+            }
+            Err(e) => println!("{} {}", "error:".red(), e),
+        }
         let res = send_command(Command::Status).unwrap().unwrap();
         println!("{:#?}", res);
     } else if let Some(matches) = matches.subcommand_matches("completions") {
@@ -91,13 +104,13 @@ fn main() {
     };
 }
 
-fn send_command(command: Command) -> Result<Option<CommandResponse>, ()> {
-    let (tx_client, rx_client): (IpcSender<Result<Option<CommandResponse>, ()>>,
-                                 IpcReceiver<Result<Option<CommandResponse>, ()>>) = ipc::channel().unwrap();
+fn send_command(command: Command) -> mumlib::error::Result<Option<CommandResponse>> {
+    let (tx_client, rx_client) = ipc::channel::<mumlib::error::Result<Option<CommandResponse>>>().unwrap();
 
     let server_name = fs::read_to_string("/var/tmp/mumd-oneshot").unwrap(); //TODO don't panic
 
     let tx0 = IpcSender::connect(server_name).unwrap();
+
     tx0.send((command, tx_client)).unwrap();
 
     rx_client.recv().unwrap()

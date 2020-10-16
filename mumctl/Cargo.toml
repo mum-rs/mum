@@ -12,6 +12,7 @@ edition = "2018"
 mumlib = { path = "../mumlib" }
 
 clap = { version = "2.33", features = ["yaml"] }
+colored = "2.0"
 log = "0.4"
 ipc-channel = "0.14"
 

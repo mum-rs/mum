@@ -8,12 +8,10 @@ use tokio::sync::mpsc;
 
 pub async fn handle(
     state: Arc<Mutex<State>>,
-    mut command_receiver: mpsc::UnboundedReceiver<(Command, IpcSender<Result<Option<CommandResponse>, ()>>)>,
+    mut command_receiver: mpsc::UnboundedReceiver<(Command, IpcSender<mumlib::error::Result<Option<CommandResponse>>>)>,
 ) {
     debug!("Begin listening for commands");
-    loop {
-        debug!("Enter loop");
-        let command = command_receiver.recv().await.unwrap();
+    while let Some(command) = command_receiver.recv().await {
         debug!("Received command {:?}", command.0);
         let mut state = state.lock().unwrap();
         let (wait_for_connected, command_response) = state.handle_command(command.0).await;

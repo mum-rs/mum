@@ -1,5 +1,6 @@
 pub mod command;
 pub mod state;
+pub mod error;
 
 use colored::*;
 use log::*;
