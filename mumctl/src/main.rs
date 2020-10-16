@@ -1,4 +1,5 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand};
+use colored::Colorize;
 use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
@@ -41,6 +42,11 @@ fn main() {
                                 .arg(Arg::with_name("channel")
                                      .required(true))))
         .subcommand(SubCommand::with_name("status"))
+        .subcommand(SubCommand::with_name("config")
+                    .arg(Arg::with_name("name")
+                         .required(true))
+                    .arg(Arg::with_name("value")
+                         .required(true)))
         .subcommand(SubCommand::with_name("completions")
                     .arg(Arg::with_name("zsh")
                          .long("zsh"))
@@ -86,6 +92,19 @@ fn main() {
         }
         let res = send_command(Command::Status).unwrap().unwrap();
         println!("{:#?}", res);
+    } else if let Some(matches) = matches.subcommand_matches("config") {
+        let name = matches.value_of("name").unwrap();
+        let value = matches.value_of("value").unwrap();
+        match name {
+            "audio.input_volume" => {
+                if let Ok(volume) = value.parse() {
+                    send_command(Command::InputVolumeSet(volume)).unwrap();
+                }
+            },
+            _ => {
+                println!("{} Unknown config value {}", "error:".red(), name);
+            }
+        }
     } else if let Some(matches) = matches.subcommand_matches("completions") {
             app.gen_completions_to("mumctl",
                                    match matches.value_of("shell").unwrap_or("zsh") {

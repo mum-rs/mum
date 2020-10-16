@@ -137,6 +137,10 @@ impl State {
                     .unwrap();
                 (false, Ok(None))
             }
+            Command::InputVolumeSet(volume) => {
+                self.audio.set_input_volume(volume);
+                (false, Ok(None))
+            }
         }
     }
 

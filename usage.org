@@ -50,7 +50,7 @@ root                 [3](4)
       someone eating food
 #+END_SRC
 
-**** TODO --short
+**** DONE --short
 #+BEGIN_SRC bash
 $ mumctl channel list --short
 root                 [3](4)
@@ -138,4 +138,10 @@ server offered invalid key. what do you want to do?
 *** rename
 #+BEGIN_SRC bash
 $ mumctl server rename loopback my_server
+#+END_SRC
+** config
+#+BEGIN_SRC bash
+$ mumctl config audio.input_volume 1.1
+$ mumctl config audio.input_volume
+$ mumctl config audio.input_volume --help
 #+END_SRC

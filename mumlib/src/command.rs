@@ -9,6 +9,7 @@ pub enum Command {
         channel_id: u32,
     },
     ChannelList,
+    InputVolumeSet(f32),
     ServerConnect {
         host: String,
         port: u16,
