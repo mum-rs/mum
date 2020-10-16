@@ -9,7 +9,7 @@ use mumlib::command::{Command, CommandResponse};
 use mumlib::state::Server;
 use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
-use mumlib::error::Error;
+use mumlib::error::{Error, ChannelIdentifierError};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatePhase {
@@ -61,12 +61,15 @@ impl State {
                 let channels = self.server()
                     .unwrap()
                     .channels();
-                let mut idents = channels.iter()
-                    .map(|e| (e.0, e.1.path(channels)));
 
-                let id = match idents.find(|e| e.1.ends_with(&channel_identifier)) {
-                    Some(v) => *v.0,
-                    None => return (false, Err(Error::InvalidChannelIdentifierError(channel_identifier))),
+                let matches = channels.iter()
+                    .map(|e| (e.0, e.1.path(channels)))
+                    .filter(|e| e.1.ends_with(&channel_identifier))
+                    .collect::<Vec<_>>();
+                let id = match matches.len() {
+                    0 => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                    1 => *matches.get(0).unwrap().0,
+                    _ => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Ambiguous))),
                 };
 
                 let mut msg = msgs::UserState::new();
