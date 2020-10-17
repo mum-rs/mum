@@ -1,10 +1,11 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use colored::Colorize;
-use ipc_channel::ipc::{self, IpcSender};
+use ipc_channel::ipc::{self, IpcReceiver, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
 use std::{fs, io};
+use colored::Colorize;
 
 macro_rules! err_print {
     ($func:expr) => {
