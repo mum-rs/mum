@@ -2,17 +2,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Server {
-    channels: Vec<Channel>,
-    welcome_text: Option<String>,
-}
-
-impl Server {
-    pub fn new() -> Self {
-        Self {
-            channels: Vec::new(),
-            welcome_text: None,
-        }
-    }
+    pub channels: Channel,
+    pub welcome_text: Option<String>,
+    pub username: String,
+    pub host: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

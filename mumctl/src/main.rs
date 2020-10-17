@@ -88,8 +88,6 @@ fn main() {
             }
             Err(e) => println!("{} {}", "error:".red(), e),
         }
-        let res = send_command(Command::Status).unwrap().unwrap();
-        println!("{:#?}", res);
     } else if let Some(matches) = matches.subcommand_matches("completions") {
             app.gen_completions_to("mumctl",
                                    match matches.value_of("shell").unwrap_or("zsh") {

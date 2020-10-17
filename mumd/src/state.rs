@@ -28,9 +28,6 @@ pub struct State {
     connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
-
-    username: Option<String>,
-    session_id: Option<u32>,
 }
 
 impl State {
@@ -44,8 +41,6 @@ impl State {
             packet_sender,
             connection_info_sender,
             phase_watcher: watch::channel(StatePhase::Disconnected),
-            username: None,
-            session_id: None,
         }
     }
 
@@ -59,13 +54,13 @@ impl State {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return (false, Err(Error::DisconnectedError));
                 }
-                if let Some(server) = &self.server {
-                    if !server.channels().contains_key(&channel_id) {
-                        return (false, Err(Error::InvalidChannelIdError(channel_id)));
-                    }
+                let server = self.server.as_ref().unwrap();
+                if !server.channels().contains_key(&channel_id) {
+                    return (false, Err(Error::InvalidChannelIdError(channel_id)));
                 }
+
                 let mut msg = msgs::UserState::new();
-                msg.set_session(self.session_id.unwrap());
+                msg.set_session(server.session_id.unwrap());
                 msg.set_channel_id(channel_id);
                 self.packet_sender.send(msg.into()).unwrap();
                 (false, Ok(None))
@@ -76,8 +71,8 @@ impl State {
                 }
                 (false, Ok(Some(CommandResponse::ChannelList {
                         channels: into_channel(
-                            self.server.as_ref().unwrap().channels().clone(),
-                            self.server.as_ref().unwrap().users().clone()),
+                            self.server.as_ref().unwrap().channels(),
+                            self.server.as_ref().unwrap().users()),
                     })),
                 )
             }
@@ -90,8 +85,10 @@ impl State {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
                     return (false, Err(Error::AlreadyConnectedError));
                 }
-                self.server = Some(Server::new());
-                self.username = Some(username);
+                let mut server = Server::new();
+                server.username = Some(username);
+                server.host = Some(host.clone());
+                self.server = Some(server);
                 self.phase_watcher
                     .0
                     .broadcast(StatePhase::Connecting)
@@ -119,11 +116,9 @@ impl State {
                 }
                 (
                     false,
-                    /*Ok(Some(CommandResponse::Status {
-                        username: self.username.clone(),
-                        server_state: self.server.clone().unwrap(), //guaranteed not to panic because if we are connected, server is guaranteed to be Some
-                    })),*/
-                    Err(Error::DisconnectedError)
+                    Ok(Some(CommandResponse::Status {
+                        server_state: self.server.as_ref().unwrap().into(), //guaranteed not to panic because if we are connected, server is guaranteed to be Some
+                    })),
                 )
             }
             Command::ServerDisconnect => {
@@ -131,8 +126,6 @@ impl State {
                     return (false, Err(Error::DisconnectedError));
                 }
 
-                self.session_id = None;
-                self.username = None;
                 self.server = None;
                 self.audio.clear_clients();
 
@@ -152,11 +145,11 @@ impl State {
         }
         if !msg.has_name() {
             warn!("Missing name in initial user state");
-        } else if msg.get_name() == self.username.as_ref().unwrap() {
-            match self.session_id {
+        } else if msg.get_name() == self.server.as_ref().unwrap().username.as_ref().unwrap() {
+            match self.server.as_ref().unwrap().session_id {
                 None => {
                     debug!("Found our session id: {}", msg.get_session());
-                    self.session_id = Some(msg.get_session());
+                    self.server_mut().unwrap().session_id = Some(msg.get_session());
                 }
                 Some(session) => {
                     if session != msg.get_session() {
@@ -196,8 +189,8 @@ impl State {
     pub fn server_mut(&mut self) -> Option<&mut Server> {
         self.server.as_mut()
     }
-    pub fn username(&self) -> Option<&String> {
-        self.username.as_ref()
+    pub fn username(&self) -> Option<&str> {
+        self.server.as_ref().map(|e| e.username()).flatten()
     }
 }
 
@@ -206,6 +199,11 @@ pub struct Server {
     channels: HashMap<u32, Channel>,
     users: HashMap<u32, User>,
     pub welcome_text: Option<String>,
+
+    username: Option<String>,
+    session_id: Option<u32>,
+
+    host: Option<String>,
 }
 
 impl Server {
@@ -214,6 +212,9 @@ impl Server {
             channels: HashMap::new(),
             users: HashMap::new(),
             welcome_text: None,
+            username: None,
+            session_id: None,
+            host: None
         }
     }
 
@@ -270,6 +271,21 @@ impl Server {
 
     pub fn users(&self) -> &HashMap<u32, User> {
         &self.users
+    }
+
+    pub fn username(&self) -> Option<&str> {
+        self.username.as_ref().map(|e| e.as_str())
+    }
+}
+
+impl From<&Server> for mumlib::state::Server {
+    fn from(server: &Server) -> Self {
+        mumlib::state::Server {
+            channels: into_channel(server.channels(), server.users()),
+            welcome_text: server.welcome_text.clone(),
+            username: server.username.clone().unwrap(),
+            host: server.host.as_ref().unwrap().clone()
+        }
     }
 }
 
@@ -371,16 +387,16 @@ impl<'a> From<&ProtoTree<'a>> for mumlib::state::Channel {
     }
 }
 
-pub fn into_channel(channels: HashMap<u32, Channel>, users: HashMap<u32, User>) -> mumlib::state::Channel {
+pub fn into_channel(channels: &HashMap<u32, Channel>, users: &HashMap<u32, User>) -> mumlib::state::Channel {
     let mut walks = Vec::new();
 
     let mut channel_lookup = HashMap::new();
 
-    for (_, user) in &users {
+    for (_, user) in users {
         channel_lookup.entry(user.channel).or_insert(Vec::new()).push(user);
     }
 
-    for (channel_id, channel) in &channels {
+    for (channel_id, channel) in channels {
         let mut walk = Vec::new();
         let mut current = *channel_id;
         while let Some(next) = channels.get(&current).unwrap().parent {

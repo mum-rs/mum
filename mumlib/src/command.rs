@@ -24,7 +24,6 @@ pub enum CommandResponse {
         channels: Channel,
     },
     Status {
-        username: Option<String>,
         server_state: Server,
     },
 }
