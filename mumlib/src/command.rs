@@ -20,10 +20,6 @@ pub enum Command {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum CommandResponse {
-    ChannelList {
-        channels: Channel,
-    },
-    Status {
-        server_state: Server,
-    },
+    ChannelList { channels: Channel },
+    Status { server_state: Server },
 }

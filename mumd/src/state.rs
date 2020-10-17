@@ -6,12 +6,12 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
-use std::net::ToSocketAddrs;
-use tokio::sync::{mpsc, watch};
 use mumlib::error::Error;
+use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+use std::net::ToSocketAddrs;
+use tokio::sync::{mpsc, watch};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatePhase {
@@ -69,10 +69,13 @@ impl State {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return (false, Err(Error::DisconnectedError));
                 }
-                (false, Ok(Some(CommandResponse::ChannelList {
+                (
+                    false,
+                    Ok(Some(CommandResponse::ChannelList {
                         channels: into_channel(
                             self.server.as_ref().unwrap().channels(),
-                            self.server.as_ref().unwrap().users()),
+                            self.server.as_ref().unwrap().users(),
+                        ),
                     })),
                 )
             }
@@ -94,7 +97,10 @@ impl State {
                     .broadcast(StatePhase::Connecting)
                     .unwrap();
 
-                let socket_addr = match (host.as_ref(), port).to_socket_addrs().map(|mut e| e.next()) {
+                let socket_addr = match (host.as_ref(), port)
+                    .to_socket_addrs()
+                    .map(|mut e| e.next())
+                {
                     Ok(Some(v)) => v,
                     _ => {
                         warn!("Error parsing server addr");
@@ -214,7 +220,7 @@ impl Server {
             welcome_text: None,
             username: None,
             session_id: None,
-            host: None
+            host: None,
         }
     }
 
@@ -284,7 +290,7 @@ impl From<&Server> for mumlib::state::Server {
             channels: into_channel(server.channels(), server.users()),
             welcome_text: server.welcome_text.clone(),
             username: server.username.clone().unwrap(),
-            host: server.host.as_ref().unwrap().clone()
+            host: server.host.as_ref().unwrap().clone(),
         }
     }
 }
@@ -347,28 +353,36 @@ impl Channel {
 struct ProtoTree<'a> {
     channel: Option<&'a Channel>,
     children: HashMap<u32, ProtoTree<'a>>,
-    users: Vec<&'a User>
+    users: Vec<&'a User>,
 }
 
 impl<'a> ProtoTree<'a> {
-    fn walk_and_add(&mut self, channel: &'a Channel, users: &HashMap<u32, Vec<&'a User>>, walk: &[u32]) {
+    fn walk_and_add(
+        &mut self,
+        channel: &'a Channel,
+        users: &HashMap<u32, Vec<&'a User>>,
+        walk: &[u32],
+    ) {
         match walk {
             [] => unreachable!("nu gick något snett"),
             &[node] => {
                 let pt = self.children.entry(node).or_insert(ProtoTree {
                     channel: None,
                     children: HashMap::new(),
-                    users: Vec::new()
+                    users: Vec::new(),
                 });
                 pt.channel = Some(channel);
                 pt.users = users.get(&node).map(|e| e.clone()).unwrap_or(Vec::new());
             }
             longer => {
-                self.children.entry(longer[0]).or_insert(ProtoTree {
-                    channel: None,
-                    children: HashMap::new(),
-                    users: Vec::new()
-                }).walk_and_add(channel, users, &walk[1..]);
+                self.children
+                    .entry(longer[0])
+                    .or_insert(ProtoTree {
+                        channel: None,
+                        children: HashMap::new(),
+                        users: Vec::new(),
+                    })
+                    .walk_and_add(channel, users, &walk[1..]);
             }
         }
     }
@@ -377,8 +391,15 @@ impl<'a> ProtoTree<'a> {
 impl<'a> From<&ProtoTree<'a>> for mumlib::state::Channel {
     fn from(tree: &ProtoTree<'a>) -> Self {
         let mut c = mumlib::state::Channel::from(tree.channel.unwrap());
-        let mut children = tree.children.iter()
-            .map(|e| (e.1.channel.unwrap().position, mumlib::state::Channel::from(e.1)))
+        let mut children = tree
+            .children
+            .iter()
+            .map(|e| {
+                (
+                    e.1.channel.unwrap().position,
+                    mumlib::state::Channel::from(e.1),
+                )
+            })
             .collect::<Vec<_>>();
         children.sort_by_key(|e| e.0);
         c.children = children.into_iter().map(|e| e.1).collect();
@@ -387,13 +408,19 @@ impl<'a> From<&ProtoTree<'a>> for mumlib::state::Channel {
     }
 }
 
-pub fn into_channel(channels: &HashMap<u32, Channel>, users: &HashMap<u32, User>) -> mumlib::state::Channel {
+pub fn into_channel(
+    channels: &HashMap<u32, Channel>,
+    users: &HashMap<u32, User>,
+) -> mumlib::state::Channel {
     let mut walks = Vec::new();
 
     let mut channel_lookup = HashMap::new();
 
     for (_, user) in users {
-        channel_lookup.entry(user.channel).or_insert(Vec::new()).push(user);
+        channel_lookup
+            .entry(user.channel)
+            .or_insert(Vec::new())
+            .push(user);
     }
 
     for (channel_id, channel) in channels {
@@ -413,7 +440,10 @@ pub fn into_channel(channels: &HashMap<u32, Channel>, users: &HashMap<u32, User>
     let mut proto_tree = ProtoTree {
         channel: Some(channels.get(&0).unwrap()),
         children: HashMap::new(),
-        users: channel_lookup.get(&0).map(|e| e.clone()).unwrap_or(Vec::new()),
+        users: channel_lookup
+            .get(&0)
+            .map(|e| e.clone())
+            .unwrap_or(Vec::new()),
     };
 
     for (walk, channel) in walks {
@@ -431,7 +461,7 @@ impl From<&Channel> for mumlib::state::Channel {
             max_users: channel.max_users,
             name: channel.name.clone(),
             children: Vec::new(),
-            users: Vec::new()
+            users: Vec::new(),
         }
     }
 }

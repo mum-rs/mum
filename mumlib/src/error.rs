@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
-use std::fmt::Display;
 use serde::export::Formatter;
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -18,7 +18,9 @@ impl Display for Error {
             Error::DisconnectedError => write!(f, "Not connected to a server"),
             Error::AlreadyConnectedError => write!(f, "Already connected to a server"),
             Error::InvalidChannelIdError(id) => write!(f, "Invalid channel id: {}", id),
-            Error::InvalidServerAddrError(addr, port) => write!(f, "Invalid server address: {}:{}", addr, port),
+            Error::InvalidServerAddrError(addr, port) => {
+                write!(f, "Invalid server address: {}:{}", addr, port)
+            }
         }
     }
 }

@@ -7,7 +7,7 @@ use crate::network::ConnectionInfo;
 use crate::state::State;
 
 use futures::join;
-use ipc_channel::ipc::{IpcSender, IpcOneShotServer};
+use ipc_channel::ipc::{IpcOneShotServer, IpcSender};
 use log::*;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::crypt::ClientCryptState;
@@ -27,14 +27,14 @@ async fn main() {
     // For simplicity we don't deal with re-syncing, real applications would have to.
     let (crypt_state_sender, crypt_state_receiver) = mpsc::channel::<ClientCryptState>(1); // crypt state should always be consumed before sending a new one
     let (packet_sender, packet_receiver) = mpsc::unbounded_channel::<ControlPacket<Serverbound>>();
-    let (command_sender, command_receiver) = mpsc::unbounded_channel::<(Command, IpcSender<mumlib::error::Result<Option<CommandResponse>>>)>();
+    let (command_sender, command_receiver) = mpsc::unbounded_channel::<(
+        Command,
+        IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
+    )>();
     let (connection_info_sender, connection_info_receiver) =
         watch::channel::<Option<ConnectionInfo>>(None);
 
-    let state = State::new(
-        packet_sender,
-        connection_info_sender,
-    );
+    let state = State::new(packet_sender, connection_info_sender);
     let state = Arc::new(Mutex::new(state));
 
     let (_, _, _, e) = join!(
@@ -49,11 +49,9 @@ async fn main() {
             connection_info_receiver.clone(),
             crypt_state_receiver,
         ),
-        command::handle(
-            state,
-            command_receiver,
-        ),
-        spawn_blocking(move || { // IpcSender is blocking
+        command::handle(state, command_receiver,),
+        spawn_blocking(move || {
+            // IpcSender is blocking
             receive_oneshot_commands(command_sender);
         }),
     );
@@ -61,16 +59,31 @@ async fn main() {
 }
 
 fn receive_oneshot_commands(
-    command_sender: mpsc::UnboundedSender<(Command, IpcSender<mumlib::error::Result<Option<CommandResponse>>>)>,
+    command_sender: mpsc::UnboundedSender<(
+        Command,
+        IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
+    )>,
 ) {
     loop {
         // create listener
-        let (server, server_name): (IpcOneShotServer<(Command, IpcSender<mumlib::error::Result<Option<CommandResponse>>>)>, String) = IpcOneShotServer::new().unwrap();
+        let (server, server_name): (
+            IpcOneShotServer<(
+                Command,
+                IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
+            )>,
+            String,
+        ) = IpcOneShotServer::new().unwrap();
         fs::write("/var/tmp/mumd-oneshot", &server_name).unwrap();
         debug!("Listening to {}", server_name);
 
         // receive command and response channel
-        let (_, conn): (_, (Command, IpcSender<mumlib::error::Result<Option<CommandResponse>>>)) = server.accept().unwrap();
+        let (_, conn): (
+            _,
+            (
+                Command,
+                IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
+            ),
+        ) = server.accept().unwrap();
         debug!("Sending command {:?} to command handler", conn.0);
         command_sender.send(conn).unwrap();
     }
