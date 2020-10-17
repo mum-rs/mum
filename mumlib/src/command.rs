@@ -1,7 +1,6 @@
 use crate::state::{Channel, Server};
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Command {
@@ -22,7 +21,7 @@ pub enum Command {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum CommandResponse {
     ChannelList {
-        channels: HashMap<u32, Channel>,
+        channels: Channel,
     },
     Status {
         username: Option<String>,
