@@ -1,10 +1,10 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use ipc_channel::ipc::{self, IpcSender};
-use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
-use std::{fs, io};
+use std::{fs, io, iter};
 use colored::Colorize;
+use mumlib::state::Channel;
 
 macro_rules! err_print {
     ($func:expr) => {
@@ -16,7 +16,6 @@ macro_rules! err_print {
 
 fn main() {
     setup_logger();
-    debug!("Logger up!");
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -68,7 +67,12 @@ fn main() {
         if let Some(_matches) = matches.subcommand_matches("list") {
             match send_command(Command::ChannelList) {
                 Ok(res) => {
-                    println!("{:#?}", res.unwrap());
+                    match res {
+                        Some(CommandResponse::ChannelList { channels }) => {
+                            print_channel(&channels, 0);
+                        }
+                        _ => unreachable!(),
+                    }
                 }
                 Err(e) => println!("{} {}", "error:".red(), e),
             }
@@ -114,4 +118,18 @@ fn send_command(command: Command) -> mumlib::error::Result<Option<CommandRespons
     tx0.send((command, tx_client)).unwrap();
 
     rx_client.recv().unwrap()
+}
+
+fn print_channel(channel: &Channel, depth: usize) {
+    println!("{}{}{}", iter::repeat("  ").take(depth).collect::<String>(), channel.name.bold(), if channel.max_users != 0 {
+        format!(" {}/{}", channel.users.len(), channel.max_users)
+    } else {
+        "".to_string()
+    });
+    for user in &channel.users {
+        println!("{}-{}", iter::repeat("  ").take(depth + 1).collect::<String>(), user.name);
+    }
+    for child in &channel.children {
+        print_channel(child, depth + 1);
+    }
 }
