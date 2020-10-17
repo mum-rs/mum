@@ -20,7 +20,6 @@ struct ClientStream {
     opus_decoder: opus::Decoder,
 }
 
-//TODO remove pub where possible
 pub struct Audio {
     pub output_config: StreamConfig,
     pub output_stream: Stream,
@@ -28,13 +27,12 @@ pub struct Audio {
     pub input_config: StreamConfig,
     pub input_stream: Stream,
     pub input_buffer: Arc<Mutex<VecDeque<f32>>>,
-    input_channel_receiver: Option<Receiver<VoicePacketPayload>>, //TODO unbounded? mbe ring buffer and drop the first packet
+    input_channel_receiver: Option<Receiver<VoicePacketPayload>>,
     input_volume_sender: watch::Sender<f32>,
 
-    client_streams: Arc<Mutex<HashMap<u32, ClientStream>>>, //TODO move to user state
+    client_streams: Arc<Mutex<HashMap<u32, ClientStream>>>,
 }
 
-//TODO split into input/output
 impl Audio {
     pub fn new() -> Self {
         let host = cpal::default_host();
@@ -324,7 +322,6 @@ fn input_callback<T: Sample>(
             opus_buf.truncate(result);
             let bytes = Bytes::copy_from_slice(&opus_buf);
             match input_sender.try_send(VoicePacketPayload::Opus(bytes, false)) {
-                //TODO handle full buffer / disconnect
                 Ok(_) => {}
                 Err(_e) => {
                     //warn!("Error sending audio packet: {:?}", e);

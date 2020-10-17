@@ -233,7 +233,6 @@ async fn listen(
                     break;
                 }
                 Some(Some(packet)) => {
-                    //TODO handle types separately
                     match packet.unwrap() {
                         ControlPacket::TextMessage(msg) => {
                             info!(
