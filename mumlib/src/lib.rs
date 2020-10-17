@@ -1,6 +1,6 @@
 pub mod command;
-pub mod state;
 pub mod error;
+pub mod state;
 
 use colored::*;
 use log::*;

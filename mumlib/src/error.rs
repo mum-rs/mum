@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
-use std::fmt::Display;
 use serde::export::Formatter;
+use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
