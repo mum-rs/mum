@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Command {
     ChannelJoin {
-        channel_id: u32,
+        channel_identifier: String,
     },
     ChannelList,
     InputVolumeSet(f32),

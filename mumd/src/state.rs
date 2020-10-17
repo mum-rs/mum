@@ -9,7 +9,7 @@ use mumlib::command::{Command, CommandResponse};
 use mumlib::state::Server;
 use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
-use mumlib::error::Error;
+use mumlib::error::{ChannelIdentifierError, Error};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatePhase {
@@ -53,18 +53,38 @@ impl State {
         command: Command,
     ) -> (bool, mumlib::error::Result<Option<CommandResponse>>) {
         match command {
-            Command::ChannelJoin { channel_id } => {
+            Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return (false, Err(Error::DisconnectedError));
                 }
-                if let Some(server) = &self.server {
-                    if !server.channels().contains_key(&channel_id) {
-                        return (false, Err(Error::InvalidChannelIdError(channel_id)));
-                    }
-                }
+
+                let channels = self.server()
+                    .unwrap()
+                    .channels();
+
+                let matches = channels.iter()
+                    .map(|e| (e.0, e.1.path(channels)))
+                    .filter(|e| e.1.ends_with(&channel_identifier))
+                    .collect::<Vec<_>>();
+                let id = match matches.len() {
+                    0 => {
+                        let soft_matches = channels.iter()
+                            .map(|e| (e.0, e.1.path(channels).to_lowercase()))
+                            .filter(|e| e.1.ends_with(&channel_identifier.to_lowercase()))
+                            .collect::<Vec<_>>();
+                        match soft_matches.len() {
+                            0 => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                            1 => *soft_matches.get(0).unwrap().0,
+                            _ => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                        }
+                    },
+                    1 => *matches.get(0).unwrap().0,
+                    _ => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Ambiguous))),
+                };
+
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.session_id.unwrap());
-                msg.set_channel_id(channel_id);
+                msg.set_channel_id(id);
                 self.packet_sender.send(msg.into()).unwrap();
                 (false, Ok(None))
             }
@@ -73,7 +93,7 @@ impl State {
                     return (false, Err(Error::DisconnectedError));
                 }
                 (false, Ok(Some(CommandResponse::ChannelList {
-                        channels: self.server.as_ref().unwrap().channels().clone(),
+                        channels: self.server().unwrap().channels().clone(),
                     })),
                 )
             }
@@ -191,6 +211,9 @@ impl State {
     }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
         self.phase_watcher.1.clone()
+    }
+    pub fn server(&self) -> Option<&Server> {
+        self.server.as_ref()
     }
     pub fn server_mut(&mut self) -> Option<&mut Server> {
         self.server.as_mut()
