@@ -6,6 +6,8 @@ use std::{fs, io, iter};
 use colored::Colorize;
 use mumlib::state::Channel;
 
+const INDENTATION: &str = "  ";
+
 macro_rules! err_print {
     ($func:expr) => {
         if let Err(e) = $func {
@@ -84,7 +86,18 @@ fn main() {
     } else if let Some(_matches) = matches.subcommand_matches("status") {
         match send_command(Command::Status) {
             Ok(res) => {
-                println!("{:#?}", res.unwrap());
+                match res {
+                    Some(CommandResponse::Status { server_state }) => {
+                        println!("Connected to {} as {}", server_state.host, server_state.username);
+                        let own_channel = server_state.channels.iter().find(|e| e.users.iter().any(|e| e.name == server_state.username)).unwrap();
+                        println!("Currently in {} with {} other client{}:", own_channel.name, own_channel.users.len() - 1, if own_channel.users.len() == 2 { "" } else { "s" });
+                        println!("{}{}", INDENTATION, own_channel.name);
+                        for user in &own_channel.users {
+                            println!("{}{}{}", INDENTATION, INDENTATION, user);
+                        }
+                    }
+                    _ => unreachable!(),
+                }
             }
             Err(e) => println!("{} {}", "error:".red(), e),
         }
@@ -119,13 +132,13 @@ fn send_command(command: Command) -> mumlib::error::Result<Option<CommandRespons
 }
 
 fn print_channel(channel: &Channel, depth: usize) {
-    println!("{}{}{}", iter::repeat("  ").take(depth).collect::<String>(), channel.name.bold(), if channel.max_users != 0 {
+    println!("{}{}{}", iter::repeat(INDENTATION).take(depth).collect::<String>(), channel.name.bold(), if channel.max_users != 0 {
         format!(" {}/{}", channel.users.len(), channel.max_users)
     } else {
         "".to_string()
     });
     for user in &channel.users {
-        println!("{}-{}", iter::repeat("  ").take(depth + 1).collect::<String>(), user.name);
+        println!("{}-{}", iter::repeat(INDENTATION).take(depth + 1).collect::<String>(), user);
     }
     for child in &channel.children {
         print_channel(child, depth + 1);

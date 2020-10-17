@@ -87,7 +87,7 @@ impl State {
                 }
                 let mut server = Server::new();
                 server.username = Some(username);
-                server.host = Some(host.clone());
+                server.host = Some(format!("{}:{}", host, port));
                 self.server = Some(server);
                 self.phase_watcher
                     .0
