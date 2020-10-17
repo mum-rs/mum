@@ -364,7 +364,7 @@ impl<'a> ProtoTree<'a> {
         walk: &[u32],
     ) {
         match walk {
-            [] => unreachable!("nu gick något snett"),
+            [] => unreachable!("shouldn't happen because walks always have at least one element"),
             &[node] => {
                 let pt = self.children.entry(node).or_insert(ProtoTree {
                     channel: None,
@@ -390,7 +390,7 @@ impl<'a> ProtoTree<'a> {
 
 impl<'a> From<&ProtoTree<'a>> for mumlib::state::Channel {
     fn from(tree: &ProtoTree<'a>) -> Self {
-        let mut c = mumlib::state::Channel::from(tree.channel.unwrap());
+        let mut channel = mumlib::state::Channel::from(tree.channel.unwrap());
         let mut children = tree
             .children
             .iter()
@@ -401,10 +401,10 @@ impl<'a> From<&ProtoTree<'a>> for mumlib::state::Channel {
                 )
             })
             .collect::<Vec<_>>();
-        children.sort_by_key(|e| e.0);
-        c.children = children.into_iter().map(|e| e.1).collect();
-        c.users = tree.users.iter().map(|e| (*e).into()).collect();
-        c
+        children.sort_by_key(|e| (e.0, &e.1.name));
+        channel.children = children.into_iter().map(|e| e.1).collect();
+        channel.users = tree.users.iter().map(|e| (*e).into()).collect();
+        channel
     }
 }
 
@@ -416,7 +416,7 @@ pub fn into_channel(
 
     let mut channel_lookup = HashMap::new();
 
-    for (_, user) in users {
+    for user in users.values() {
         channel_lookup
             .entry(user.channel)
             .or_insert(Vec::new())
