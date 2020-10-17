@@ -73,7 +73,7 @@ fn receive_oneshot_commands(
             )>,
             String,
         ) = IpcOneShotServer::new().unwrap();
-        fs::write("/var/tmp/mumd-oneshot", &server_name).unwrap();
+        fs::write(mumlib::SOCKET_PATH, &server_name).unwrap();
         debug!("Listening to {}", server_name);
 
         // receive command and response channel

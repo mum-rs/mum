@@ -151,7 +151,7 @@ fn send_command(command: Command) -> mumlib::error::Result<Option<CommandRespons
     let (tx_client, rx_client) =
         ipc::channel::<mumlib::error::Result<Option<CommandResponse>>>().unwrap();
 
-    let server_name = fs::read_to_string("/var/tmp/mumd-oneshot").unwrap(); //TODO don't panic
+    let server_name = fs::read_to_string(mumlib::SOCKET_PATH).unwrap(); //TODO don't panic
 
     let tx0 = IpcSender::connect(server_name).unwrap();
 
