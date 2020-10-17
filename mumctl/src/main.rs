@@ -71,9 +71,8 @@ fn main() {
                 Err(e) => println!("{} {}", "error:".red(), e),
             }
         } else if let Some(matches) = matches.subcommand_matches("connect") {
-            let channel_arg = matches.value_of("channel").unwrap();
             err_print!(send_command(Command::ChannelJoin {
-                channel_identifier: channel_arg.to_string()
+                channel_identifier: matches.value_of("channel").unwrap().to_string()
             }));
         }
     } else if let Some(_matches) = matches.subcommand_matches("status") {

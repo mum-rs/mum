@@ -9,7 +9,7 @@ use mumlib::command::{Command, CommandResponse};
 use mumlib::state::Server;
 use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
-use mumlib::error::{Error, ChannelIdentifierError};
+use mumlib::error::{ChannelIdentifierError, Error};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatePhase {
