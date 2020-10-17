@@ -364,7 +364,7 @@ impl<'a> ProtoTree<'a> {
         walk: &[u32],
     ) {
         match walk {
-            [] => unreachable!("shouldn't happen because walks always have at least one element"),
+            [] => unreachable!("Walks should always have at least one element"),
             &[node] => {
                 let pt = self.children.entry(node).or_insert(ProtoTree {
                     channel: None,
