@@ -67,7 +67,17 @@ impl State {
                     .filter(|e| e.1.ends_with(&channel_identifier))
                     .collect::<Vec<_>>();
                 let id = match matches.len() {
-                    0 => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                    0 => {
+                        let soft_matches = channels.iter()
+                            .map(|e| (e.0, e.1.path(channels).to_lowercase()))
+                            .filter(|e| e.1.ends_with(&channel_identifier.to_lowercase()))
+                            .collect::<Vec<_>>();
+                        match soft_matches.len() {
+                            0 => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                            1 => *soft_matches.get(0).unwrap().0,
+                            _ => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                        }
+                    },
                     1 => *matches.get(0).unwrap().0,
                     _ => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Ambiguous))),
                 };
