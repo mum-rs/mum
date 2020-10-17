@@ -437,6 +437,7 @@ pub fn into_channel(
         }
     }
 
+    //root node is ignored because of how walk_and_add is implemented on ProtoTree
     let mut proto_tree = ProtoTree {
         channel: Some(channels.get(&0).unwrap()),
         children: HashMap::new(),
