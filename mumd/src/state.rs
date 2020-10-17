@@ -401,7 +401,7 @@ impl<'a> From<&ProtoTree<'a>> for mumlib::state::Channel {
                 )
             })
             .collect::<Vec<_>>();
-        children.sort_by_key(|e| (e.0, &e.1.name));
+        children.sort_by_key(|e| (e.0, e.1.name.clone()));
         channel.children = children.into_iter().map(|e| e.1).collect();
         channel.users = tree.users.iter().map(|e| (*e).into()).collect();
         channel
