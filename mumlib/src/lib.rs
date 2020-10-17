@@ -5,19 +5,29 @@ pub mod state;
 use colored::*;
 use log::*;
 
-pub fn setup_logger() {
+pub fn setup_logger<T: Into<fern::Output>>(target: T, color: bool) {
     fern::Dispatch::new()
-        .format(|out, message, record| {
+        .format(move |out, message, record| {
             let message = message.to_string();
             out.finish(format_args!(
                 "{} {}:{}{}{}",
                 //TODO runtime flag that disables color
-                match record.level() {
-                    Level::Error => "ERROR".red(),
-                    Level::Warn => "WARN ".yellow(),
-                    Level::Info => "INFO ".normal(),
-                    Level::Debug => "DEBUG".green(),
-                    Level::Trace => "TRACE".normal(),
+                if color {
+                    match record.level() {
+                        Level::Error => "ERROR".red(),
+                        Level::Warn => "WARN ".yellow(),
+                        Level::Info => "INFO ".normal(),
+                        Level::Debug => "DEBUG".green(),
+                        Level::Trace => "TRACE".normal(),
+                    }
+                } else {
+                    match record.level() {
+                        Level::Error => "ERROR",
+                        Level::Warn => "WARN ",
+                        Level::Info => "INFO ",
+                        Level::Debug => "DEBUG",
+                        Level::Trace => "TRACE",
+                    }.normal()
                 },
                 record.file().unwrap(),
                 record.line().unwrap(),
@@ -30,7 +40,7 @@ pub fn setup_logger() {
             ))
         })
         .level(log::LevelFilter::Debug)
-        .chain(std::io::stderr())
+        .chain(target.into())
         .apply()
         .unwrap();
 }

@@ -17,7 +17,7 @@ macro_rules! err_print {
 }
 
 fn main() {
-    setup_logger();
+    setup_logger(io::stderr(), true);
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
