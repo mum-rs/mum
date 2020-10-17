@@ -380,8 +380,6 @@ pub fn into_channel(channels: HashMap<u32, Channel>, users: HashMap<u32, User>) 
         channel_lookup.entry(user.channel).or_insert(Vec::new()).push(user);
     }
 
-    debug!("{:?}", channel_lookup);
-
     for (channel_id, channel) in &channels {
         let mut walk = Vec::new();
         let mut current = *channel_id;
@@ -405,9 +403,6 @@ pub fn into_channel(channels: HashMap<u32, Channel>, users: HashMap<u32, User>) 
     for (walk, channel) in walks {
         proto_tree.walk_and_add(channel, &channel_lookup, &walk);
     }
-
-    debug!("{:#?}", channels);
-    debug!("{:#?}", proto_tree);
 
     (&proto_tree).into()
 }
