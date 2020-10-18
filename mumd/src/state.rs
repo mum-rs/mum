@@ -6,6 +6,7 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
+use mumlib::config::Config;
 use mumlib::error::{ChannelIdentifierError, Error};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
@@ -21,6 +22,7 @@ pub enum StatePhase {
 }
 
 pub struct State {
+    config: Config,
     server: Option<Server>,
     audio: Audio,
 
@@ -28,6 +30,7 @@ pub struct State {
     connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
+
 }
 
 impl State {
@@ -35,9 +38,17 @@ impl State {
         packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
         connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
     ) -> Self {
+        let config = mumlib::config::read_default_cfg();
+        let audio = Audio::new();
+        if let Some(ref audio_config) = config.audio {
+            if let Some(input_volume) = audio_config.input_volume {
+                audio.set_input_volume(input_volume);
+            }
+        }
         Self {
+            config,
             server: None,
-            audio: Audio::new(),
+            audio,
             packet_sender,
             connection_info_sender,
             phase_watcher: watch::channel(StatePhase::Disconnected),
