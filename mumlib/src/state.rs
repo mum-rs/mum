@@ -134,3 +134,24 @@ impl Display for User {
         write!(f, "{}", self.name)
     }
 }
+
+#[derive(Debug, Default)]
+pub struct UserDiff {
+    pub comment: Option<String>,
+    pub hash: Option<String>,
+    pub name: Option<String>,
+    pub priority_speaker: Option<bool>,
+    pub recording: Option<bool>,
+
+    pub suppress: Option<bool>,  // by me
+    pub self_mute: Option<bool>, // by self
+    pub self_deaf: Option<bool>, // by self
+    pub mute: Option<bool>,      // by admin
+    pub deaf: Option<bool>,      // by admin
+}
+
+impl UserDiff {
+    pub fn new() -> Self {
+        UserDiff::default()
+    }
+}

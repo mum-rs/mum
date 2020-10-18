@@ -8,6 +8,7 @@ use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
 use mumlib::error::{ChannelIdentifierError, Error};
+use mumlib::state::UserDiff;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -178,33 +179,33 @@ impl State {
         }
     }
 
-    pub fn parse_initial_user_state(&mut self, msg: msgs::UserState) {
+    pub fn parse_user_state(&mut self, msg: msgs::UserState) -> Option<UserDiff> {
         if !msg.has_session() {
             warn!("Can't parse user state without session");
-            return;
+            return None;
         }
-        if !msg.has_name() {
-            warn!("Missing name in initial user state");
-        } else if msg.get_name() == self.server.as_ref().unwrap().username.as_ref().unwrap() {
-            match self.server.as_ref().unwrap().session_id {
-                None => {
-                    debug!("Found our session id: {}", msg.get_session());
-                    self.server_mut().unwrap().session_id = Some(msg.get_session());
-                }
-                Some(session) => {
-                    if session != msg.get_session() {
-                        error!(
-                            "Got two different session IDs ({} and {}) for ourselves",
-                            session,
-                            msg.get_session()
-                        );
-                    } else {
-                        debug!("Got our session ID twice");
-                    }
-                }
+        let sess = msg.get_session();
+        // check if this is initial state
+        if !self.server().unwrap().users().contains_key(&sess) {
+            if !msg.has_name() {
+                warn!("Missing name in initial user state");
             }
+            if msg.get_name() == self.server().unwrap().username.as_ref().unwrap() {
+                // this is us
+                self.server_mut().unwrap().session_id = Some(sess);
+            } else {
+                // this is someone else
+                self.audio_mut().add_client(sess);
+            }
+            self.server_mut().unwrap().users_mut().insert(sess, User::new(msg));
+            return None;
+        } else {
+            return Some(self.server_mut().unwrap().users_mut().get(&sess).unwrap().parse_state_diff(msg));
         }
-        self.server.as_mut().unwrap().parse_user_state(msg);
+    }
+
+    pub fn remove_client(&mut self, session: u32) {
+
     }
 
     pub fn reload_config(&mut self) {
@@ -309,25 +310,16 @@ impl Server {
         }
     }
 
-    pub fn parse_user_state(&mut self, msg: msgs::UserState) {
-        if !msg.has_session() {
-            warn!("Can't parse user state without session");
-            return;
-        }
-        match self.users.entry(msg.get_session()) {
-            Entry::Vacant(e) => {
-                e.insert(User::new(msg));
-            }
-            Entry::Occupied(mut e) => e.get_mut().parse_user_state(msg),
-        }
-    }
-
     pub fn channels(&self) -> &HashMap<u32, Channel> {
         &self.channels
     }
 
     pub fn users(&self) -> &HashMap<u32, User> {
         &self.users
+    }
+
+    pub fn users_mut(&mut self) -> &mut HashMap<u32, User> {
+        &mut self.users
     }
 
     pub fn username(&self) -> Option<&str> {
@@ -600,6 +592,41 @@ impl User {
         if msg.has_deaf() {
             self.deaf = msg.get_deaf();
         }
+    }
+
+    pub fn parse_state_diff(&self, mut msg: msgs::UserState) -> UserDiff {
+        let mut ud = UserDiff::new();
+        if msg.has_comment() {
+            ud.comment = Some(msg.take_comment());
+        }
+        if msg.has_hash() {
+            ud.hash = Some(msg.take_hash());
+        }
+        if msg.has_name() {
+            ud.name = Some(msg.take_name());
+        }
+        if msg.has_priority_speaker() {
+            ud.priority_speaker = Some(msg.get_priority_speaker());
+        }
+        if msg.has_recording() {
+            ud.recording = Some(msg.get_recording());
+        }
+        if msg.has_suppress() {
+            ud.suppress = Some(msg.get_suppress());
+        }
+        if msg.has_self_mute() {
+            ud.self_mute = Some(msg.get_self_mute());
+        }
+        if msg.has_self_deaf() {
+            ud.self_deaf = Some(msg.get_self_deaf());
+        }
+        if msg.has_mute() {
+            ud.mute = Some(msg.get_mute());
+        }
+        if msg.has_deaf() {
+            ud.deaf = Some(msg.get_deaf());
+        }
+        ud
     }
 
     pub fn name(&self) -> &str {
