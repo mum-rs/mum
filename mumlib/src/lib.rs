@@ -5,6 +5,8 @@ pub mod state;
 use colored::*;
 use log::*;
 
+pub const SOCKET_PATH: &str = "/var/tmp/mumd";
+
 pub fn setup_logger() {
     fern::Dispatch::new()
         .format(|out, message, record| {
