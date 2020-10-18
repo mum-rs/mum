@@ -295,8 +295,7 @@ async fn listen(
                             info!("User {} connected to {}", user.name(), user.channel());
                         }
                         ControlPacket::UserRemove(msg) => {
-                            info!("User {} left", msg.get_session());
-                            state.lock().unwrap().remove_client(msg.get_session());
+                            state.lock().unwrap().remove_client(*msg);
                         }
                         ControlPacket::ChannelState(msg) => {
                             debug!("Channel state received");

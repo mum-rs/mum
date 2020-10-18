@@ -204,8 +204,14 @@ impl State {
         }
     }
 
-    pub fn remove_client(&mut self, session: u32) {
-
+    pub fn remove_client(&mut self, msg: msgs::UserRemove) {
+        if !msg.has_session() {
+            warn!("Tried to remove user state without session");
+            return;
+        }
+        self.audio().remove_client(msg.get_session());
+        self.server_mut().unwrap().users_mut().remove(&msg.get_session());
+        info!("User {} disconnected", msg.get_session());
     }
 
     pub fn reload_config(&mut self) {
