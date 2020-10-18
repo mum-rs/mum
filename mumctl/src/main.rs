@@ -28,7 +28,8 @@ fn main() {
                     SubCommand::with_name("connect")
                         .setting(AppSettings::ArgRequiredElseHelp)
                         .arg(Arg::with_name("host").required(true).index(1))
-                        .arg(Arg::with_name("username").required(true).index(2)),
+                        .arg(Arg::with_name("username").required(true).index(2))
+                        .arg(Arg::with_name("port").short("p").long("port").takes_value(true)),
                 )
                 .subcommand(SubCommand::with_name("disconnect")),
         )
@@ -63,12 +64,19 @@ fn main() {
         if let Some(matches) = matches.subcommand_matches("connect") {
             let host = matches.value_of("host").unwrap();
             let username = matches.value_of("username").unwrap();
-            err_print!(send_command(Command::ServerConnect {
-                host: host.to_string(),
-                port: 64738u16, //TODO
-                username: username.to_string(),
-                accept_invalid_cert: true, //TODO
-            }));
+            let port = match matches.value_of("port").map(|e| e.parse()) {
+                None => Some(64738),
+                Some(Err(_)) => None,
+                Some(Ok(v)) => Some(v),
+            };
+            if let Some(port) = port {
+                err_print!(send_command(Command::ServerConnect {
+                    host: host.to_string(),
+                    port,
+                    username: username.to_string(),
+                    accept_invalid_cert: true, //TODO
+                }));
+            }
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
             err_print!(send_command(Command::ServerDisconnect));
         }
