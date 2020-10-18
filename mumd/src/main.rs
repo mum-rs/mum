@@ -21,7 +21,7 @@ use tokio::task::spawn_blocking;
 
 #[tokio::main]
 async fn main() {
-    setup_logger();
+    setup_logger(std::io::stderr(), true);
 
     // Oneshot channel for setting UDP CryptState from control task
     // For simplicity we don't deal with re-syncing, real applications would have to.
