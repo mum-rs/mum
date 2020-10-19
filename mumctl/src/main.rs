@@ -31,21 +31,21 @@ fn main() {
                 .subcommand(
                     SubCommand::with_name("connect")
                         .setting(AppSettings::ArgRequiredElseHelp)
-                        .arg(Arg::with_name("host").required(true).index(1))
-                        .arg(Arg::with_name("username").required(true).index(2))
+                        .arg(Arg::with_name("host").required(true))
+                        .arg(Arg::with_name("username").required(true))
                         .arg(Arg::with_name("port").short("p").long("port").takes_value(true)))
                 .subcommand(SubCommand::with_name("disconnect"))
                 .subcommand(
                     SubCommand::with_name("config")
                         .setting(AppSettings::ArgRequiredElseHelp)
-                        .arg(Arg::with_name("server_name").required(true).index(1))
-                        .arg(Arg::with_name("var_name").required(true).index(2))
-                        .arg(Arg::with_name("var_value").required(true).index(3)))
+                        .arg(Arg::with_name("server_name").required(true))
+                        .arg(Arg::with_name("var_name").required(true))
+                        .arg(Arg::with_name("var_value").required(true)))
                 .subcommand(
                     SubCommand::with_name("rename")
                         .setting(AppSettings::ArgRequiredElseHelp)
-                        .arg(Arg::with_name("prev_name").required(true).index(1))
-                        .arg(Arg::with_name("next_name").required(true).index(2)))
+                        .arg(Arg::with_name("prev_name").required(true))
+                        .arg(Arg::with_name("next_name").required(true)))
                 .subcommand(
                     SubCommand::with_name("add")
                         .setting(AppSettings::ArgRequiredElseHelp)
