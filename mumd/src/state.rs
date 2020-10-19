@@ -40,7 +40,7 @@ impl State {
     ) -> Self {
         let config = mumlib::config::read_default_cfg();
         let audio = Audio::new();
-        if let Some(ref audio_config) = config.audio {
+        if let Some(audio_config) = &config.audio {
             if let Some(input_volume) = audio_config.input_volume {
                 audio.set_input_volume(input_volume);
             }

@@ -111,7 +111,7 @@ fn main() {
             let server_name = matches.value_of("server_name").unwrap();
             let var_name = matches.value_of("var_name").unwrap();
             let var_value = matches.value_of("var_value").unwrap();
-            if let Some(ref mut servers) = config.servers {
+            if let Some(servers) = &mut config.servers {
                 let server = servers
                     .iter_mut()
                     .find(
@@ -136,7 +136,7 @@ fn main() {
                         "password" => {
                             server.password = Some(var_value.to_string()); //TODO ask stdin if empty
                         },
-                        &_ => {
+                        _ => {
                             println!("{} variable {} not found", "error:".red(), var_name);
                         },
                     };
@@ -145,7 +145,7 @@ fn main() {
                 println!("{} no servers found in configuration", "error:".red());
             }
         } else if let Some(matches) = matches.subcommand_matches("rename") {
-            if let Some(ref mut servers) = config.servers {
+            if let Some(servers) = &mut config.servers {
                 let prev_name = matches.value_of("prev_name").unwrap();
                 let next_name = matches.value_of("next_name").unwrap();
                 let server = servers
@@ -173,7 +173,7 @@ fn main() {
             } else {
                 None
             };
-            if let Some(ref mut servers) = config.servers {
+            if let Some(servers) = &mut config.servers {
                 if servers.into_iter().any(|s| s.name == name) {
                     println!("{} a server named {} already exists", "error:".red(), name);
                 } else {
