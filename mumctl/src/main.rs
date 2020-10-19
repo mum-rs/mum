@@ -32,27 +32,27 @@ fn main() {
                         .setting(AppSettings::ArgRequiredElseHelp)
                         .arg(Arg::with_name("host").required(true).index(1))
                         .arg(Arg::with_name("username").required(true).index(2))
-                        .arg(Arg::with_name("port").short("p").long("port").takes_value(true)),
-                )
+                        .arg(Arg::with_name("port").short("p").long("port").takes_value(true)))
                 .subcommand(SubCommand::with_name("disconnect"))
                 .subcommand(
                     SubCommand::with_name("config")
                         .setting(AppSettings::ArgRequiredElseHelp)
                         .arg(Arg::with_name("server_name").required(true).index(1))
                         .arg(Arg::with_name("var_name").required(true).index(2))
-                        .arg(Arg::with_name("var_value").required(true).index(3))),
-        )
+                        .arg(Arg::with_name("var_value").required(true).index(3)))
+                .subcommand(
+                    SubCommand::with_name("rename")
+                        .setting(AppSettings::ArgRequiredElseHelp)
+                        .arg(Arg::with_name("prev_name").required(true).index(1))
+                        .arg(Arg::with_name("next_name").required(true).index(2))))
         .subcommand(
             SubCommand::with_name("channel")
                 .setting(AppSettings::ArgRequiredElseHelp)
                 .subcommand(
                     SubCommand::with_name("list")
-                        .arg(Arg::with_name("short").short("s").long("short")),
-                )
+                        .arg(Arg::with_name("short").short("s").long("short")))
                 .subcommand(
-                    SubCommand::with_name("connect").arg(Arg::with_name("channel").required(true)),
-                ),
-        )
+                    SubCommand::with_name("connect").arg(Arg::with_name("channel").required(true))))
         .subcommand(SubCommand::with_name("status"))
         .subcommand(SubCommand::with_name("config")
                     .arg(Arg::with_name("name")
@@ -102,6 +102,9 @@ fn main() {
                 } else {
                     let server = server.unwrap();
                     match var_name {
+                        "name" => {
+                            println!("use mumctl server rename instead!");
+                        },
                         "host" => {
                             server.host = var_value.to_string();
                         },
@@ -121,6 +124,21 @@ fn main() {
                 }
             } else {
                 println!("{} no servers found in configuration", "error:".red());
+            }
+        } else if let Some(matches) = matches.subcommand_matches("rename") {
+            if let Some(ref mut servers) = config.servers {
+                let prev_name = matches.value_of("prev_name").unwrap();
+                let next_name = matches.value_of("next_name").unwrap();
+                let server = servers
+                    .iter_mut()
+                    .find(
+                        |s| s.name == prev_name
+                    );
+                if server.is_none() {
+                    println!("{} server {} not found", "error:".red(), prev_name);
+                } else {
+                    server.unwrap().name = next_name.to_string();
+                }
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
