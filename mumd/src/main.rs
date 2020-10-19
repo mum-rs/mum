@@ -35,6 +35,7 @@ async fn main() {
         watch::channel::<Option<ConnectionInfo>>(None);
 
     let state = State::new(packet_sender, connection_info_sender);
+    state.config().write_default_cfg();
     let state = Arc::new(Mutex::new(state));
 
     let (_, _, _, e) = join!(

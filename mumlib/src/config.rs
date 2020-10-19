@@ -1,25 +1,34 @@
-use serde::Deserialize;
+use log::*;
+use serde::{Deserialize, Serialize};
 use std::fs;
+use toml::Value;
 use toml::value::Array;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct TOMLConfig {
     audio: Option<AudioConfig>,
     servers: Option<Array>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct Config {
     pub audio: Option<AudioConfig>,
     pub servers: Option<Vec<ServerConfig>>,
 }
 
-#[derive(Debug, Deserialize)]
+impl Config {
+    pub fn write_default_cfg(&self) {
+        debug!("{}", toml::to_string(&(TOMLConfig::from(self))).unwrap());
+        //fs::write(, get_cfg_path())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AudioConfig {
     pub input_volume: Option<f32>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ServerConfig {
     pub name: String,
     pub host: String,
@@ -29,7 +38,7 @@ pub struct ServerConfig {
 }
 
 fn get_cfg_path() -> String {
-    "~/.mumdrc".to_string() //TODO XDG_CONFIG and whatever
+    ".mumdrc".to_string() //TODO XDG_CONFIG and whatever
 }
 
 impl From<TOMLConfig> for Config {
@@ -40,6 +49,38 @@ impl From<TOMLConfig> for Config {
                 Some(servers
                     .into_iter()
                     .map(|s| s.try_into::<ServerConfig>().expect("invalid server config format"))
+                    .collect())
+            } else {
+                None
+            },
+        }
+    }
+}
+
+impl From<Config> for TOMLConfig {
+    fn from(config: Config) -> Self {
+        TOMLConfig {
+            audio: config.audio,
+            servers: if let Some(servers) = config.servers {
+                Some(servers
+                    .into_iter()
+                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
+                    .collect())
+            } else {
+                None
+            },
+        }
+    }
+}
+
+impl From<&Config> for TOMLConfig {
+    fn from(config: &Config) -> Self {
+        TOMLConfig {
+            audio: config.audio.clone(),
+            servers: if let Some(servers) = config.servers.clone() {
+                Some(servers
+                    .into_iter()
+                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
                     .collect())
             } else {
                 None

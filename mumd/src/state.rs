@@ -215,6 +215,10 @@ impl State {
             .unwrap();
     }
 
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
     pub fn audio(&self) -> &Audio {
         &self.audio
     }
