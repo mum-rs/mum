@@ -1,4 +1,3 @@
-use log::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use toml::Value;
@@ -18,7 +17,6 @@ pub struct Config {
 
 impl Config {
     pub fn write_default_cfg(&self) {
-        debug!("{}", toml::to_string(&TOMLConfig::from(self)).unwrap());
         fs::write(get_cfg_path(), toml::to_string(&TOMLConfig::from(self)).unwrap()).unwrap();
     }
 }

@@ -1,7 +1,9 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use colored::Colorize;
 use ipc_channel::ipc::{self, IpcSender};
+use log::*;
 use mumlib::command::{Command, CommandResponse};
+use mumlib::config;
 use mumlib::setup_logger;
 use mumlib::state::Channel;
 use std::{fs, io, iter};
@@ -18,6 +20,7 @@ macro_rules! err_print {
 
 fn main() {
     setup_logger(io::stderr(), true);
+    let mut config = config::read_default_cfg();
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -31,7 +34,13 @@ fn main() {
                         .arg(Arg::with_name("username").required(true).index(2))
                         .arg(Arg::with_name("port").short("p").long("port").takes_value(true)),
                 )
-                .subcommand(SubCommand::with_name("disconnect")),
+                .subcommand(SubCommand::with_name("disconnect"))
+                .subcommand(
+                    SubCommand::with_name("config")
+                        .setting(AppSettings::ArgRequiredElseHelp)
+                        .arg(Arg::with_name("server_name").required(true).index(1))
+                        .arg(Arg::with_name("var_name").required(true).index(2))
+                        .arg(Arg::with_name("var_value").required(true).index(3))),
         )
         .subcommand(
             SubCommand::with_name("channel")
@@ -79,6 +88,40 @@ fn main() {
             }
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
             err_print!(send_command(Command::ServerDisconnect));
+        } else if let Some(matches) = matches.subcommand_matches("config") {
+            let server_name = matches.value_of("server_name").unwrap();
+            let var_name = matches.value_of("var_name").unwrap();
+            let var_value = matches.value_of("var_value").unwrap();
+            if let Some(ref mut servers) = config.servers {
+                let server = servers
+                    .iter_mut()
+                    .find(
+                        |s| s.name == server_name);
+                if server.is_none() {
+                    println!("{} server {} not found", "error:".red(), server_name);
+                } else {
+                    let server = server.unwrap();
+                    match var_name {
+                        "host" => {
+                            server.host = var_value.to_string();
+                        },
+                        "port" => {
+                            server.port = var_value.parse().unwrap();
+                        },
+                        "username" => {
+                            server.username = Some(var_value.to_string());
+                        },
+                        "password" => {
+                            server.password = Some(var_value.to_string()); //TODO ask stdin if empty
+                        },
+                        &_ => {
+                            println!("{} variable {} not found", "error:".red(), var_name);
+                        },
+                    };
+                }
+            } else {
+                println!("{} no servers found in configuration", "error:".red());
+            }
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
         if let Some(_matches) = matches.subcommand_matches("list") {
@@ -153,6 +196,8 @@ fn main() {
         );
         return;
     };
+
+    config.write_default_cfg();
 }
 
 fn send_command(command: Command) -> mumlib::error::Result<Option<CommandResponse>> {
