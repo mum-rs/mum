@@ -21,7 +21,8 @@ macro_rules! err_print {
 
 fn main() {
     setup_logger(io::stderr(), true);
-    let mut config = config::read_default_cfg();
+    let mut config = config::read_default_cfg()
+        .expect("format error in config file");
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -41,8 +42,8 @@ fn main() {
                 .subcommand(
                     SubCommand::with_name("config")
                         .arg(Arg::with_name("server_name").required(true))
-                        .arg(Arg::with_name("var_name").required(true))
-                        .arg(Arg::with_name("var_value").required(true)))
+                        .arg(Arg::with_name("var_name"))
+                        .arg(Arg::with_name("var_value")))
                 .subcommand(
                     SubCommand::with_name("rename")
                         .arg(Arg::with_name("prev_name").required(true))
@@ -60,7 +61,10 @@ fn main() {
                              .takes_value(true))
                         .arg(Arg::with_name("password")
                              .long("password")
-                             .takes_value(true))))
+                             .takes_value(true)))
+                .subcommand(
+                    SubCommand::with_name("remove")
+                        .arg(Arg::with_name("name").required(true))))
         .subcommand(
             SubCommand::with_name("channel")
                 .setting(AppSettings::ArgRequiredElseHelp)
@@ -111,72 +115,92 @@ fn main() {
             err_print!(send_command(Command::ServerDisconnect));
         } else if let Some(matches) = matches.subcommand_matches("config") {
             let server_name = matches.value_of("server_name").unwrap();
-            let var_name = matches.value_of("var_name").unwrap();
-            let var_value = matches.value_of("var_value").unwrap();
             if let Some(servers) = &mut config.servers {
                 let server = servers
                     .iter_mut()
-                    .find(
-                        |s| s.name == server_name);
-                if server.is_none() {
+                    .find(|s| s.name == server_name);
+                if let Some(server) = server {
+                    if let Some(var_name) = matches.value_of("var_name") {
+                        if let Some(var_value) = matches.value_of("var_value") {
+                            // save var_value in var_name
+                            match var_name {
+                                "name" => {
+                                    println!("{} use mumctl server rename instead!", "error:".red());
+                                },
+                                "host" => {
+                                    server.host = var_value.to_string();
+                                },
+                                "port" => {
+                                    server.port = Some(var_value.parse().unwrap());
+                                },
+                                "username" => {
+                                    server.username = Some(var_value.to_string());
+                                },
+                                "password" => {
+                                    server.password = Some(var_value.to_string()); //TODO ask stdin if empty
+                                },
+                                _ => {
+                                    println!("{} variable {} not found", "error:".red(), var_name);
+                                },
+                            };
+                        } else { // var_value is None
+                            // print value of var_name
+                            println!("{}", match var_name {
+                                "name" => { server.name.to_string() },
+                                "host" => { server.host.to_string() },
+                                "port" => { server.port.map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
+                                "username" => { server.username.as_ref().map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
+                                "password" => { server.password.as_ref().map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
+                                _ => { format!("{} unknown variable", "error:".red()) },
+                            });
+                        }
+                    } else { // var_name is None
+                        // print server config
+                        print!("{}{}{}{}",
+                                 format!("host: {}\n", server.host.to_string()),
+                                 server.port.map(|s| format!("port: {}\n", s)).unwrap_or("".to_string()),
+                                 server.username.as_ref().map(|s| format!("username: {}\n", s)).unwrap_or("".to_string()),
+                                 server.password.as_ref().map(|s| format!("password: {}\n", s)).unwrap_or("".to_string()),
+                        )
+                    }
+                } else { // server is None
                     println!("{} server {} not found", "error:".red(), server_name);
-                } else {
-                    let server = server.unwrap();
-                    match var_name {
-                        "name" => {
-                            println!("use mumctl server rename instead!");
-                        },
-                        "host" => {
-                            server.host = var_value.to_string();
-                        },
-                        "port" => {
-                            server.port = var_value.parse().unwrap();
-                        },
-                        "username" => {
-                            server.username = Some(var_value.to_string());
-                        },
-                        "password" => {
-                            server.password = Some(var_value.to_string()); //TODO ask stdin if empty
-                        },
-                        _ => {
-                            println!("{} variable {} not found", "error:".red(), var_name);
-                        },
-                    };
                 }
-            } else {
+            } else { // servers is None
                 println!("{} no servers found in configuration", "error:".red());
             }
         } else if let Some(matches) = matches.subcommand_matches("rename") {
             if let Some(servers) = &mut config.servers {
                 let prev_name = matches.value_of("prev_name").unwrap();
                 let next_name = matches.value_of("next_name").unwrap();
-                let server = servers
-                    .iter_mut()
-                    .find(
-                        |s| s.name == prev_name
-                    );
-                if server.is_none() {
-                    println!("{} server {} not found", "error:".red(), prev_name);
+                if let Some(server) = servers
+                                      .iter_mut()
+                                      .find(|s| s.name == prev_name) {
+                    server.name = next_name.to_string();
                 } else {
-                    server.unwrap().name = next_name.to_string();
+                    println!("{} server {} not found", "error:".red(), prev_name);
+                }
+            }
+        } else if let Some(matches) = matches.subcommand_matches("remove") {
+            let name = matches.value_of("name").unwrap();
+            if config.servers.is_none() {
+                println!("{} no servers found in configuration", "error:".red());
+            } else {
+                let prev_amount = config.servers.as_ref().unwrap().len();
+                config.servers = config.servers.map(|servers| servers.into_iter().filter(|server| server.name != name).collect());
+                if prev_amount == config.servers.as_ref().unwrap().len() {
+                    println!("{} server {} not found", "error:".red(), name);
                 }
             }
         } else if let Some(matches) = matches.subcommand_matches("add") {
             let name = matches.value_of("name").unwrap().to_string();
             let host = matches.value_of("host").unwrap().to_string();
-            let port = matches.value_of("port").unwrap().parse().unwrap();
-            let username = if let Some(username) = matches.value_of("username") {
-                Some(username.to_string())
-            } else {
-                None
-            };
-            let password = if let Some(password) = matches.value_of("password") {
-                Some(password.to_string())
-            } else {
-                None
-            };
+            // optional arguments map None to None
+            let port = matches.value_of("port").map(|s| s.parse().unwrap());
+            let username = matches.value_of("username").map(|s| s.to_string());
+            let password = matches.value_of("password").map(|s| s.to_string());
             if let Some(servers) = &mut config.servers {
-                if servers.into_iter().any(|s| s.name == name) {
+                if servers.iter().any(|s| s.name == name) {
                     println!("{} a server named {} already exists", "error:".red(), name);
                 } else {
                     servers.push(ServerConfig {
