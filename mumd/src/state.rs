@@ -30,7 +30,6 @@ pub struct State {
     connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
-
 }
 
 impl State {
@@ -38,21 +37,17 @@ impl State {
         packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
         connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
     ) -> Self {
-        let config = mumlib::config::read_default_cfg();
         let audio = Audio::new();
-        if let Some(audio_config) = &config.audio {
-            if let Some(input_volume) = audio_config.input_volume {
-                audio.set_input_volume(input_volume);
-            }
-        }
-        Self {
-            config,
+        let mut state = Self {
+            config: mumlib::config::read_default_cfg().expect("format error in config file"),
             server: None,
             audio,
             packet_sender,
             connection_info_sender,
             phase_watcher: watch::channel(StatePhase::Disconnected),
-        }
+        };
+        state.reload_config();
+        state
     }
 
     //TODO? move bool inside Result
@@ -206,6 +201,16 @@ impl State {
             }
         }
         self.server.as_mut().unwrap().parse_user_state(msg);
+    }
+
+    pub fn reload_config(&mut self) {
+        self.config = mumlib::config::read_default_cfg()
+            .expect("format error in config file");
+        if let Some(audio_config) = &self.config.audio {
+            if let Some(input_volume) = audio_config.input_volume {
+                self.audio.set_input_volume(input_volume);
+            }
+        }
     }
 
     pub fn initialized(&self) {
