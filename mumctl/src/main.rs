@@ -4,6 +4,7 @@ use ipc_channel::ipc::{self, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config;
+use mumlib::config::ServerConfig;
 use mumlib::setup_logger;
 use mumlib::state::Channel;
 use std::{fs, io, iter};
@@ -44,7 +45,15 @@ fn main() {
                     SubCommand::with_name("rename")
                         .setting(AppSettings::ArgRequiredElseHelp)
                         .arg(Arg::with_name("prev_name").required(true).index(1))
-                        .arg(Arg::with_name("next_name").required(true).index(2))))
+                        .arg(Arg::with_name("next_name").required(true).index(2)))
+                .subcommand(
+                    SubCommand::with_name("add")
+                        .setting(AppSettings::ArgRequiredElseHelp)
+                        .arg(Arg::with_name("name").required(true))
+                        .arg(Arg::with_name("host").required(true))
+                        .arg(Arg::with_name("port").long("port").takes_value(true).default_value("64738"))
+                        .arg(Arg::with_name("username").long("username").takes_value(true))
+                        .arg(Arg::with_name("password").long("password").takes_value(true))))
         .subcommand(
             SubCommand::with_name("channel")
                 .setting(AppSettings::ArgRequiredElseHelp)
@@ -139,6 +148,41 @@ fn main() {
                 } else {
                     server.unwrap().name = next_name.to_string();
                 }
+            }
+        } else if let Some(matches) = matches.subcommand_matches("add") {
+            let name = matches.value_of("name").unwrap().to_string();
+            let host = matches.value_of("host").unwrap().to_string();
+            let port = matches.value_of("port").unwrap().parse().unwrap();
+            let username = if let Some(username) = matches.value_of("username") {
+                Some(username.to_string())
+            } else {
+                None
+            };
+            let password = if let Some(password) = matches.value_of("password") {
+                Some(password.to_string())
+            } else {
+                None
+            };
+            if let Some(ref mut servers) = config.servers {
+                if servers.into_iter().any(|s| s.name == name) {
+                    println!("{} a server named {} already exists", "error:".red(), name);
+                } else {
+                    servers.push(ServerConfig {
+                        name,
+                        host,
+                        port,
+                        username,
+                        password,
+                    });
+                }
+            } else {
+                config.servers = Some(vec![ServerConfig {
+                    name,
+                    host,
+                    port,
+                    username,
+                    password,
+                }]);
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
