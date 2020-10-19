@@ -78,6 +78,8 @@ fn main() {
             SubCommand::with_name("config")
                 .arg(Arg::with_name("name").required(true))
                 .arg(Arg::with_name("value").required(true)))
+        .subcommand(
+            SubCommand::with_name("config-reload"))
         .subcommand(SubCommand::with_name("completions")
                 .arg(Arg::with_name("zsh")
                      .long("zsh"))
@@ -256,6 +258,8 @@ fn main() {
                 println!("{} Unknown config value {}", "error:".red(), name);
             }
         }
+    } else if matches.subcommand_matches("config-reload").is_some() {
+        send_command(Command::ConfigReload).unwrap();
     } else if let Some(matches) = matches.subcommand_matches("completions") {
         app.gen_completions_to(
             "mumctl",

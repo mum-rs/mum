@@ -8,6 +8,7 @@ pub enum Command {
         channel_identifier: String,
     },
     ChannelList,
+    ConfigReload,
     InputVolumeSet(f32),
     ServerConnect {
         host: String,

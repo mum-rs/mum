@@ -171,6 +171,10 @@ impl State {
                 self.audio.set_input_volume(volume);
                 (false, Ok(None))
             }
+            Command::ConfigReload => {
+                self.reload_config();
+                (false, Ok(None))
+            }
         }
     }
 
