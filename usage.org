@@ -16,7 +16,7 @@ We want to support / explain how to do the following at some point:
 The daemon doesn't do anything by itself. Interfacing with it is done through
 `mumctl`.
 
-* Basic commands
+* 0.1
 The basic commands are the smallest subset of commands that allow the user to
 actually use mum for something. In this case it means connecting to a server,
 listing channels and connecting to channels.
@@ -85,17 +85,17 @@ your_name@localhost:65387/root (3)
   your_name
 #+END_SRC
 
-* More commands
+* 0.2
 ** server
-*** add
-Add a server with a name:
+*** TODO add
+**** DONE With name
 #+BEGIN_SRC bash
-$ mumctl server add 127.0.0.1 loopback
+$ mumctl server add loopback 127.0.0.1
 username: ***
 password: ***
 #+END_SRC
 
-Add a server without a name:
+**** TODO Without name
 #+BEGIN_SRC bash
 $ mumctl server add 127.0.0.1
 username: ***
@@ -110,22 +110,22 @@ loopback  [4 / 100]
 127.0.0.1 [4 / 100]
 127.0.0.3 [OFFLINE]
 #+END_SRC
-*** config
-**** username
+*** TODO config
+**** DONE username
 #+BEGIN_SRC bash
-$ mumctl server config loopback set username xX_gamerboy_Xx
+$ mumctl server config loopback username xX_gamerboy_Xx
 #+END_SRC
-**** password
+**** TODO password
 #+BEGIN_SRC bash
-$ mumctl server config loopback set password ***
+$ mumctl server config loopback password ***
 #+END_SRC
 
 Optionally ask stdin
 #+BEGIN_SRC bash
-$ mumctl server config loopback set password
+$ mumctl server config loopback password
 enter password: ***
 #+END_SRC
-*** connect: handle invalid keys
+*** TODO connect: handle invalid keys
 #+BEGIN_SRC bash
 server offered invalid key. what do you want to do?
 [I]nspect, [A]ccept, [D]eny, [C]ompare, [T]emporarily trust (default D):
@@ -135,11 +135,11 @@ server offered invalid key. what do you want to do?
 - Deny: Abort the connection. Do not trust the key.
 - Compare: Compare the key to a file to confirm legitimacy and ask again.
 - Temporarily trust: Accept the key and connect, but do not trust the key.
-*** rename
+*** DONE rename
 #+BEGIN_SRC bash
 $ mumctl server rename loopback my_server
 #+END_SRC
-** config
+** TODO config
 #+BEGIN_SRC bash
 $ mumctl config audio.input_volume 1.1
 $ mumctl config audio.input_volume

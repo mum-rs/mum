@@ -2,6 +2,8 @@ use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use colored::Colorize;
 use ipc_channel::ipc::{self, IpcSender};
 use mumlib::command::{Command, CommandResponse};
+use mumlib::config;
+use mumlib::config::ServerConfig;
 use mumlib::setup_logger;
 use mumlib::state::Channel;
 use std::{fs, io, iter};
@@ -18,6 +20,10 @@ macro_rules! err_print {
 
 fn main() {
     setup_logger(io::stderr(), true);
+    let mut config = config::read_default_cfg();
+    if config.is_none() {
+        println!("{} unable to find config file", "error:".red());
+    }
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -26,59 +32,90 @@ fn main() {
                 .setting(AppSettings::ArgRequiredElseHelp)
                 .subcommand(
                     SubCommand::with_name("connect")
-                        .setting(AppSettings::ArgRequiredElseHelp)
-                        .arg(Arg::with_name("host").required(true).index(1))
-                        .arg(Arg::with_name("username").required(true).index(2))
-                        .arg(Arg::with_name("port").short("p").long("port").takes_value(true)),
-                )
-                .subcommand(SubCommand::with_name("disconnect")),
-        )
+                        .arg(Arg::with_name("host").required(true))
+                        .arg(Arg::with_name("username").required(true))
+                        .arg(Arg::with_name("port")
+                             .long("port")
+                             .short("p")
+                             .takes_value(true)))
+                .subcommand(
+                    SubCommand::with_name("disconnect"))
+                .subcommand(
+                    SubCommand::with_name("config")
+                        .arg(Arg::with_name("server_name").required(true))
+                        .arg(Arg::with_name("var_name"))
+                        .arg(Arg::with_name("var_value")))
+                .subcommand(
+                    SubCommand::with_name("rename")
+                        .arg(Arg::with_name("prev_name").required(true))
+                        .arg(Arg::with_name("next_name").required(true)))
+                .subcommand(
+                    SubCommand::with_name("add")
+                        .arg(Arg::with_name("name").required(true))
+                        .arg(Arg::with_name("host").required(true))
+                        .arg(Arg::with_name("port")
+                             .long("port")
+                             .takes_value(true)
+                             .default_value("64738"))
+                        .arg(Arg::with_name("username")
+                             .long("username")
+                             .takes_value(true))
+                        .arg(Arg::with_name("password")
+                             .long("password")
+                             .takes_value(true)))
+                .subcommand(
+                    SubCommand::with_name("remove")
+                        .arg(Arg::with_name("name").required(true))))
         .subcommand(
             SubCommand::with_name("channel")
                 .setting(AppSettings::ArgRequiredElseHelp)
                 .subcommand(
                     SubCommand::with_name("list")
-                        .arg(Arg::with_name("short").short("s").long("short")),
-                )
+                        .arg(Arg::with_name("short")
+                             .long("short")
+                             .short("s")))
                 .subcommand(
-                    SubCommand::with_name("connect").arg(Arg::with_name("channel").required(true)),
-                ),
-        )
-        .subcommand(SubCommand::with_name("status"))
-        .subcommand(SubCommand::with_name("config")
-                    .arg(Arg::with_name("name")
-                         .required(true))
-                    .arg(Arg::with_name("value")
-                         .required(true)))
+                    SubCommand::with_name("connect")
+                        .arg(Arg::with_name("channel").required(true))))
+        .subcommand(
+            SubCommand::with_name("status"))
+        .subcommand(
+            SubCommand::with_name("config")
+                .arg(Arg::with_name("name").required(true))
+                .arg(Arg::with_name("value").required(true)))
+        .subcommand(
+            SubCommand::with_name("config-reload"))
         .subcommand(SubCommand::with_name("completions")
-                    .arg(Arg::with_name("zsh")
-                         .long("zsh"))
-                    .arg(Arg::with_name("bash")
-                         .long("bash"))
-                    .arg(Arg::with_name("fish")
-                         .long("fish")));
+                .arg(Arg::with_name("zsh")
+                     .long("zsh"))
+                .arg(Arg::with_name("bash")
+                     .long("bash"))
+                .arg(Arg::with_name("fish")
+                     .long("fish")));
 
     let matches = app.clone().get_matches();
 
     if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("connect") {
-            let host = matches.value_of("host").unwrap();
-            let username = matches.value_of("username").unwrap();
-            let port = match matches.value_of("port").map(|e| e.parse()) {
-                None => Some(64738),
-                Some(Err(_)) => None,
-                Some(Ok(v)) => Some(v),
-            };
-            if let Some(port) = port {
-                err_print!(send_command(Command::ServerConnect {
-                    host: host.to_string(),
-                    port,
-                    username: username.to_string(),
-                    accept_invalid_cert: true, //TODO
-                }));
-            }
+            match_server_connect(matches);
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
             err_print!(send_command(Command::ServerDisconnect));
+        } else if let Some(matches) = matches.subcommand_matches("config") {
+            if let Some(config) = &mut config {
+                match_server_config(matches, config);
+            }
+        } else if let Some(matches) = matches.subcommand_matches("rename") {
+            if let Some(config) = &mut config {
+                match_server_rename(matches, config);
+            }
+        } else if let Some(matches) = matches.subcommand_matches("remove") {
+            if let Some(config) = &mut config {
+                match_server_remove(matches, config);
+            }
+        } else if let Some(matches) = matches.subcommand_matches("add") {
+            if let Some(config) = &mut config {
+                match_server_add(matches, config);
+            }
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
         if let Some(_matches) = matches.subcommand_matches("list") {
@@ -96,34 +133,12 @@ fn main() {
                 channel_identifier: matches.value_of("channel").unwrap().to_string()
             }));
         }
-    } else if let Some(_matches) = matches.subcommand_matches("status") {
+    } else if let Some(_) = matches.subcommand_matches("status") {
         match send_command(Command::Status) {
             Ok(res) => match res {
                 Some(CommandResponse::Status { server_state }) => {
-                    println!(
-                        "Connected to {} as {}",
-                        server_state.host, server_state.username
-                    );
-                    let own_channel = server_state
-                        .channels
-                        .iter()
-                        .find(|e| e.users.iter().any(|e| e.name == server_state.username))
-                        .unwrap();
-                    println!(
-                        "Currently in {} with {} other client{}:",
-                        own_channel.name,
-                        own_channel.users.len() - 1,
-                        if own_channel.users.len() == 2 {
-                            ""
-                        } else {
-                            "s"
-                        }
-                    );
-                    println!("{}{}", INDENTATION, own_channel.name);
-                    for user in &own_channel.users {
-                        println!("{}{}{}", INDENTATION, INDENTATION, user);
-                    }
-                }
+                    parse_status(&server_state);
+                },
                 _ => unreachable!(),
             },
             Err(e) => println!("{} {}", "error:".red(), e),
@@ -141,6 +156,8 @@ fn main() {
                 println!("{} Unknown config value {}", "error:".red(), name);
             }
         }
+    } else if matches.subcommand_matches("config-reload").is_some() {
+        send_command(Command::ConfigReload).unwrap();
     } else if let Some(matches) = matches.subcommand_matches("completions") {
         app.gen_completions_to(
             "mumctl",
@@ -153,6 +170,172 @@ fn main() {
         );
         return;
     };
+
+    if let Some(config) = config {
+        config.write_default_cfg();
+    }
+}
+
+fn match_server_connect(matches : &clap::ArgMatches<>) {
+    let host = matches.value_of("host").unwrap();
+    let username = matches.value_of("username").unwrap();
+    let port = match matches.value_of("port").map(|e| e.parse()) {
+        None => Some(64738),
+        Some(Err(_)) => None,
+        Some(Ok(v)) => Some(v),
+    };
+    if let Some(port) = port {
+        err_print!(send_command(Command::ServerConnect {
+            host: host.to_string(),
+            port,
+            username: username.to_string(),
+            accept_invalid_cert: true, //TODO
+        }));
+    }
+}
+
+fn match_server_config(matches: &clap::ArgMatches<>, config: &mut mumlib::config::Config) {
+    let server_name = matches.value_of("server_name").unwrap();
+    if let Some(servers) = &mut config.servers {
+        let server = servers
+            .iter_mut()
+            .find(|s| s.name == server_name);
+        if let Some(server) = server {
+            if let Some(var_name) = matches.value_of("var_name") {
+                if let Some(var_value) = matches.value_of("var_value") {
+                    // save var_value in var_name (if it is valid)
+                    match var_name {
+                        "name" => {
+                            println!("{} use mumctl server rename instead!", "error:".red());
+                        },
+                        "host" => {
+                            server.host = var_value.to_string();
+                        },
+                        "port" => {
+                            server.port = Some(var_value.parse().unwrap());
+                        },
+                        "username" => {
+                            server.username = Some(var_value.to_string());
+                        },
+                        "password" => {
+                            server.password = Some(var_value.to_string()); //TODO ask stdin if empty
+                        },
+                        _ => {
+                            println!("{} variable {} not found", "error:".red(), var_name);
+                        },
+                    };
+                } else { // var_value is None
+                    // print value of var_name
+                    println!("{}", match var_name {
+                        "name" => { server.name.to_string() },
+                        "host" => { server.host.to_string() },
+                        "port" => { server.port.map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
+                        "username" => { server.username.as_ref().map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
+                        "password" => { server.password.as_ref().map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
+                        _ => { format!("{} unknown variable", "error:".red()) },
+                    });
+                }
+            } else { // var_name is None
+                // print server config
+                print!("{}{}{}{}",
+                       format!("host: {}\n", server.host.to_string()),
+                       server.port.map(|s| format!("port: {}\n", s)).unwrap_or("".to_string()),
+                       server.username.as_ref().map(|s| format!("username: {}\n", s)).unwrap_or("".to_string()),
+                       server.password.as_ref().map(|s| format!("password: {}\n", s)).unwrap_or("".to_string()),
+                )
+            }
+        } else { // server is None
+            println!("{} server {} not found", "error:".red(), server_name);
+        }
+    } else { // servers is None
+        println!("{} no servers found in configuration", "error:".red());
+    }
+}
+
+fn match_server_rename(matches: &clap::ArgMatches<>, config: &mut mumlib::config::Config) {
+    if let Some(servers) = &mut config.servers {
+        let prev_name = matches.value_of("prev_name").unwrap();
+        let next_name = matches.value_of("next_name").unwrap();
+        if let Some(server) = servers
+                                .iter_mut()
+                                .find(|s| s.name == prev_name) {
+            server.name = next_name.to_string();
+        } else {
+            println!("{} server {} not found", "error:".red(), prev_name);
+        }
+    }
+}
+
+fn match_server_remove(matches: &clap::ArgMatches<>, config: &mut mumlib::config::Config) {
+    let name = matches.value_of("name").unwrap();
+    if let Some(servers) = &mut config.servers {
+        match servers.iter().position(|server| server.name == name) {
+            Some(idx) => {
+                servers.remove(idx);
+            },
+            None => {
+                println!("{} server {} not found", "error:".red(), name);
+            }
+        };
+    } else {
+        println!("{} no servers found in configuration", "error:".red());
+    }
+}
+
+fn match_server_add(matches: &clap::ArgMatches<>, config: &mut mumlib::config::Config) {
+    let name = matches.value_of("name").unwrap().to_string();
+    let host = matches.value_of("host").unwrap().to_string();
+    // optional arguments map None to None
+    let port = matches.value_of("port").map(|s| s.parse().unwrap());
+    let username = matches.value_of("username").map(|s| s.to_string());
+    let password = matches.value_of("password").map(|s| s.to_string());
+    if let Some(servers) = &mut config.servers {
+        if servers.iter().any(|s| s.name == name) {
+            println!("{} a server named {} already exists", "error:".red(), name);
+        } else {
+            servers.push(ServerConfig {
+                name,
+                host,
+                port,
+                username,
+                password,
+            });
+        }
+    } else {
+        config.servers = Some(vec![ServerConfig {
+            name,
+            host,
+            port,
+            username,
+            password,
+        }]);
+    }
+}
+
+fn parse_status(server_state: &mumlib::state::Server) {
+    println!(
+        "Connected to {} as {}",
+        server_state.host, server_state.username
+    );
+    let own_channel = server_state
+        .channels
+        .iter()
+        .find(|e| e.users.iter().any(|e| e.name == server_state.username))
+        .unwrap();
+    println!(
+        "Currently in {} with {} other client{}:",
+        own_channel.name,
+        own_channel.users.len() - 1,
+        if own_channel.users.len() == 2 {
+            ""
+        } else {
+            "s"
+        }
+    );
+    println!("{}{}", INDENTATION, own_channel.name);
+    for user in &own_channel.users {
+        println!("{}{}{}", INDENTATION, INDENTATION, user);
+    }
 }
 
 fn send_command(command: Command) -> mumlib::error::Result<Option<CommandResponse>> {

@@ -6,6 +6,7 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
+use mumlib::config::Config;
 use mumlib::error::{ChannelIdentifierError, Error};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
@@ -21,6 +22,7 @@ pub enum StatePhase {
 }
 
 pub struct State {
+    config: Option<Config>,
     server: Option<Server>,
     audio: Audio,
 
@@ -35,13 +37,17 @@ impl State {
         packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
         connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
     ) -> Self {
-        Self {
+        let audio = Audio::new();
+        let mut state = Self {
+            config: mumlib::config::read_default_cfg(),
             server: None,
-            audio: Audio::new(),
+            audio,
             packet_sender,
             connection_info_sender,
             phase_watcher: watch::channel(StatePhase::Disconnected),
-        }
+        };
+        state.reload_config();
+        state
     }
 
     //TODO? move bool inside Result
@@ -165,6 +171,10 @@ impl State {
                 self.audio.set_input_volume(volume);
                 (false, Ok(None))
             }
+            Command::ConfigReload => {
+                self.reload_config();
+                (false, Ok(None))
+            }
         }
     }
 
@@ -195,6 +205,20 @@ impl State {
             }
         }
         self.server.as_mut().unwrap().parse_user_state(msg);
+    }
+
+    pub fn reload_config(&mut self) {
+        if let Some(config) = mumlib::config::read_default_cfg() {
+            self.config = Some(config);
+            let config = &self.config.as_ref().unwrap();
+            if let Some(audio_config) = &config.audio {
+                if let Some(input_volume) = audio_config.input_volume {
+                    self.audio.set_input_volume(input_volume);
+                }
+            }
+        } else {
+            warn!("config file not found");
+        }
     }
 
     pub fn initialized(&self) {

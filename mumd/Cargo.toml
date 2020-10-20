@@ -27,6 +27,5 @@ tokio = { version = "0.2", features = ["full"] }
 tokio-tls = "0.3"
 tokio-util = { version = "0.3", features = ["codec", "udp"] }
 
-#clap = "2.33"
 #compressor = "0.3"
 #daemonize = "0.4"
