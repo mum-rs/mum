@@ -198,9 +198,12 @@ impl State {
                 self.audio_mut().add_client(sess);
             }
             self.server_mut().unwrap().users_mut().insert(sess, User::new(msg));
-            return None;
+            None
         } else {
-            return Some(self.server_mut().unwrap().users_mut().get(&sess).unwrap().parse_state_diff(msg));
+            let user = self.server_mut().unwrap().users_mut().get_mut(&sess).unwrap();
+            let diff = UserDiff::from(msg);
+            user.apply_user_diff(&diff);
+            Some(diff)
         }
     }
 
@@ -269,6 +272,7 @@ pub struct Server {
 
     host: Option<String>,
 }
+
 
 impl Server {
     pub fn new() -> Self {
@@ -600,39 +604,42 @@ impl User {
         }
     }
 
-    pub fn parse_state_diff(&self, mut msg: msgs::UserState) -> UserDiff {
-        let mut ud = UserDiff::new();
-        if msg.has_comment() {
-            ud.comment = Some(msg.take_comment());
+    pub fn apply_user_diff(&mut self, diff: &UserDiff) {
+        debug!("applying user diff\n{:#?}", diff);
+        if let Some(comment) = diff.comment.clone() {
+            self.comment = Some(comment);
         }
-        if msg.has_hash() {
-            ud.hash = Some(msg.take_hash());
+        if let Some(hash) = diff.hash.clone() {
+            self.hash = Some(hash);
         }
-        if msg.has_name() {
-            ud.name = Some(msg.take_name());
+        if let Some(name) = diff.name.clone() {
+            self.name = name;
         }
-        if msg.has_priority_speaker() {
-            ud.priority_speaker = Some(msg.get_priority_speaker());
+        if let Some(priority_speaker) = diff.priority_speaker {
+            self.priority_speaker = priority_speaker;
         }
-        if msg.has_recording() {
-            ud.recording = Some(msg.get_recording());
+        if let Some(recording) = diff.recording {
+            self.recording = recording;
         }
-        if msg.has_suppress() {
-            ud.suppress = Some(msg.get_suppress());
+        if let Some(suppress) = diff.suppress {
+            self.suppress = suppress;
         }
-        if msg.has_self_mute() {
-            ud.self_mute = Some(msg.get_self_mute());
+        if let Some(self_mute) = diff.self_mute {
+            self.self_mute = self_mute;
         }
-        if msg.has_self_deaf() {
-            ud.self_deaf = Some(msg.get_self_deaf());
+        if let Some(self_deaf) = diff.self_deaf {
+            self.self_deaf = self_deaf;
         }
-        if msg.has_mute() {
-            ud.mute = Some(msg.get_mute());
+        if let Some(mute) = diff.mute {
+            self.mute = mute;
         }
-        if msg.has_deaf() {
-            ud.deaf = Some(msg.get_deaf());
+        if let Some(deaf) = diff.deaf {
+            self.deaf = deaf;
         }
-        ud
+
+        if let Some(channel_id) = diff.channel_id {
+            self.channel = channel_id;
+        }
     }
 
     pub fn name(&self) -> &str {
