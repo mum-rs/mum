@@ -14,6 +14,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
+use crate::network::tcp::{TcpEventCallback, TcpEvent};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatePhase {
@@ -55,11 +56,11 @@ impl State {
     pub async fn handle_command(
         &mut self,
         command: Command,
-    ) -> (bool, mumlib::error::Result<Option<CommandResponse>>) {
+    ) -> (Option<(TcpEvent, TcpEventCallback)>, mumlib::error::Result<Option<CommandResponse>>) {
         match command {
             Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return (false, Err(Error::DisconnectedError));
+                    return (None, Err(Error::DisconnectedError));
                 }
 
                 let channels = self.server()
@@ -77,27 +78,27 @@ impl State {
                             .filter(|e| e.1.ends_with(&channel_identifier.to_lowercase()))
                             .collect::<Vec<_>>();
                         match soft_matches.len() {
-                            0 => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                            0 => return (None, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
                             1 => *soft_matches.get(0).unwrap().0,
-                            _ => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                            _ => return (None, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
                         }
                     },
                     1 => *matches.get(0).unwrap().0,
-                    _ => return (false, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Ambiguous))),
+                    _ => return (None, Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Ambiguous))),
                 };
 
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.server.as_ref().unwrap().session_id.unwrap());
                 msg.set_channel_id(id);
                 self.packet_sender.send(msg.into()).unwrap();
-                (false, Ok(None))
+                (None, Ok(None))
             }
             Command::ChannelList => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return (false, Err(Error::DisconnectedError));
+                    return (None, Err(Error::DisconnectedError));
                 }
                 (
-                    false,
+                    None,
                     Ok(Some(CommandResponse::ChannelList {
                         channels: into_channel(
                             self.server.as_ref().unwrap().channels(),
@@ -113,7 +114,7 @@ impl State {
                 accept_invalid_cert,
             } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
-                    return (false, Err(Error::AlreadyConnectedError));
+                    return (None, Err(Error::AlreadyConnectedError));
                 }
                 let mut server = Server::new();
                 server.username = Some(username);
@@ -131,7 +132,7 @@ impl State {
                     Ok(Some(v)) => v,
                     _ => {
                         warn!("Error parsing server addr");
-                        return (false, Err(Error::InvalidServerAddrError(host, port)));
+                        return (None, Err(Error::InvalidServerAddrError(host, port)));
                     }
                 };
                 self.connection_info_sender
@@ -141,14 +142,14 @@ impl State {
                         accept_invalid_cert,
                     )))
                     .unwrap();
-                (true, Ok(None))
+                (Some((TcpEvent::Connected, Box::new(|_| {}))), Ok(None))
             }
             Command::Status => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return (false, Err(Error::DisconnectedError));
+                    return (None, Err(Error::DisconnectedError));
                 }
                 (
-                    false,
+                    None,
                     Ok(Some(CommandResponse::Status {
                         server_state: self.server.as_ref().unwrap().into(), //guaranteed not to panic because if we are connected, server is guaranteed to be Some
                     })),
@@ -156,7 +157,7 @@ impl State {
             }
             Command::ServerDisconnect => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return (false, Err(Error::DisconnectedError));
+                    return (None, Err(Error::DisconnectedError));
                 }
 
                 self.server = None;
@@ -166,11 +167,11 @@ impl State {
                     .0
                     .broadcast(StatePhase::Disconnected)
                     .unwrap();
-                (false, Ok(None))
+                (None, Ok(None))
             }
             Command::InputVolumeSet(volume) => {
                 self.audio.set_input_volume(volume);
-                (false, Ok(None))
+                (None, Ok(None))
             }
             Command::ConfigReload => {
                 self.reload_config();
