@@ -22,7 +22,7 @@ pub enum StatePhase {
 }
 
 pub struct State {
-    config: Config,
+    config: Option<Config>,
     server: Option<Server>,
     audio: Audio,
 
@@ -39,7 +39,7 @@ impl State {
     ) -> Self {
         let audio = Audio::new();
         let mut state = Self {
-            config: mumlib::config::read_default_cfg().expect("format error in config file"),
+            config: mumlib::config::read_default_cfg(),
             server: None,
             audio,
             packet_sender,
@@ -208,12 +208,16 @@ impl State {
     }
 
     pub fn reload_config(&mut self) {
-        self.config = mumlib::config::read_default_cfg()
-            .expect("format error in config file");
-        if let Some(audio_config) = &self.config.audio {
-            if let Some(input_volume) = audio_config.input_volume {
-                self.audio.set_input_volume(input_volume);
+        if let Some(config) = mumlib::config::read_default_cfg() {
+            self.config = Some(config);
+            let config = &self.config.as_ref().unwrap();
+            if let Some(audio_config) = &config.audio {
+                if let Some(input_volume) = audio_config.input_volume {
+                    self.audio.set_input_volume(input_volume);
+                }
             }
+        } else {
+            warn!("config file not found");
         }
     }
 
@@ -222,10 +226,6 @@ impl State {
             .0
             .broadcast(StatePhase::Connected)
             .unwrap();
-    }
-
-    pub fn config(&self) -> &Config {
-        &self.config
     }
 
     pub fn audio(&self) -> &Audio {

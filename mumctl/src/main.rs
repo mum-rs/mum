@@ -1,7 +1,6 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use colored::Colorize;
 use ipc_channel::ipc::{self, IpcSender};
-use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config;
 use mumlib::config::ServerConfig;
@@ -21,8 +20,10 @@ macro_rules! err_print {
 
 fn main() {
     setup_logger(io::stderr(), true);
-    let mut config = config::read_default_cfg()
-        .expect("format error in config file");
+    let mut config = config::read_default_cfg();
+    if config.is_none() {
+        println!("{} unable to find config file", "error:".red());
+    }
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -100,13 +101,21 @@ fn main() {
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
             err_print!(send_command(Command::ServerDisconnect));
         } else if let Some(matches) = matches.subcommand_matches("config") {
-            match_server_config(matches, &mut config);
+            if let Some(config) = &mut config {
+                match_server_config(matches, config);
+            }
         } else if let Some(matches) = matches.subcommand_matches("rename") {
-            match_server_rename(matches, &mut config);
+            if let Some(config) = &mut config {
+                match_server_rename(matches, config);
+            }
         } else if let Some(matches) = matches.subcommand_matches("remove") {
-            match_server_remove(matches, &mut config);
+            if let Some(config) = &mut config {
+                match_server_remove(matches, config);
+            }
         } else if let Some(matches) = matches.subcommand_matches("add") {
-            match_server_add(matches, &mut config);
+            if let Some(config) = &mut config {
+                match_server_add(matches, config);
+            }
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
         if let Some(_matches) = matches.subcommand_matches("list") {
@@ -162,7 +171,9 @@ fn main() {
         return;
     };
 
-    config.write_default_cfg();
+    if let Some(config) = config {
+        config.write_default_cfg();
+    }
 }
 
 fn match_server_connect(matches : &clap::ArgMatches<>) {

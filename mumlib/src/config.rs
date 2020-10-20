@@ -1,3 +1,4 @@
+use log::*;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fs;
@@ -17,8 +18,23 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn write_default_cfg(&self) {
-        fs::write(get_cfg_path(), toml::to_string(&TOMLConfig::from(self.clone())).unwrap()).unwrap();
+    pub fn write_default_cfg(&self) -> Result<(), std::io::Error> {
+        let path = get_cfg_path();
+        let path = std::path::Path::new(&path);
+        // Possible race here. It's fine since it shows when:
+        //   1) the file doesn't exist when checked and is then created
+        //   2) the file exists when checked but is then removed
+        // If 1) we don't do anything anyway so it's fine, and if 2) we
+        // immediately re-create the file which, while not perfect, at least
+        // should work. Unless the file is removed AND the permissions
+        // change, but then we don't have permissions so we can't
+        // do anything anyways.
+        if !path.exists() {
+            warn!("config file {} does not exist, ignoring", path.display());
+            Ok(())
+        } else {
+            fs::write(path, toml::to_string(&TOMLConfig::from(self.clone())).unwrap())
+        }
     }
 }
 
@@ -67,13 +83,17 @@ impl From<Config> for TOMLConfig {
     }
 }
 
-pub fn read_default_cfg() -> Result<Config, toml::de::Error> {
-    //TODO return None if file doesn't exist (Option::map)
-    Config::try_from(
+pub fn read_default_cfg() -> Option<Config> {
+    Some(Config::try_from(
         toml::from_str::<TOMLConfig>(
-            &fs::read_to_string(
-                get_cfg_path())
-                .expect("config file not found")
-                .to_string())
-            .unwrap())
+            &match fs::read_to_string(get_cfg_path()) {
+                Ok(f) => {
+                    f.to_string()
+                },
+                Err(_) => {
+                    return None
+                }
+            }
+        ).expect("invalid TOML in config file") //TODO
+    ).expect("invalid config in TOML")) //TODO
 }
