@@ -8,6 +8,7 @@ use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
 use mumlib::error::{ChannelIdentifierError, Error};
+use mumlib::state::UserDiff;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -178,33 +179,42 @@ impl State {
         }
     }
 
-    pub fn parse_initial_user_state(&mut self, msg: msgs::UserState) {
+    pub fn parse_user_state(&mut self, msg: msgs::UserState) -> Option<UserDiff> {
         if !msg.has_session() {
             warn!("Can't parse user state without session");
+            return None;
+        }
+        let sess = msg.get_session();
+        // check if this is initial state
+        if !self.server().unwrap().users().contains_key(&sess) {
+            if !msg.has_name() {
+                warn!("Missing name in initial user state");
+            }
+            if msg.get_name() == self.server().unwrap().username.as_ref().unwrap() {
+                // this is us
+                self.server_mut().unwrap().session_id = Some(sess);
+            } else {
+                // this is someone else
+                self.audio_mut().add_client(sess);
+            }
+            self.server_mut().unwrap().users_mut().insert(sess, User::new(msg));
+            None
+        } else {
+            let user = self.server_mut().unwrap().users_mut().get_mut(&sess).unwrap();
+            let diff = UserDiff::from(msg);
+            user.apply_user_diff(&diff);
+            Some(diff)
+        }
+    }
+
+    pub fn remove_client(&mut self, msg: msgs::UserRemove) {
+        if !msg.has_session() {
+            warn!("Tried to remove user state without session");
             return;
         }
-        if !msg.has_name() {
-            warn!("Missing name in initial user state");
-        } else if msg.get_name() == self.server.as_ref().unwrap().username.as_ref().unwrap() {
-            match self.server.as_ref().unwrap().session_id {
-                None => {
-                    debug!("Found our session id: {}", msg.get_session());
-                    self.server_mut().unwrap().session_id = Some(msg.get_session());
-                }
-                Some(session) => {
-                    if session != msg.get_session() {
-                        error!(
-                            "Got two different session IDs ({} and {}) for ourselves",
-                            session,
-                            msg.get_session()
-                        );
-                    } else {
-                        debug!("Got our session ID twice");
-                    }
-                }
-            }
-        }
-        self.server.as_mut().unwrap().parse_user_state(msg);
+        self.audio().remove_client(msg.get_session());
+        self.server_mut().unwrap().users_mut().remove(&msg.get_session());
+        info!("User {} disconnected", msg.get_session());
     }
 
     pub fn reload_config(&mut self) {
@@ -263,6 +273,7 @@ pub struct Server {
     host: Option<String>,
 }
 
+
 impl Server {
     pub fn new() -> Self {
         Self {
@@ -309,25 +320,16 @@ impl Server {
         }
     }
 
-    pub fn parse_user_state(&mut self, msg: msgs::UserState) {
-        if !msg.has_session() {
-            warn!("Can't parse user state without session");
-            return;
-        }
-        match self.users.entry(msg.get_session()) {
-            Entry::Vacant(e) => {
-                e.insert(User::new(msg));
-            }
-            Entry::Occupied(mut e) => e.get_mut().parse_user_state(msg),
-        }
-    }
-
     pub fn channels(&self) -> &HashMap<u32, Channel> {
         &self.channels
     }
 
     pub fn users(&self) -> &HashMap<u32, User> {
         &self.users
+    }
+
+    pub fn users_mut(&mut self) -> &mut HashMap<u32, User> {
+        &mut self.users
     }
 
     pub fn username(&self) -> Option<&str> {
@@ -599,6 +601,44 @@ impl User {
         }
         if msg.has_deaf() {
             self.deaf = msg.get_deaf();
+        }
+    }
+
+    pub fn apply_user_diff(&mut self, diff: &UserDiff) {
+        debug!("applying user diff\n{:#?}", diff);
+        if let Some(comment) = diff.comment.clone() {
+            self.comment = Some(comment);
+        }
+        if let Some(hash) = diff.hash.clone() {
+            self.hash = Some(hash);
+        }
+        if let Some(name) = diff.name.clone() {
+            self.name = name;
+        }
+        if let Some(priority_speaker) = diff.priority_speaker {
+            self.priority_speaker = priority_speaker;
+        }
+        if let Some(recording) = diff.recording {
+            self.recording = recording;
+        }
+        if let Some(suppress) = diff.suppress {
+            self.suppress = suppress;
+        }
+        if let Some(self_mute) = diff.self_mute {
+            self.self_mute = self_mute;
+        }
+        if let Some(self_deaf) = diff.self_deaf {
+            self.self_deaf = self_deaf;
+        }
+        if let Some(mute) = diff.mute {
+            self.mute = mute;
+        }
+        if let Some(deaf) = diff.deaf {
+            self.deaf = deaf;
+        }
+
+        if let Some(channel_id) = diff.channel_id {
+            self.channel = channel_id;
         }
     }
 

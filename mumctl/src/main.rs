@@ -172,7 +172,7 @@ fn main() {
     };
 
     if let Some(config) = config {
-        config.write_default_cfg();
+        config.write_default_cfg().unwrap();
     }
 }
 
@@ -364,7 +364,7 @@ fn print_channel(channel: &Channel, depth: usize) {
     );
     for user in &channel.users {
         println!(
-            "{}-{}",
+            "{}- {}",
             iter::repeat(INDENTATION)
                 .take(depth + 1)
                 .collect::<String>(),
