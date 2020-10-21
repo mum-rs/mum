@@ -13,7 +13,7 @@ mumlib = { path = "../mumlib" }
 
 argparse = "0.2"
 bytes = "0.5"
-cpal = { git = "https://github.com/RustAudio/cpal", rev = "a77758968ffac7c284422dcab5459e3de1e900c7" }
+cpal = { git = "https://github.com/RustAudio/cpal" }
 futures = "0.3"
 futures-util = "0.3"
 ipc-channel = "0.14"
