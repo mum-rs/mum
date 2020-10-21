@@ -19,7 +19,7 @@ pub async fn handle(
     while let Some((command, response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
         let mut state = state.lock().unwrap();
-        let (event, generator) = state.handle_command(command).await;
+        let (event, generator) = state.handle_command(command);
         drop(state);
         if let Some(event) = event {
             let (tx, rx) = oneshot::channel();

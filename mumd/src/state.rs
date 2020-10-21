@@ -54,7 +54,7 @@ impl State {
     }
 
     //TODO? move bool inside Result
-    pub async fn handle_command(
+    pub fn handle_command(
         &mut self,
         command: Command,
     ) -> (Option<TcpEvent>, Box<dyn FnOnce(Option<&TcpEventData>) -> mumlib::error::Result<Option<CommandResponse>>>) {
