@@ -143,7 +143,7 @@ impl State {
                         accept_invalid_cert,
                     )))
                     .unwrap();
-                (Some(TcpEvent::Connected), Box::new(|e| {
+                (Some(TcpEvent::Connected), Box::new(|e| { //runs the closure when the client is connected
                     if let Some(TcpEventData::Connected(msg)) = e {
                         Ok(Some(CommandResponse::ServerConnect {
                             welcome_message: if msg.has_welcome_text() {

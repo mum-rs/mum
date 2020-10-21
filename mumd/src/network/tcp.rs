@@ -31,8 +31,8 @@ pub(crate) type TcpEventCallback = Box<dyn FnOnce(&TcpEventData)>;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum TcpEvent {
-    Connected,
-    Disconnected,
+    Connected, //fires when the client has connected to a server
+    Disconnected, //fires when the client has disconnected from a server
 }
 
 pub enum TcpEventData<'a> {
@@ -180,7 +180,7 @@ async fn listen(
     state: Arc<Mutex<State>>,
     stream: TcpReceiver,
     crypt_state_sender: mpsc::Sender<ClientCryptState>,
-    event_data: Arc<Mutex<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
+    event_queue: Arc<Mutex<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
     phase_watcher: watch::Receiver<StatePhase>,
 ) {
     let crypt_state = Rc::new(RefCell::new(None));
@@ -227,7 +227,7 @@ async fn listen(
                             )
                             .await;
                     }
-                    if let Some(vec) = event_data.lock().unwrap().get_mut(&TcpEvent::Connected) {
+                    if let Some(vec) = event_queue.lock().unwrap().get_mut(&TcpEvent::Connected) {
                         let old = std::mem::take(vec);
                         for handler in old {
                             handler(&TcpEventData::Connected(&msg));
@@ -290,7 +290,7 @@ async fn listen(
             }
         },
         || async {
-            if let Some(vec) = event_data.lock().unwrap().get_mut(&TcpEvent::Disconnected) {
+            if let Some(vec) = event_queue.lock().unwrap().get_mut(&TcpEvent::Disconnected) {
                 let old = std::mem::take(vec);
                 for handler in old {
                     handler(&TcpEventData::Disconnected);
