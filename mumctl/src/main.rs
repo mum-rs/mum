@@ -185,12 +185,24 @@ fn match_server_connect(matches : &clap::ArgMatches<'_>) {
         Some(Ok(v)) => Some(v),
     };
     if let Some(port) = port {
-        err_print!(send_command(Command::ServerConnect {
+        match send_command(Command::ServerConnect {
             host: host.to_string(),
             port,
             username: username.to_string(),
             accept_invalid_cert: true, //TODO
-        }));
+        }) {
+            Ok(e) => {
+                if let Some(CommandResponse::ServerConnect { welcome_message }) = e {
+                    println!("Connected to {}", host);
+                    if let Some(message) = welcome_message {
+                        println!("Welcome: {}", message);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("{} {}", "error:".red(), e);
+            }
+        };
     }
 }
 

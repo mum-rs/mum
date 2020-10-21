@@ -33,6 +33,7 @@ async fn main() {
     )>();
     let (connection_info_sender, connection_info_receiver) =
         watch::channel::<Option<ConnectionInfo>>(None);
+    let (response_sender, response_receiver) = mpsc::unbounded_channel();
 
     let state = State::new(packet_sender, connection_info_sender);
     let state = Arc::new(Mutex::new(state));
@@ -43,13 +44,14 @@ async fn main() {
             connection_info_receiver.clone(),
             crypt_state_sender,
             packet_receiver,
+            response_receiver,
         ),
         network::udp::handle(
             Arc::clone(&state),
             connection_info_receiver.clone(),
             crypt_state_receiver,
         ),
-        command::handle(state, command_receiver,),
+        command::handle(state, command_receiver, response_sender),
         spawn_blocking(move || {
             // IpcSender is blocking
             receive_oneshot_commands(command_sender);
