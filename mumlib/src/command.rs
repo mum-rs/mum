@@ -23,5 +23,6 @@ pub enum Command {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum CommandResponse {
     ChannelList { channels: Channel },
+    ServerConnect { welcome_message: Option<String> },
     Status { server_state: Server },
 }

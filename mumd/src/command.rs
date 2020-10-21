@@ -18,21 +18,21 @@ pub async fn handle(
     debug!("Begin listening for commands");
     while let Some((command, response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
-        let mut statee = state.lock().unwrap();
-        let (event_data, command_response) = statee.handle_command(command).await;
-        drop(statee);
-        if let Some((event, callback)) = event_data {
+        let mut state = state.lock().unwrap();
+        let (event, generator) = state.handle_command(command).await;
+        drop(state);
+        if let Some(event) = event {
             let (tx, rx) = oneshot::channel();
-            tcp_event_register_sender.send((event, Box::new(move |e| {
-                println!("något hände");
-                callback(e);
-                response_sender.send(command_response).unwrap();
-                tx.send(());
+            //TODO handle this error
+            let _ = tcp_event_register_sender.send((event, Box::new(move |e| {
+                let response = generator(Some(e));
+                response_sender.send(response).unwrap();
+                tx.send(()).unwrap();
             })));
 
-            rx.await;
+            rx.await.unwrap();
         } else {
-            response_sender.send(command_response).unwrap();
+            response_sender.send(generator(None)).unwrap();
         }
     }
 }
