@@ -17,6 +17,18 @@ use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
 use crate::network::tcp::{TcpEvent, TcpEventData};
 
+macro_rules! at {
+    ($event:expr, $generator:expr) => {
+        (Some($event), Box::new($generator))
+    };
+}
+
+macro_rules! now {
+    ($data:expr) => {
+        (None, Box::new(move |_| $data))
+    };
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatePhase {
     Disconnected,
@@ -61,7 +73,7 @@ impl State {
         match command {
             Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return (None, Box::new(|_| Err(Error::DisconnectedError)));
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 let channels = self.server()
@@ -79,20 +91,20 @@ impl State {
                             .filter(|e| e.1.ends_with(&channel_identifier.to_lowercase()))
                             .collect::<Vec<_>>();
                         match soft_matches.len() {
-                            0 => return (None, Box::new(|_| Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid)))),
+                            0 => return now!(Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
                             1 => *soft_matches.get(0).unwrap().0,
-                            _ => return (None, Box::new(|_| Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid)))),
+                            _ => return now!(Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
                         }
                     },
                     1 => *matches.get(0).unwrap().0,
-                    _ => return (None, Box::new(|_| Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Ambiguous)))),
+                    _ => return now!(Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Ambiguous))),
                 };
 
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.server.as_ref().unwrap().session_id().unwrap());
                 msg.set_channel_id(id);
                 self.packet_sender.send(msg.into()).unwrap();
-                (None, Box::new(|_| Ok(None)))
+                now!(Ok(None))
             }
             Command::ChannelList => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
@@ -102,11 +114,10 @@ impl State {
                     self.server.as_ref().unwrap().channels(),
                     self.server.as_ref().unwrap().users(),
                 );
-                (
-                    None,
-                    Box::new(move |_| Ok(Some(CommandResponse::ChannelList {
+                now!(
+                    Ok(Some(CommandResponse::ChannelList {
                         channels: list,
-                    }))),
+                    }))
                 )
             }
             Command::ServerConnect {
@@ -116,7 +127,7 @@ impl State {
                 accept_invalid_cert,
             } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
-                    return (None, Box::new(|_| Err(Error::AlreadyConnectedError)));
+                    return now!(Err(Error::AlreadyConnectedError));
                 }
                 let mut server = Server::new();
                 *server.username_mut() = Some(username);
@@ -134,7 +145,7 @@ impl State {
                     Ok(Some(v)) => v,
                     _ => {
                         warn!("Error parsing server addr");
-                        return (None, Box::new(move |_| Err(Error::InvalidServerAddrError(host, port))));
+                        return now!(Err(Error::InvalidServerAddrError(host, port)));
                     }
                 };
                 self.connection_info_sender
@@ -144,7 +155,7 @@ impl State {
                         accept_invalid_cert,
                     )))
                     .unwrap();
-                (Some(TcpEvent::Connected), Box::new(|e| { //runs the closure when the client is connected
+                at!(TcpEvent::Connected, |e| { //runs the closure when the client is connected
                     if let Some(TcpEventData::Connected(msg)) = e {
                         Ok(Some(CommandResponse::ServerConnect {
                             welcome_message: if msg.has_welcome_text() {
@@ -156,23 +167,22 @@ impl State {
                     } else {
                         unreachable!("callback should be provided with a TcpEventData::Connected");
                     }
-                }))
+                })
             }
             Command::Status => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return (None, Box::new(|_| Err(Error::DisconnectedError)));
+                    return now!(Err(Error::DisconnectedError));
                 }
                 let state = self.server.as_ref().unwrap().into();
-                (
-                    None,
-                    Box::new(move |_| Ok(Some(CommandResponse::Status {
+                now!(
+                    Ok(Some(CommandResponse::Status {
                         server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
-                    }))),
+                    }))
                 )
             }
             Command::ServerDisconnect => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return (None, Box::new(|_| Err(Error::DisconnectedError)));
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 self.server = None;
@@ -182,15 +192,15 @@ impl State {
                     .0
                     .broadcast(StatePhase::Disconnected)
                     .unwrap();
-                (None, Box::new(|_| Ok(None)))
+                now!(Ok(None))
             }
             Command::InputVolumeSet(volume) => {
                 self.audio.set_input_volume(volume);
-                (None, Box::new(|_| Ok(None)))
+                now!(Ok(None))
             }
             Command::ConfigReload => {
                 self.reload_config();
-                (None, Box::new(|_| Ok(None)))
+                now!(Ok(None))
             }
         }
     }
