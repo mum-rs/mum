@@ -21,12 +21,10 @@ struct ClientStream {
 }
 
 pub struct Audio {
-    pub output_config: StreamConfig,
-    pub output_stream: Stream,
+    output_config: StreamConfig,
+    _output_stream: Stream,
+    _input_stream: Stream,
 
-    pub input_config: StreamConfig,
-    pub input_stream: Stream,
-    pub input_buffer: Arc<Mutex<VecDeque<f32>>>,
     input_channel_receiver: Option<Receiver<VoicePacketPayload>>,
     input_volume_sender: watch::Sender<f32>,
 
@@ -101,7 +99,6 @@ impl Audio {
 
         let (input_volume_sender, input_volume_receiver) = watch::channel::<f32>(1.0);
 
-        let input_buffer = Arc::new(Mutex::new(VecDeque::new()));
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
                 &input_config,
@@ -143,10 +140,8 @@ impl Audio {
 
         Self {
             output_config,
-            output_stream,
-            input_config,
-            input_stream,
-            input_buffer,
+            _output_stream: output_stream,
+            _input_stream: input_stream,
             input_volume_sender,
             input_channel_receiver: Some(input_receiver),
             client_streams,
