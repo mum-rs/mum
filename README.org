@@ -1,3 +1,66 @@
-#+TITLE: mum
+* mum
+Mumble daemon with controller (think mpd(1)/mpc(1)) written in Rust.
 
-Mumble client/daemon pair (think mpc(1)) written in Rust.
+** Building
+`mum` is [[https://aur.archlinux.org/packages/mum-git/][available on the AUR]]. We aim to publish tagged versions to cargo,
+as well as binaries on Github.
+*** Requirements
+These are for Arch Linux. You might need other packages on other distributions,
+or they might be named something different.
+
+- rust (stable)
+- `alsa-lib`
+- `openssl`
+- `opus`
+
+Windows is not currently supported but could be in the future. macOS is supposed
+to work but doesn't at the moment. Other operating systems haven't been
+tested. The limiting factor for Windows is IPC communication which is
+(currently) done via the crate `ipc-channel`.
+
+*** Installation
+1. Build the binaries
+2. (wait)
+3. Copy/symlink to somewhere nice (or don't).
+
+#+BEGIN_SRC sh
+$ cargo build --release
+$ ln -s $PWD/target/release/mumctl $HOME/.local/bin/
+$ ln -s $PWD/target/release/mumd $HOME/.local/bin/
+#+END_SRC
+
+** Usage
+This describes how to connect to a server and join different channels.
+See usage.org or `$ mumctl --help` for more information.
+
+*** mumd
+Start the daemon with `$ mumd`. Currently it attaches to the terminal, so if you
+want to run it in the background you can detach it with e.g. (zsh): `$ mumd
+&>/dev/null &|`. Somewhere down the line we're going to support `$ mumd
+--daemonize`.
+
+*** mumctl
+Interfacing with the daemon is done through `mumctl`. Some examples:
+
+#+BEGIN_SRC sh
+$ mumctl server connect 127.0.0.1 spock # connect to 127.0.0.1 with username 'spock'
+$ mumctl channel list
+ServerRoot
+  -user1
+  -user2
+  -user2
+  Channel2
+  Channel3
+$ mumctl channel connect Channel2
+#+END_SRC
+
+** Why?
+Mostly because it's a fun way of learning a new language. Also:
+
+- Most mumble clients use a GUI. While GUIs aren't necessarily bad, there
+  should at least exist alternatives where possible.
+- Memory and disk footprint. We haven't found a reliable way of testing memory
+  yet (suggestions welcome).
+
+** Other projects
+- [[https://github.com/bmmcginty/barnard.git][Barnard (go)]] - TUI mumble client
