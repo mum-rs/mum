@@ -176,7 +176,7 @@ fn main() {
     }
 }
 
-fn match_server_connect(matches : &clap::ArgMatches<>) {
+fn match_server_connect(matches : &clap::ArgMatches<'_>) {
     let host = matches.value_of("host").unwrap();
     let username = matches.value_of("username").unwrap();
     let port = match matches.value_of("port").map(|e| e.parse()) {
@@ -194,7 +194,7 @@ fn match_server_connect(matches : &clap::ArgMatches<>) {
     }
 }
 
-fn match_server_config(matches: &clap::ArgMatches<>, config: &mut mumlib::config::Config) {
+fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
     let server_name = matches.value_of("server_name").unwrap();
     if let Some(servers) = &mut config.servers {
         let server = servers
@@ -252,7 +252,7 @@ fn match_server_config(matches: &clap::ArgMatches<>, config: &mut mumlib::config
     }
 }
 
-fn match_server_rename(matches: &clap::ArgMatches<>, config: &mut mumlib::config::Config) {
+fn match_server_rename(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
     if let Some(servers) = &mut config.servers {
         let prev_name = matches.value_of("prev_name").unwrap();
         let next_name = matches.value_of("next_name").unwrap();
@@ -266,7 +266,7 @@ fn match_server_rename(matches: &clap::ArgMatches<>, config: &mut mumlib::config
     }
 }
 
-fn match_server_remove(matches: &clap::ArgMatches<>, config: &mut mumlib::config::Config) {
+fn match_server_remove(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
     let name = matches.value_of("name").unwrap();
     if let Some(servers) = &mut config.servers {
         match servers.iter().position(|server| server.name == name) {
@@ -282,7 +282,7 @@ fn match_server_remove(matches: &clap::ArgMatches<>, config: &mut mumlib::config
     }
 }
 
-fn match_server_add(matches: &clap::ArgMatches<>, config: &mut mumlib::config::Config) {
+fn match_server_add(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
     let name = matches.value_of("name").unwrap().to_string();
     let host = matches.value_of("host").unwrap().to_string();
     // optional arguments map None to None
