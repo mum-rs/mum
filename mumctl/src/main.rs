@@ -7,6 +7,7 @@ use mumlib::config::ServerConfig;
 use mumlib::setup_logger;
 use mumlib::state::Channel;
 use std::{fs, io, iter};
+use std::io::BufRead;
 
 const INDENTATION: &str = "  ";
 
@@ -21,9 +22,6 @@ macro_rules! err_print {
 fn main() {
     setup_logger(io::stderr(), true);
     let mut config = config::read_default_cfg();
-    if config.is_none() {
-        println!("{} unable to find config file", "error:".red());
-    }
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -101,21 +99,13 @@ fn main() {
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
             err_print!(send_command(Command::ServerDisconnect));
         } else if let Some(matches) = matches.subcommand_matches("config") {
-            if let Some(config) = &mut config {
-                match_server_config(matches, config);
-            }
+            match_server_config(matches, &mut config);
         } else if let Some(matches) = matches.subcommand_matches("rename") {
-            if let Some(config) = &mut config {
-                match_server_rename(matches, config);
-            }
+            match_server_rename(matches, &mut config);
         } else if let Some(matches) = matches.subcommand_matches("remove") {
-            if let Some(config) = &mut config {
-                match_server_remove(matches, config);
-            }
+            match_server_remove(matches, &mut config);
         } else if let Some(matches) = matches.subcommand_matches("add") {
-            if let Some(config) = &mut config {
-                match_server_add(matches, config);
-            }
+            match_server_add(matches, &mut config);
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
         if let Some(_matches) = matches.subcommand_matches("list") {
@@ -172,7 +162,16 @@ fn main() {
     };
 
     if let Some(config) = config {
-        config.write_default_cfg().unwrap();
+        if !config::cfg_exists() {
+            println!("Config file not found. Create one in {}? [Y/n]", config::get_creatable_cfg_path());
+            let stdin = std::io::stdin();
+            let response = stdin.lock().lines().next().unwrap().unwrap();
+            if &response == "Y" {
+                config.write_default_cfg(true).unwrap();
+            }
+        } else {
+            config.write_default_cfg(false).unwrap();
+        }
     }
 }
 
@@ -206,8 +205,14 @@ fn match_server_connect(matches : &clap::ArgMatches<'_>) {
     }
 }
 
-fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
+fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut Option<mumlib::config::Config>) {
     let server_name = matches.value_of("server_name").unwrap();
+    if config.is_none() {
+        *config = Some(mumlib::config::Config::default());
+    }
+
+    let config = config.as_mut().unwrap();
+
     if let Some(servers) = &mut config.servers {
         let server = servers
             .iter_mut()
@@ -264,7 +269,14 @@ fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
     }
 }
 
-fn match_server_rename(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
+fn match_server_rename(matches: &clap::ArgMatches<'_>, config: &mut Option<mumlib::config::Config>) {
+    if config.is_none() {
+        *config = Some(mumlib::config::Config::default());
+    }
+
+    let config = config.as_mut().unwrap();
+
+
     if let Some(servers) = &mut config.servers {
         let prev_name = matches.value_of("prev_name").unwrap();
         let next_name = matches.value_of("next_name").unwrap();
@@ -278,7 +290,13 @@ fn match_server_rename(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
     }
 }
 
-fn match_server_remove(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
+fn match_server_remove(matches: &clap::ArgMatches<'_>, config: &mut Option<mumlib::config::Config>) {
+    if config.is_none() {
+        *config = Some(mumlib::config::Config::default());
+    }
+
+    let config = config.as_mut().unwrap();
+
     let name = matches.value_of("name").unwrap();
     if let Some(servers) = &mut config.servers {
         match servers.iter().position(|server| server.name == name) {
@@ -294,7 +312,13 @@ fn match_server_remove(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
     }
 }
 
-fn match_server_add(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
+fn match_server_add(matches: &clap::ArgMatches<'_>, config: &mut Option<mumlib::config::Config>) {
+    if config.is_none() {
+        *config = Some(mumlib::config::Config::default());
+    }
+
+    let mut config = config.as_mut().unwrap();
+
     let name = matches.value_of("name").unwrap().to_string();
     let host = matches.value_of("host").unwrap().to_string();
     // optional arguments map None to None
