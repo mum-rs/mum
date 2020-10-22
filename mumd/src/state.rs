@@ -228,6 +228,21 @@ impl State {
             let user = self.server_mut().unwrap().users_mut().get_mut(&sess).unwrap();
             let diff = mumlib::state::UserDiff::from(msg);
             user.apply_user_diff(&diff);
+            let user = self.server().unwrap().users().get(&sess).unwrap();
+
+            // send notification
+            if let Some(channel_id) = diff.channel_id {
+                if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
+                    libnotify::Notification::new("mumd",
+                                                 Some(format!("{} moved to channel {}",
+                                                               &user.name(),
+                                                               channel.name()).as_str()),
+                                                 None).show().unwrap();
+                } else {
+                    warn!("{} moved to invalid channel {}", &user.name(), channel_id);
+                }
+            }
+
             Some(diff)
         }
     }
