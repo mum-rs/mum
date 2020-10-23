@@ -121,6 +121,14 @@ impl User {
     pub fn channel(&self) -> u32 {
         self.channel
     }
+
+    pub fn self_mute(&self) -> bool {
+        self.self_mute
+    }
+
+    pub fn self_deaf(&self) -> bool {
+        self.self_deaf
+    }
 }
 
 impl From<&User> for mumlib::state::User {

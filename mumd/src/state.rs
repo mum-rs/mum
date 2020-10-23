@@ -252,6 +252,18 @@ impl State {
 
     fn parse_updated_user_state(&mut self, session: u32, msg: msgs::UserState) -> mumlib::state::UserDiff {
         let user = self.server_mut().unwrap().users_mut().get_mut(&session).unwrap();
+
+        let mute = if msg.has_self_mute() && user.self_mute() != msg.get_self_mute() {
+            Some(msg.get_self_mute())
+        } else {
+            None
+        };
+        let deaf = if msg.has_self_deaf() && user.self_deaf() != msg.get_self_deaf() {
+            Some(msg.get_self_deaf())
+        } else {
+            None
+        };
+
         let diff = mumlib::state::UserDiff::from(msg);
         user.apply_user_diff(&diff);
         let user = self.server().unwrap().users().get(&session).unwrap();
@@ -269,6 +281,37 @@ impl State {
             } else {
                 warn!("{} moved to invalid channel {}", &user.name(), channel_id);
             }
+        }
+
+        //     send notification if a user muted/unmuted
+        //TODO our channel only
+        let notif_desc =
+            if let Some(deaf) = deaf {
+                if deaf {
+                    Some(format!("{} muted and deafend themselves", &user.name()))
+                } else if !deaf {
+                    Some(format!("{} unmuted and undeafend themselves", &user.name()))
+                } else {
+                    warn!("Invalid user state received");
+                    None
+                }
+            } else if let Some(mute) = mute {
+                if mute {
+                    Some(format!("{} muted themselves", &user.name()))
+                } else if !mute {
+                    Some(format!("{} unmuted themselves", &user.name()))
+                } else {
+                    warn!("Invalid user state received");
+                    None
+                }
+            } else {
+                None
+            };
+        if let Some(notif_desc) = notif_desc {
+            libnotify::Notification::new("mumd",
+                                         notif_desc.as_str(),
+                                         None)
+                .show().unwrap();
         }
 
         diff
