@@ -1,10 +1,5 @@
-use crate::state::channel::Channel;
-
-use log::*;
 use mumble_protocol::control::msgs;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct User {
@@ -118,7 +113,6 @@ impl User {
             self.channel = channel_id;
         }
     }
-
 
     pub fn name(&self) -> &str {
         &self.name
