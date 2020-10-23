@@ -222,6 +222,7 @@ impl State {
                 // this is someone else
                 self.audio_mut().add_client(sess);
 
+                // send notification only if we've passed the connecting phase
                 if *self.phase_receiver().borrow() == StatePhase::Connected {
                     let channel_id = if msg.has_channel_id() {
                         msg.get_channel_id()
@@ -269,6 +270,14 @@ impl State {
             warn!("Tried to remove user state without session");
             return;
         }
+        if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
+            libnotify::Notification::new("mumd",
+                                         Some(format!("{} disconnected",
+                                                      &user.name()).as_str()),
+                                         None)
+                .show().unwrap();
+        }
+
         self.audio().remove_client(msg.get_session());
         self.server_mut().unwrap().users_mut().remove(&msg.get_session());
         info!("User {} disconnected", msg.get_session());

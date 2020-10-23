@@ -263,22 +263,7 @@ async fn listen(
                     info!("User {} connected to {}", user.name(), user.channel());
                 }
                 ControlPacket::UserRemove(msg) => {
-                    info!("User {} left", msg.get_session());
-                    state
-                        .lock()
-                        .unwrap()
-                        .audio_mut()
-                        .remove_client(msg.get_session());
-                    match state.lock().unwrap().server_mut().unwrap().users_mut().entry(msg.get_session()) {
-                        Entry::Occupied(o) => {
-                            o.remove_entry();
-                            info!("Removed entry");
-                        },
-                        Entry::Vacant(_) => {
-                            warn!("Tried to disconnect unknown user {}", msg.get_session());
-                        }
-                    }
-                    info!("{}", state.lock().unwrap().server().unwrap().users().contains_key(&msg.get_session()));
+                    state.lock().unwrap().remove_client(*msg);
                 }
                 ControlPacket::ChannelState(msg) => {
                     debug!("Channel state received");
