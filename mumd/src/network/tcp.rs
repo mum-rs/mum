@@ -16,6 +16,7 @@ use tokio::time::{self, Duration};
 use tokio_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::future::Future;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -268,6 +269,16 @@ async fn listen(
                         .unwrap()
                         .audio_mut()
                         .remove_client(msg.get_session());
+                    match state.lock().unwrap().server_mut().unwrap().users_mut().entry(msg.get_session()) {
+                        Entry::Occupied(o) => {
+                            o.remove_entry();
+                            info!("Removed entry");
+                        },
+                        Entry::Vacant(_) => {
+                            warn!("Tried to disconnect unknown user {}", msg.get_session());
+                        }
+                    }
+                    info!("{}", state.lock().unwrap().server().unwrap().users().contains_key(&msg.get_session()));
                 }
                 ControlPacket::ChannelState(msg) => {
                     debug!("Channel state received");
