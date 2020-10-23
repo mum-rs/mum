@@ -210,59 +210,67 @@ impl State {
             warn!("Can't parse user state without session");
             return None;
         }
-        let sess = msg.get_session();
+        let session = msg.get_session();
         // check if this is initial state
-        if !self.server().unwrap().users().contains_key(&sess) {
-            if !msg.has_name() {
-                warn!("Missing name in initial user state");
-            } else if msg.get_name() == self.server().unwrap().username().unwrap() {
-                // this is us
-                *self.server_mut().unwrap().session_id_mut() = Some(sess);
-            } else {
-                // this is someone else
-                self.audio_mut().add_client(sess);
-
-                // send notification only if we've passed the connecting phase
-                if *self.phase_receiver().borrow() == StatePhase::Connected {
-                    let channel_id = if msg.has_channel_id() {
-                        msg.get_channel_id()
-                    } else {
-                        0
-                    };
-                    if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                        libnotify::Notification::new("mumd",
-                                                    Some(format!("{} connected and joined {}",
-                                                                &msg.get_name(),
-                                                                channel.name()).as_str()),
-                                                    None)
-                            .show().unwrap();
-                    }
-                }
-            }
-            self.server_mut().unwrap().users_mut().insert(sess, user::User::new(msg));
+        if !self.server().unwrap().users().contains_key(&session) {
+            self.parse_initial_user_state(session, msg);
             None
         } else {
-            let user = self.server_mut().unwrap().users_mut().get_mut(&sess).unwrap();
-            let diff = mumlib::state::UserDiff::from(msg);
-            user.apply_user_diff(&diff);
-            let user = self.server().unwrap().users().get(&sess).unwrap();
+            Some(self.parse_updated_user_state(session, msg))
+        }
+    }
 
-            // send notification
-            if let Some(channel_id) = diff.channel_id {
+    fn parse_initial_user_state(&mut self, session: u32, msg: msgs::UserState) {
+        if !msg.has_name() {
+            warn!("Missing name in initial user state");
+        } else if msg.get_name() == self.server().unwrap().username().unwrap() {
+            // this is us
+            *self.server_mut().unwrap().session_id_mut() = Some(session);
+        } else {
+            // this is someone else
+            self.audio_mut().add_client(session);
+
+            // send notification only if we've passed the connecting phase
+            if *self.phase_receiver().borrow() == StatePhase::Connected {
+                let channel_id = if msg.has_channel_id() {
+                    msg.get_channel_id()
+                } else {
+                    0
+                };
                 if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
                     libnotify::Notification::new("mumd",
-                                                 Some(format!("{} moved to channel {}",
-                                                               &user.name(),
-                                                               channel.name()).as_str()),
+                                                 Some(format!("{} connected and joined {}",
+                                                              &msg.get_name(),
+                                                              channel.name()).as_str()),
                                                  None)
                         .show().unwrap();
-                } else {
-                    warn!("{} moved to invalid channel {}", &user.name(), channel_id);
                 }
             }
-
-            Some(diff)
         }
+        self.server_mut().unwrap().users_mut().insert(session, user::User::new(msg));
+    }
+
+    fn parse_updated_user_state(&mut self, session: u32, msg: msgs::UserState) -> mumlib::state::UserDiff {
+        let user = self.server_mut().unwrap().users_mut().get_mut(&session).unwrap();
+        let diff = mumlib::state::UserDiff::from(msg);
+        user.apply_user_diff(&diff);
+        let user = self.server().unwrap().users().get(&session).unwrap();
+
+        // send notification
+        if let Some(channel_id) = diff.channel_id {
+            if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
+                libnotify::Notification::new("mumd",
+                                                Some(format!("{} moved to channel {}",
+                                                            &user.name(),
+                                                            channel.name()).as_str()),
+                                                None)
+                    .show().unwrap();
+            } else {
+                warn!("{} moved to invalid channel {}", &user.name(), channel_id);
+            }
+        }
+
+        diff
     }
 
     pub fn remove_client(&mut self, msg: msgs::UserRemove) {
