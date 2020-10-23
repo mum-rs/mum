@@ -214,9 +214,9 @@ impl State {
         // check if this is initial state
         if !self.server().unwrap().users().contains_key(&session) {
             self.parse_initial_user_state(session, msg);
-            None
+            return None;
         } else {
-            Some(self.parse_updated_user_state(session, msg))
+            return Some(self.parse_updated_user_state(session, msg));
         }
     }
 
@@ -256,14 +256,15 @@ impl State {
         user.apply_user_diff(&diff);
         let user = self.server().unwrap().users().get(&session).unwrap();
 
-        // send notification
+        //     send notification if the user moved to or from any channel
+        //TODO our channel only
         if let Some(channel_id) = diff.channel_id {
             if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
                 libnotify::Notification::new("mumd",
-                                                Some(format!("{} moved to channel {}",
-                                                            &user.name(),
-                                                            channel.name()).as_str()),
-                                                None)
+                                             Some(format!("{} moved to channel {}",
+                                                          &user.name(),
+                                                          channel.name()).as_str()),
+                                             None)
                     .show().unwrap();
             } else {
                 warn!("{} moved to invalid channel {}", &user.name(), channel_id);
