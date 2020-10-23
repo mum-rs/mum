@@ -33,7 +33,7 @@ fn main() {
                 .subcommand(
                     SubCommand::with_name("connect")
                         .arg(Arg::with_name("host").required(true))
-                        .arg(Arg::with_name("username").required(true))
+                        .arg(Arg::with_name("username"))
                         .arg(Arg::with_name("port")
                              .long("port")
                              .short("p")
@@ -97,7 +97,7 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("connect") {
-            match_server_connect(matches);
+            match_server_connect(matches, &config);
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
             err_print!(send_command(Command::ServerDisconnect));
         } else if let Some(matches) = matches.subcommand_matches("config") {
@@ -176,22 +176,52 @@ fn main() {
     }
 }
 
-fn match_server_connect(matches : &clap::ArgMatches<'_>) {
+fn match_server_connect(matches : &clap::ArgMatches<'_>, config: &Option<mumlib::config::Config>) {
     let host = matches.value_of("host").unwrap();
-    let username = matches.value_of("username").unwrap();
+    let username = matches.value_of("username");
     let port = match matches.value_of("port").map(|e| e.parse()) {
         None => Some(64738),
         Some(Err(_)) => None,
         Some(Ok(v)) => Some(v),
     };
     if let Some(port) = port {
-        match send_command(Command::ServerConnect {
-            host: host.to_string(),
-            port,
-            username: username.to_string(),
-            accept_invalid_cert: true, //TODO
-        }) {
-            Ok(e) => {
+        let server = config
+            .as_ref()
+            .and_then(|e| e.servers
+                .as_ref()
+                .and_then(|e| e.iter()
+                    .find(|e| e.name == host)));
+        let response = match server {
+            Some(config) => {
+                let host = config.host.as_str();
+                let port = config.port.unwrap_or(port);
+                let username = config.username.as_ref().map(|e| e.as_str()).or(username);
+                if username.is_none() {
+                    println!("{} no username specified", "error:".red());
+                    return;
+                }
+                send_command(Command::ServerConnect {
+                    host: host.to_string(),
+                    port,
+                    username: username.unwrap().to_string(),
+                    accept_invalid_cert: true, //TODO
+                }).map(|e| (e, host))
+            }
+            None => {
+                if username.is_none() {
+                    println!("{} no username specified", "error:".red());
+                    return
+                }
+                send_command(Command::ServerConnect {
+                    host: host.to_string(),
+                    port,
+                    username: username.unwrap().to_string(),
+                    accept_invalid_cert: true, //TODO
+                }).map(|e| (e, host))
+            }
+        };
+        match response {
+            Ok((e, host)) => {
                 if let Some(CommandResponse::ServerConnect { welcome_message }) = e {
                     println!("Connected to {}", host);
                     if let Some(message) = welcome_message {
