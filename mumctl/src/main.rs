@@ -31,7 +31,7 @@ fn main() {
                 .subcommand(
                     SubCommand::with_name("connect")
                         .arg(Arg::with_name("host").required(true))
-                        .arg(Arg::with_name("username").required(true))
+                        .arg(Arg::with_name("username"))
                         .arg(Arg::with_name("port")
                              .long("port")
                              .short("p")
@@ -40,7 +40,7 @@ fn main() {
                     SubCommand::with_name("disconnect"))
                 .subcommand(
                     SubCommand::with_name("config")
-                        .arg(Arg::with_name("server_name").required(true))
+                        .arg(Arg::with_name("server_name"))
                         .arg(Arg::with_name("var_name"))
                         .arg(Arg::with_name("var_value")))
                 .subcommand(
@@ -95,7 +95,7 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("connect") {
-            match_server_connect(matches);
+            match_server_connect(matches, &config);
         } else if let Some(_) = matches.subcommand_matches("disconnect") {
             err_print!(send_command(Command::ServerDisconnect));
         } else if let Some(matches) = matches.subcommand_matches("config") {
@@ -178,22 +178,51 @@ fn main() {
     }
 }
 
-fn match_server_connect(matches : &clap::ArgMatches<'_>) {
+fn match_server_connect(matches : &clap::ArgMatches<'_>, config: &Option<mumlib::config::Config>) {
     let host = matches.value_of("host").unwrap();
-    let username = matches.value_of("username").unwrap();
+    let username = matches.value_of("username");
     let port = match matches.value_of("port").map(|e| e.parse()) {
         None => Some(64738),
         Some(Err(_)) => None,
         Some(Ok(v)) => Some(v),
     };
     if let Some(port) = port {
-        match send_command(Command::ServerConnect {
-            host: host.to_string(),
-            port,
-            username: username.to_string(),
-            accept_invalid_cert: true, //TODO
-        }) {
-            Ok(e) => {
+        let response = match config
+            .as_ref()
+            .and_then(|e| e.servers
+                .as_ref()
+                .and_then(|e| e.iter()
+                    .find(|e| e.name == host))) {
+            Some(config) => {
+                let host = config.host.as_str();
+                let port = config.port.unwrap_or(port);
+                let username = config.username.as_ref().map(|e| e.as_str()).or(username);
+                if username.is_none() {
+                    println!("{} no username specified", "error:".red());
+                    return;
+                }
+                send_command(Command::ServerConnect {
+                    host: host.to_string(),
+                    port,
+                    username: username.unwrap().to_string(),
+                    accept_invalid_cert: true, //TODO
+                }).map(|e| (e, host))
+            }
+            None => {
+                if username.is_none() {
+                    println!("{} no username specified", "error:".red());
+                    return
+                }
+                send_command(Command::ServerConnect {
+                    host: host.to_string(),
+                    port,
+                    username: username.unwrap().to_string(),
+                    accept_invalid_cert: true, //TODO
+                }).map(|e| (e, host))
+            }
+        };
+        match response {
+            Ok((e, host)) => {
                 if let Some(CommandResponse::ServerConnect { welcome_message }) = e {
                     println!("Connected to {}", host);
                     if let Some(message) = welcome_message {
@@ -209,66 +238,71 @@ fn match_server_connect(matches : &clap::ArgMatches<'_>) {
 }
 
 fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut Option<mumlib::config::Config>) {
-    let server_name = matches.value_of("server_name").unwrap();
     if config.is_none() {
         *config = Some(mumlib::config::Config::default());
     }
 
     let config = config.as_mut().unwrap();
 
-    if let Some(servers) = &mut config.servers {
-        let server = servers
-            .iter_mut()
-            .find(|s| s.name == server_name);
-        if let Some(server) = server {
-            if let Some(var_name) = matches.value_of("var_name") {
-                if let Some(var_value) = matches.value_of("var_value") {
-                    // save var_value in var_name (if it is valid)
-                    match var_name {
-                        "name" => {
-                            println!("{} use mumctl server rename instead!", "error:".red());
-                        },
-                        "host" => {
-                            server.host = var_value.to_string();
-                        },
-                        "port" => {
-                            server.port = Some(var_value.parse().unwrap());
-                        },
-                        "username" => {
-                            server.username = Some(var_value.to_string());
-                        },
-                        "password" => {
-                            server.password = Some(var_value.to_string()); //TODO ask stdin if empty
-                        },
-                        _ => {
-                            println!("{} variable {} not found", "error:".red(), var_name);
-                        },
-                    };
-                } else { // var_value is None
-                    // print value of var_name
-                    println!("{}", match var_name {
-                        "name" => { server.name.to_string() },
-                        "host" => { server.host.to_string() },
-                        "port" => { server.port.map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
-                        "username" => { server.username.as_ref().map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
-                        "password" => { server.password.as_ref().map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) },
-                        _ => { format!("{} unknown variable", "error:".red()) },
-                    });
+    if let Some(server_name) = matches.value_of("server_name") {
+        if let Some(servers) = &mut config.servers {
+            let server = servers
+                .iter_mut()
+                .find(|s| s.name == server_name);
+            if let Some(server) = server {
+                if let Some(var_name) = matches.value_of("var_name") {
+                    if let Some(var_value) = matches.value_of("var_value") {
+                        // save var_value in var_name (if it is valid)
+                        match var_name {
+                            "name" => {
+                                println!("{} use mumctl server rename instead!", "error:".red());
+                            }
+                            "host" => {
+                                server.host = var_value.to_string();
+                            }
+                            "port" => {
+                                server.port = Some(var_value.parse().unwrap());
+                            }
+                            "username" => {
+                                server.username = Some(var_value.to_string());
+                            }
+                            "password" => {
+                                server.password = Some(var_value.to_string()); //TODO ask stdin if empty
+                            }
+                            _ => {
+                                println!("{} variable {} not found", "error:".red(), var_name);
+                            }
+                        };
+                    } else { // var_value is None
+                        // print value of var_name
+                        println!("{}", match var_name {
+                            "name" => { server.name.to_string() }
+                            "host" => { server.host.to_string() }
+                            "port" => { server.port.map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) }
+                            "username" => { server.username.as_ref().map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) }
+                            "password" => { server.password.as_ref().map(|s| s.to_string()).unwrap_or(format!("{} not set", "error:".red())) }
+                            _ => { format!("{} unknown variable", "error:".red()) }
+                        });
+                    }
+                } else { // var_name is None
+                    // print server config
+                    print!("{}{}{}{}",
+                           format!("host: {}\n", server.host.to_string()),
+                           server.port.map(|s| format!("port: {}\n", s)).unwrap_or("".to_string()),
+                           server.username.as_ref().map(|s| format!("username: {}\n", s)).unwrap_or("".to_string()),
+                           server.password.as_ref().map(|s| format!("password: {}\n", s)).unwrap_or("".to_string()),
+                    )
                 }
-            } else { // var_name is None
-                // print server config
-                print!("{}{}{}{}",
-                       format!("host: {}\n", server.host.to_string()),
-                       server.port.map(|s| format!("port: {}\n", s)).unwrap_or("".to_string()),
-                       server.username.as_ref().map(|s| format!("username: {}\n", s)).unwrap_or("".to_string()),
-                       server.password.as_ref().map(|s| format!("password: {}\n", s)).unwrap_or("".to_string()),
-                )
+            } else { // server is None
+                println!("{} server {} not found", "error:".red(), server_name);
             }
-        } else { // server is None
-            println!("{} server {} not found", "error:".red(), server_name);
+        } else { // servers is None
+            println!("{} no servers found in configuration", "error:".red());
         }
-    } else { // servers is None
-        println!("{} no servers found in configuration", "error:".red());
+    } else {
+        for server in config.servers.iter().flat_map(|e| e.iter()) {
+            println!("{}", server.name);
+        }
     }
 }
 
