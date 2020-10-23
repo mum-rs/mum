@@ -165,9 +165,12 @@ fn main() {
         if !config::cfg_exists() {
             println!("Config file not found. Create one in {}? [Y/n]", config::get_creatable_cfg_path());
             let stdin = std::io::stdin();
-            let response = stdin.lock().lines().next().unwrap().unwrap();
-            if &response == "Y" {
-                config.write_default_cfg(true).unwrap();
+            let response = stdin.lock().lines().next();
+            match response.map(|e| e.map(|e| &e == "Y")) {
+                Some(Ok(true)) => {
+                    config.write_default_cfg(true).unwrap();
+                }
+                _ => {},
             }
         } else {
             config.write_default_cfg(false).unwrap();
