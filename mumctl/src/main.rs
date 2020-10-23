@@ -185,13 +185,12 @@ fn match_server_connect(matches : &clap::ArgMatches<'_>, config: &Option<mumlib:
         Some(Ok(v)) => Some(v),
     };
     if let Some(port) = port {
-        let server = config
+        let response = match config
             .as_ref()
             .and_then(|e| e.servers
                 .as_ref()
                 .and_then(|e| e.iter()
-                    .find(|e| e.name == host)));
-        let response = match server {
+                    .find(|e| e.name == host))) {
             Some(config) => {
                 let host = config.host.as_str();
                 let port = config.port.unwrap_or(port);
