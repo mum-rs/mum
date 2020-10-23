@@ -221,6 +221,22 @@ impl State {
             } else {
                 // this is someone else
                 self.audio_mut().add_client(sess);
+
+                if *self.phase_receiver().borrow() == StatePhase::Connected {
+                    let channel_id = if msg.has_channel_id() {
+                        msg.get_channel_id()
+                    } else {
+                        0
+                    };
+                    if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
+                        libnotify::Notification::new("mumd",
+                                                    Some(format!("{} connected and joined {}",
+                                                                &msg.get_name(),
+                                                                channel.name()).as_str()),
+                                                    None)
+                            .show().unwrap();
+                    }
+                }
             }
             self.server_mut().unwrap().users_mut().insert(sess, user::User::new(msg));
             None
@@ -237,7 +253,8 @@ impl State {
                                                  Some(format!("{} moved to channel {}",
                                                                &user.name(),
                                                                channel.name()).as_str()),
-                                                 None).show().unwrap();
+                                                 None)
+                        .show().unwrap();
                 } else {
                     warn!("{} moved to invalid channel {}", &user.name(), channel_id);
                 }
