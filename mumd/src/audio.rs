@@ -24,30 +24,40 @@ pub struct Audio {
 
 impl Audio {
     pub fn new() -> Self {
+        let sample_rate = SampleRate(48000);
+
         let host = cpal::default_host();
         let output_device = host
             .default_output_device()
             .expect("default output device not found");
-        let mut output_supported_configs_range = output_device
+        let output_supported_config = output_device
             .supported_output_configs()
-            .expect("error querying output configs");
-        let output_supported_config = output_supported_configs_range
-            .next()
-            .expect("no supported output config??")
-            .with_sample_rate(SampleRate(48000));
+            .expect("error querying output configs")
+            .find_map(|c|
+                      if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
+                          Some(c)
+                      } else {
+                          None
+                      })
+            .unwrap()
+            .with_sample_rate(sample_rate);
         let output_supported_sample_format = output_supported_config.sample_format();
         let output_config: StreamConfig = output_supported_config.into();
 
         let input_device = host
             .default_input_device()
             .expect("default input device not found");
-        let mut input_supported_configs_range = input_device
+        let input_supported_config = input_device
             .supported_input_configs()
-            .expect("error querying input configs");
-        let input_supported_config = input_supported_configs_range
-            .next()
-            .expect("no supported input config??")
-            .with_sample_rate(SampleRate(48000));
+            .expect("error querying output configs")
+            .find_map(|c|
+                      if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
+                          Some(c)
+                      } else {
+                          None
+                      })
+            .unwrap()
+            .with_sample_rate(sample_rate);
         let input_supported_sample_format = input_supported_config.sample_format();
         let input_config: StreamConfig = input_supported_config.into();
 
