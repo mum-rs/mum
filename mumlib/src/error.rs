@@ -12,14 +12,15 @@ pub enum Error {
     InvalidServerAddrError(String, u16),
 }
 
-
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::DisconnectedError => write!(f, "Not connected to a server"),
             Error::AlreadyConnectedError => write!(f, "Already connected to a server"),
             Error::ChannelIdentifierError(id, kind) => write!(f, "{}: {}", kind, id),
-            Error::InvalidServerAddrError(addr, port) => write!(f, "Invalid server address: {}: {}", addr, port),
+            Error::InvalidServerAddrError(addr, port) => {
+                write!(f, "Invalid server address: {}: {}", addr, port)
+            }
         }
     }
 }

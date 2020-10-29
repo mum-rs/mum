@@ -28,9 +28,11 @@ pub fn callback<T: Sample>(
     move |data: &[T], _info: &InputCallbackInfo| {
         let mut buf = buf.lock().unwrap();
         let input_volume = *input_volume_receiver.borrow();
-        let out: Vec<f32> = data.iter().map(|e| e.to_f32())
-                                       .map(|e| e * input_volume)
-                                       .collect();
+        let out: Vec<f32> = data
+            .iter()
+            .map(|e| e.to_f32())
+            .map(|e| e * input_volume)
+            .collect();
         buf.extend(out);
         while buf.len() >= opus_frame_size as usize {
             let tail = buf.split_off(opus_frame_size as usize);

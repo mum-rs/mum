@@ -1,5 +1,5 @@
-pub mod server;
 pub mod channel;
+pub mod server;
 pub mod user;
 
 use crate::audio::Audio;
@@ -7,6 +7,7 @@ use crate::network::ConnectionInfo;
 use crate::notify;
 use crate::state::server::Server;
 
+use crate::network::tcp::{TcpEvent, TcpEventData};
 use log::*;
 use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
@@ -17,7 +18,6 @@ use mumlib::error::{ChannelIdentifierError, Error};
 use mumlib::state::UserDiff;
 use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
-use crate::network::tcp::{TcpEvent, TcpEventData};
 
 macro_rules! at {
     ($event:expr, $generator:expr) => {
@@ -71,35 +71,53 @@ impl State {
     pub fn handle_command(
         &mut self,
         command: Command,
-    ) -> (Option<TcpEvent>, Box<dyn FnOnce(Option<&TcpEventData>) -> mumlib::error::Result<Option<CommandResponse>>>) {
+    ) -> (
+        Option<TcpEvent>,
+        Box<dyn FnOnce(Option<&TcpEventData>) -> mumlib::error::Result<Option<CommandResponse>>>,
+    ) {
         match command {
             Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let channels = self.server()
-                    .unwrap()
-                    .channels();
+                let channels = self.server().unwrap().channels();
 
-                let matches = channels.iter()
+                let matches = channels
+                    .iter()
                     .map(|e| (e.0, e.1.path(channels)))
                     .filter(|e| e.1.ends_with(&channel_identifier))
                     .collect::<Vec<_>>();
                 let id = match matches.len() {
                     0 => {
-                        let soft_matches = channels.iter()
+                        let soft_matches = channels
+                            .iter()
                             .map(|e| (e.0, e.1.path(channels).to_lowercase()))
                             .filter(|e| e.1.ends_with(&channel_identifier.to_lowercase()))
                             .collect::<Vec<_>>();
                         match soft_matches.len() {
-                            0 => return now!(Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                            0 => {
+                                return now!(Err(Error::ChannelIdentifierError(
+                                    channel_identifier,
+                                    ChannelIdentifierError::Invalid
+                                )))
+                            }
                             1 => *soft_matches.get(0).unwrap().0,
-                            _ => return now!(Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Invalid))),
+                            _ => {
+                                return now!(Err(Error::ChannelIdentifierError(
+                                    channel_identifier,
+                                    ChannelIdentifierError::Invalid
+                                )))
+                            }
                         }
-                    },
+                    }
                     1 => *matches.get(0).unwrap().0,
-                    _ => return now!(Err(Error::ChannelIdentifierError(channel_identifier, ChannelIdentifierError::Ambiguous))),
+                    _ => {
+                        return now!(Err(Error::ChannelIdentifierError(
+                            channel_identifier,
+                            ChannelIdentifierError::Ambiguous
+                        )))
+                    }
                 };
 
                 let mut msg = msgs::UserState::new();
@@ -116,11 +134,7 @@ impl State {
                     self.server.as_ref().unwrap().channels(),
                     self.server.as_ref().unwrap().users(),
                 );
-                now!(
-                    Ok(Some(CommandResponse::ChannelList {
-                        channels: list,
-                    }))
-                )
+                now!(Ok(Some(CommandResponse::ChannelList { channels: list })))
             }
             Command::ServerConnect {
                 host,
@@ -157,14 +171,15 @@ impl State {
                         accept_invalid_cert,
                     )))
                     .unwrap();
-                at!(TcpEvent::Connected, |e| { //runs the closure when the client is connected
+                at!(TcpEvent::Connected, |e| {
+                    //runs the closure when the client is connected
                     if let Some(TcpEventData::Connected(msg)) = e {
                         Ok(Some(CommandResponse::ServerConnect {
                             welcome_message: if msg.has_welcome_text() {
                                 Some(msg.get_welcome_text().to_string())
                             } else {
                                 None
-                            }
+                            },
                         }))
                     } else {
                         unreachable!("callback should be provided with a TcpEventData::Connected");
@@ -176,11 +191,9 @@ impl State {
                     return now!(Err(Error::DisconnectedError));
                 }
                 let state = self.server.as_ref().unwrap().into();
-                now!(
-                    Ok(Some(CommandResponse::Status {
-                        server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
-                    }))
-                )
+                now!(Ok(Some(CommandResponse::Status {
+                    server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
+                })))
             }
             Command::ServerDisconnect => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
@@ -240,15 +253,27 @@ impl State {
                     0
                 };
                 if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                    notify::send(format!("{} connected and joined {}", &msg.get_name(), channel.name()));
+                    notify::send(format!(
+                        "{} connected and joined {}",
+                        &msg.get_name(),
+                        channel.name()
+                    ));
                 }
             }
         }
-        self.server_mut().unwrap().users_mut().insert(session, user::User::new(msg));
+        self.server_mut()
+            .unwrap()
+            .users_mut()
+            .insert(session, user::User::new(msg));
     }
 
     fn parse_updated_user_state(&mut self, session: u32, msg: msgs::UserState) -> UserDiff {
-        let user = self.server_mut().unwrap().users_mut().get_mut(&session).unwrap();
+        let user = self
+            .server_mut()
+            .unwrap()
+            .users_mut()
+            .get_mut(&session)
+            .unwrap();
 
         let mute = if msg.has_self_mute() && user.self_mute() != msg.get_self_mute() {
             Some(msg.get_self_mute())
@@ -270,9 +295,10 @@ impl State {
         if let Some(channel_id) = diff.channel_id {
             if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
                 notify::send(format!(
-                        "{} moved to channel {}",
-                        &user.name(),
-                        channel.name()));
+                    "{} moved to channel {}",
+                    &user.name(),
+                    channel.name()
+                ));
             } else {
                 warn!("{} moved to invalid channel {}", &user.name(), channel_id);
             }
@@ -280,28 +306,27 @@ impl State {
 
         //     send notification if a user muted/unmuted
         //TODO our channel only
-        let notif_desc =
-            if let Some(deaf) = deaf {
-                if deaf {
-                    Some(format!("{} muted and deafend themselves", &user.name()))
-                } else if !deaf {
-                    Some(format!("{} unmuted and undeafend themselves", &user.name()))
-                } else {
-                    warn!("Invalid user state received");
-                    None
-                }
-            } else if let Some(mute) = mute {
-                if mute {
-                    Some(format!("{} muted themselves", &user.name()))
-                } else if !mute {
-                    Some(format!("{} unmuted themselves", &user.name()))
-                } else {
-                    warn!("Invalid user state received");
-                    None
-                }
+        let notif_desc = if let Some(deaf) = deaf {
+            if deaf {
+                Some(format!("{} muted and deafend themselves", &user.name()))
+            } else if !deaf {
+                Some(format!("{} unmuted and undeafend themselves", &user.name()))
             } else {
+                warn!("Invalid user state received");
                 None
-            };
+            }
+        } else if let Some(mute) = mute {
+            if mute {
+                Some(format!("{} muted themselves", &user.name()))
+            } else if !mute {
+                Some(format!("{} unmuted themselves", &user.name()))
+            } else {
+                warn!("Invalid user state received");
+                None
+            }
+        } else {
+            None
+        };
         if let Some(notif_desc) = notif_desc {
             notify::send(notif_desc);
         }
@@ -319,7 +344,10 @@ impl State {
         }
 
         self.audio().remove_client(msg.get_session());
-        self.server_mut().unwrap().users_mut().remove(&msg.get_session());
+        self.server_mut()
+            .unwrap()
+            .users_mut()
+            .remove(&msg.get_session());
         info!("User {} disconnected", msg.get_session());
     }
 

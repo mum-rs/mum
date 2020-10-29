@@ -30,7 +30,8 @@ pub fn setup_logger<T: Into<fern::Output>>(target: T, color: bool) {
                         Level::Info => "INFO ",
                         Level::Debug => "DEBUG",
                         Level::Trace => "TRACE",
-                    }.normal()
+                    }
+                    .normal()
                 },
                 record.file().unwrap(),
                 record.line().unwrap(),

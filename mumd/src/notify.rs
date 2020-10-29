@@ -5,12 +5,8 @@ pub fn init() {
 }
 
 pub fn send(msg: String) -> bool {
-    match libnotify::Notification::new(
-        "mumd",
-        Some(msg.as_str()),
-        None,
-    ).show() {
-        Ok(_) => { true }
+    match libnotify::Notification::new("mumd", Some(msg.as_str()), None).show() {
+        Ok(_) => true,
         Err(_) => {
             debug!("Unable to send notification");
             false

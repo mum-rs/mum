@@ -33,12 +33,13 @@ impl Audio {
         let output_supported_config = output_device
             .supported_output_configs()
             .expect("error querying output configs")
-            .find_map(|c|
-                      if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
-                          Some(c)
-                      } else {
-                          None
-                      })
+            .find_map(|c| {
+                if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
+                    Some(c)
+                } else {
+                    None
+                }
+            })
             .unwrap()
             .with_sample_rate(sample_rate);
         let output_supported_sample_format = output_supported_config.sample_format();
@@ -50,12 +51,13 @@ impl Audio {
         let input_supported_config = input_device
             .supported_input_configs()
             .expect("error querying output configs")
-            .find_map(|c|
-                      if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
-                          Some(c)
-                      } else {
-                          None
-                      })
+            .find_map(|c| {
+                if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
+                    Some(c)
+                } else {
+                    None
+                }
+            })
             .unwrap()
             .with_sample_rate(sample_rate);
         let input_supported_sample_format = input_supported_config.sample_format();

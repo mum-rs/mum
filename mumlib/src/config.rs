@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fs;
-use toml::Value;
-use toml::value::Array;
 use std::path::Path;
+use toml::value::Array;
+use toml::Value;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct TOMLConfig {
@@ -19,7 +19,11 @@ pub struct Config {
 
 impl Config {
     pub fn write_default_cfg(&self, create: bool) -> Result<(), std::io::Error> {
-        let path = if create { get_creatable_cfg_path() } else { get_cfg_path() };
+        let path = if create {
+            get_creatable_cfg_path()
+        } else {
+            get_cfg_path()
+        };
         let path = std::path::Path::new(&path);
         // Possible race here. It's fine since it shows when:
         //   1) the file doesn't exist when checked and is then created
@@ -33,7 +37,10 @@ impl Config {
             return Ok(());
         }
 
-        fs::write(path, toml::to_string(&TOMLConfig::from(self.clone())).unwrap())
+        fs::write(
+            path,
+            toml::to_string(&TOMLConfig::from(self.clone())).unwrap(),
+        )
     }
 }
 
@@ -107,11 +114,15 @@ impl TryFrom<TOMLConfig> for Config {
     fn try_from(config: TOMLConfig) -> Result<Self, Self::Error> {
         Ok(Config {
             audio: config.audio,
-            servers: config.servers.map(|servers| servers
-                                        .into_iter()
-                                        .map(|s| s.try_into::<ServerConfig>())
-                                        .collect())
-                                   .transpose()?,
+            servers: config
+                .servers
+                .map(|servers| {
+                    servers
+                        .into_iter()
+                        .map(|s| s.try_into::<ServerConfig>())
+                        .collect()
+                })
+                .transpose()?,
         })
     }
 }
@@ -120,25 +131,25 @@ impl From<Config> for TOMLConfig {
     fn from(config: Config) -> Self {
         TOMLConfig {
             audio: config.audio,
-            servers: config.servers.map(|servers| servers
-                                        .into_iter()
-                                        .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
-                                        .collect()),
+            servers: config.servers.map(|servers| {
+                servers
+                    .into_iter()
+                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
+                    .collect()
+            }),
         }
     }
 }
 
 pub fn read_default_cfg() -> Option<Config> {
-    Some(Config::try_from(
-        toml::from_str::<TOMLConfig>(
-            &match fs::read_to_string(get_cfg_path()) {
-                Ok(f) => {
-                    f.to_string()
-                },
-                Err(_) => {
-                    return None
-                }
-            }
-        ).expect("invalid TOML in config file") //TODO
-    ).expect("invalid config in TOML")) //TODO
+    Some(
+        Config::try_from(
+            toml::from_str::<TOMLConfig>(&match fs::read_to_string(get_cfg_path()) {
+                Ok(f) => f.to_string(),
+                Err(_) => return None,
+            })
+            .expect("invalid TOML in config file"), //TODO
+        )
+        .expect("invalid config in TOML"),
+    ) //TODO
 }

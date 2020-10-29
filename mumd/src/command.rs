@@ -1,11 +1,11 @@
 use crate::state::State;
 
+use crate::network::tcp::{TcpEvent, TcpEventCallback};
 use ipc_channel::ipc::IpcSender;
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot};
-use crate::network::tcp::{TcpEvent, TcpEventCallback};
 
 pub async fn handle(
     state: Arc<Mutex<State>>,
@@ -24,11 +24,14 @@ pub async fn handle(
         if let Some(event) = event {
             let (tx, rx) = oneshot::channel();
             //TODO handle this error
-            let _ = tcp_event_register_sender.send((event, Box::new(move |e| {
-                let response = generator(Some(e));
-                response_sender.send(response).unwrap();
-                tx.send(()).unwrap();
-            })));
+            let _ = tcp_event_register_sender.send((
+                event,
+                Box::new(move |e| {
+                    let response = generator(Some(e));
+                    response_sender.send(response).unwrap();
+                    tx.send(()).unwrap();
+                }),
+            ));
 
             rx.await.unwrap();
         } else {
