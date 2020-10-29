@@ -13,6 +13,7 @@ use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
 use mumlib::error::{ChannelIdentifierError, Error};
+use mumlib::state::UserDiff;
 use std::net::ToSocketAddrs;
 use tokio::sync::{mpsc, watch};
 use crate::network::tcp::{TcpEvent, TcpEventData};
@@ -205,7 +206,7 @@ impl State {
         }
     }
 
-    pub fn parse_user_state(&mut self, msg: msgs::UserState) -> Option<mumlib::state::UserDiff> {
+    pub fn parse_user_state(&mut self, msg: msgs::UserState) -> Option<UserDiff> {
         if !msg.has_session() {
             warn!("Can't parse user state without session");
             return None;
@@ -250,7 +251,7 @@ impl State {
         self.server_mut().unwrap().users_mut().insert(session, user::User::new(msg));
     }
 
-    fn parse_updated_user_state(&mut self, session: u32, msg: msgs::UserState) -> mumlib::state::UserDiff {
+    fn parse_updated_user_state(&mut self, session: u32, msg: msgs::UserState) -> UserDiff {
         let user = self.server_mut().unwrap().users_mut().get_mut(&session).unwrap();
 
         let mute = if msg.has_self_mute() && user.self_mute() != msg.get_self_mute() {
@@ -264,7 +265,7 @@ impl State {
             None
         };
 
-        let diff = mumlib::state::UserDiff::from(msg);
+        let diff = UserDiff::from(msg);
         user.apply_user_diff(&diff);
         let user = self.server().unwrap().users().get(&session).unwrap();
 
