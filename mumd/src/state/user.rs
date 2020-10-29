@@ -1,4 +1,3 @@
-use log::*;
 use mumble_protocol::control::msgs;
 use serde::{Deserialize, Serialize};
 
@@ -80,7 +79,6 @@ impl User {
     }
 
     pub fn apply_user_diff(&mut self, diff: &mumlib::state::UserDiff) {
-        debug!("applying user diff\n{:#?}", diff);
         if let Some(comment) = diff.comment.clone() {
             self.comment = Some(comment);
         }
@@ -111,12 +109,10 @@ impl User {
         if let Some(deaf) = diff.deaf {
             self.deaf = deaf;
         }
-
         if let Some(channel_id) = diff.channel_id {
             self.channel = channel_id;
         }
     }
-
 
     pub fn name(&self) -> &str {
         &self.name
@@ -124,6 +120,14 @@ impl User {
 
     pub fn channel(&self) -> u32 {
         self.channel
+    }
+
+    pub fn self_mute(&self) -> bool {
+        self.self_mute
+    }
+
+    pub fn self_deaf(&self) -> bool {
+        self.self_deaf
     }
 }
 

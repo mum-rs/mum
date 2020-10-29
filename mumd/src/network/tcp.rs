@@ -250,24 +250,15 @@ async fn listen(
                 }
                 ControlPacket::UserState(msg) => {
                     let mut state = state.lock().unwrap();
-                    let session = msg.get_session();
                     if *state.phase_receiver().borrow() == StatePhase::Connecting {
                         state.audio_mut().add_client(msg.get_session());
                         state.parse_user_state(*msg);
                     } else {
                         state.parse_user_state(*msg);
                     }
-                    let server = state.server_mut().unwrap();
-                    let user = server.users().get(&session).unwrap();
-                    info!("User {} connected to {}", user.name(), user.channel());
                 }
                 ControlPacket::UserRemove(msg) => {
-                    info!("User {} left", msg.get_session());
-                    state
-                        .lock()
-                        .unwrap()
-                        .audio_mut()
-                        .remove_client(msg.get_session());
+                    state.lock().unwrap().remove_client(*msg);
                 }
                 ControlPacket::ChannelState(msg) => {
                     debug!("Channel state received");
