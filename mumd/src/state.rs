@@ -4,6 +4,7 @@ pub mod user;
 
 use crate::audio::Audio;
 use crate::network::ConnectionInfo;
+use crate::notify;
 use crate::state::server::Server;
 
 use log::*;
@@ -239,12 +240,7 @@ impl State {
                     0
                 };
                 if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                    libnotify::Notification::new("mumd",
-                                                 Some(format!("{} connected and joined {}",
-                                                              &msg.get_name(),
-                                                              channel.name()).as_str()),
-                                                 None)
-                        .show().unwrap();
+                    notify::send(format!("{} connected and joined {}", &msg.get_name(), channel.name()));
                 }
             }
         }
@@ -273,12 +269,10 @@ impl State {
         //TODO our channel only
         if let Some(channel_id) = diff.channel_id {
             if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                libnotify::Notification::new("mumd",
-                                             Some(format!("{} moved to channel {}",
-                                                          &user.name(),
-                                                          channel.name()).as_str()),
-                                             None)
-                    .show().unwrap();
+                notify::send(format!(
+                        "{} moved to channel {}",
+                        &user.name(),
+                        channel.name()));
             } else {
                 warn!("{} moved to invalid channel {}", &user.name(), channel_id);
             }
@@ -309,10 +303,7 @@ impl State {
                 None
             };
         if let Some(notif_desc) = notif_desc {
-            libnotify::Notification::new("mumd",
-                                         notif_desc.as_str(),
-                                         None)
-                .show().unwrap();
+            notify::send(notif_desc);
         }
 
         diff
@@ -324,11 +315,7 @@ impl State {
             return;
         }
         if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
-            libnotify::Notification::new("mumd",
-                                         Some(format!("{} disconnected",
-                                                      &user.name()).as_str()),
-                                         None)
-                .show().unwrap();
+            notify::send(format!("{} disconnected", &user.name()));
         }
 
         self.audio().remove_client(msg.get_session());

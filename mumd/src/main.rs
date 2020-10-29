@@ -1,6 +1,7 @@
 mod audio;
 mod command;
 mod network;
+mod notify;
 mod state;
 
 use crate::network::ConnectionInfo;
@@ -22,7 +23,7 @@ use tokio::task::spawn_blocking;
 #[tokio::main]
 async fn main() {
     setup_logger(std::io::stderr(), true);
-    libnotify::init("mumd").unwrap();
+    notify::init();
 
     // Oneshot channel for setting UDP CryptState from control task
     // For simplicity we don't deal with re-syncing, real applications would have to.
