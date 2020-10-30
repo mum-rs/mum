@@ -2,21 +2,21 @@
 Mumble daemon with controller (think mpd(1)/mpc(1)) written in Rust.
 
 ** Building
-`mum` is [[https://aur.archlinux.org/packages/mum-git/][available on the AUR]]. We aim to publish tagged versions to cargo,
-as well as binaries on Github.
+`mum` is [[https://aur.archlinux.org/packages/mum-git/][available on the AUR]].
+We aim to publish tagged versions to cargo, as well as binaries on Github.
+
 *** Requirements
-These are for Arch Linux. You might need other packages on other distributions,
-or they might be named something different.
+These are for Arch Linux. You might need other packages on other distributions
+and operating systems, or they might be named something different.
 
 - rust (stable)
 - `alsa-lib`
 - `openssl`
 - `opus`
 
-Windows is not currently supported but could be in the future. macOS is supposed
-to work but doesn't at the moment. Other operating systems haven't been
-tested. The limiting factor for Windows is IPC communication which is
-(currently) done via the crate `ipc-channel`.
+Windows is not currently supported but could be in the future. macOS should work.
+Other operating systems haven't been tested. The limiting factor on Windows
+is IPC communication which is (currently) done via the crate `ipc-channel`.
 
 *** Installation
 1. Build the binaries
