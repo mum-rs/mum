@@ -27,7 +27,7 @@ type TcpSender = SplitSink<
 type TcpReceiver =
     SplitStream<Framed<TlsStream<TcpStream>, ControlCodec<Serverbound, Clientbound>>>;
 
-pub(crate) type TcpEventCallback = Box<dyn FnOnce(&TcpEventData)>;
+pub(crate) type TcpEventCallback = Box<dyn FnOnce(TcpEventData)>;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum TcpEvent {
@@ -228,7 +228,7 @@ async fn listen(
                     if let Some(vec) = event_queue.lock().unwrap().get_mut(&TcpEvent::Connected) {
                         let old = std::mem::take(vec);
                         for handler in old {
-                            handler(&TcpEventData::Connected(&msg));
+                            handler(TcpEventData::Connected(&msg));
                         }
                     }
                     let mut state = state.lock().unwrap();
@@ -282,7 +282,7 @@ async fn listen(
             if let Some(vec) = event_queue.lock().unwrap().get_mut(&TcpEvent::Disconnected) {
                 let old = std::mem::take(vec);
                 for handler in old {
-                    handler(&TcpEventData::Disconnected);
+                    handler(TcpEventData::Disconnected);
                 }
             }
         },

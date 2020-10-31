@@ -13,6 +13,10 @@ use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
+use std::collections::HashMap;
+use mumble_protocol::ping::{PingPacket, PongPacket};
+use std::rc::Rc;
+use std::convert::TryFrom;
 
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
 type UdpReceiver = SplitStream<UdpFramed<ClientCryptState>>;
@@ -224,4 +228,45 @@ async fn send_voice(
     join!(main_block, phase_transition_block);
 
     debug!("UDP sender process killed");
+}
+
+pub async fn handle_pings(
+    mut ping_request_receiver: mpsc::UnboundedReceiver<(u64, SocketAddr, Box<dyn FnOnce(PongPacket)>)>,
+) {
+    let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
+        .await
+        .expect("Failed to bind UDP socket");
+
+    let (mut receiver, mut sender) = udp_socket.split();
+
+    let pending = Rc::new(Mutex::new(HashMap::new()));
+
+    let sender_handle = async {
+        while let Some((id, socket_addr, handle)) = ping_request_receiver.recv().await {
+            let packet = PingPacket { id };
+            let packet: [u8; 12] = packet.into();
+            sender.send_to(&packet, &socket_addr).await.unwrap();
+            pending.lock().unwrap().insert(id, handle);
+        }
+    };
+
+    let receiver_handle = async {
+        let mut buf = vec![0; 24];
+        while let Ok(read) = receiver.recv(&mut buf).await {
+            assert_eq!(read, 24);
+
+            let packet = match PongPacket::try_from(buf.as_slice()) {
+                Ok(v) => v,
+                Err(_) => panic!(),
+            };
+
+            if let Some(handler) = pending.lock().unwrap().remove(&packet.id) {
+                handler(packet);
+            }
+        }
+    };
+
+    debug!("Waiting for ping requests");
+
+    join!(sender_handle, receiver_handle);
 }
