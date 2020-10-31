@@ -23,11 +23,6 @@ fn main() {
     setup_logger(io::stderr(), true);
     let mut config = config::read_default_cfg();
 
-    /*println!("{:?}", send_command(Command::ServerStatus {
-        host: "icahasse.se".to_string(),
-        port: 64738,
-    }).unwrap());*/
-
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(
@@ -125,10 +120,7 @@ fn main() {
         } else if let Some(_) = matches.subcommand_matches("list") {
             let servers = config
                 .as_ref()
-                .map(|e| e.servers
-                    .as_ref()
-                    .map(|e| e.clone())
-                    .unwrap_or(Vec::new()))
+                .map(|e| e.servers.as_ref().map(|e| e.clone()).unwrap_or(Vec::new()))
                 .unwrap_or(Vec::new());
             for (server, response) in servers
                 .into_iter()
@@ -142,7 +134,10 @@ fn main() {
                 .filter(|e| e.1.is_ok())
                 .map(|e| (e.0, e.1.unwrap().unwrap()))
             {
-                if let CommandResponse::ServerStatus { users, max_users, .. } = response {
+                if let CommandResponse::ServerStatus {
+                    users, max_users, ..
+                } = response
+                {
                     println!("{} [{}/{}]", server.name, users, max_users)
                 } else {
                     unreachable!()

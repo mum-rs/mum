@@ -6,17 +6,17 @@ use bytes::Bytes;
 use futures::{join, pin_mut, select, FutureExt, SinkExt, StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
 use mumble_protocol::crypt::ClientCryptState;
+use mumble_protocol::ping::{PingPacket, PongPacket};
 use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
 use mumble_protocol::Serverbound;
+use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::net::{Ipv6Addr, SocketAddr};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
-use std::collections::HashMap;
-use mumble_protocol::ping::{PingPacket, PongPacket};
-use std::rc::Rc;
-use std::convert::TryFrom;
 
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
 type UdpReceiver = SplitStream<UdpFramed<ClientCryptState>>;
@@ -231,7 +231,11 @@ async fn send_voice(
 }
 
 pub async fn handle_pings(
-    mut ping_request_receiver: mpsc::UnboundedReceiver<(u64, SocketAddr, Box<dyn FnOnce(PongPacket)>)>,
+    mut ping_request_receiver: mpsc::UnboundedReceiver<(
+        u64,
+        SocketAddr,
+        Box<dyn FnOnce(PongPacket)>,
+    )>,
 ) {
     let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
         .await

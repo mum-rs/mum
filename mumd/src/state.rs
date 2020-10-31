@@ -11,14 +11,14 @@ use crate::network::tcp::{TcpEvent, TcpEventData};
 use log::*;
 use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
+use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
 use mumlib::error::{ChannelIdentifierError, Error};
 use mumlib::state::UserDiff;
-use std::net::{ToSocketAddrs, SocketAddr};
+use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::sync::{mpsc, watch};
-use mumble_protocol::ping::PongPacket;
 
 macro_rules! at {
     ($event:expr, $generator:expr) => {
@@ -34,9 +34,15 @@ macro_rules! now {
 
 //TODO give me a better name
 pub enum ExecutionContext {
-    TcpEvent(TcpEvent, Box<dyn FnOnce(TcpEventData) -> mumlib::error::Result<Option<CommandResponse>>>),
+    TcpEvent(
+        TcpEvent,
+        Box<dyn FnOnce(TcpEventData) -> mumlib::error::Result<Option<CommandResponse>>>,
+    ),
     Now(Box<dyn FnOnce() -> mumlib::error::Result<Option<CommandResponse>>>),
-    Ping(Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>, Box<dyn FnOnce(PongPacket) -> mumlib::error::Result<Option<CommandResponse>>>),
+    Ping(
+        Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
+        Box<dyn FnOnce(PongPacket) -> mumlib::error::Result<Option<CommandResponse>>>,
+    ),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -76,10 +82,7 @@ impl State {
     }
 
     //TODO? move bool inside Result
-    pub fn handle_command(
-        &mut self,
-        command: Command,
-    ) -> ExecutionContext {
+    pub fn handle_command(&mut self, command: Command) -> ExecutionContext {
         match command {
             Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
@@ -222,21 +225,25 @@ impl State {
                 self.reload_config();
                 now!(Ok(None))
             }
-            Command::ServerStatus { host, port } => {
-                ExecutionContext::Ping(Box::new(move || {
-                    match (host.as_str(), port).to_socket_addrs().map(|mut e| e.next()) {
+            Command::ServerStatus { host, port } => ExecutionContext::Ping(
+                Box::new(move || {
+                    match (host.as_str(), port)
+                        .to_socket_addrs()
+                        .map(|mut e| e.next())
+                    {
                         Ok(Some(v)) => Ok(v),
                         _ => Err(mumlib::error::Error::InvalidServerAddrError(host, port)),
                     }
-                }), Box::new(move |pong| {
+                }),
+                Box::new(move |pong| {
                     Ok(Some(CommandResponse::ServerStatus {
                         version: pong.version,
                         users: pong.users,
                         max_users: pong.max_users,
                         bandwidth: pong.bandwidth,
                     }))
-                }))
-            }
+                }),
+            ),
         }
     }
 

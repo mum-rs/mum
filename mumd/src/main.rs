@@ -64,9 +64,7 @@ async fn main() {
             // IpcSender is blocking
             receive_oneshot_commands(command_sender);
         }),
-        network::udp::handle_pings(
-            ping_request_receiver
-        ),
+        network::udp::handle_pings(ping_request_receiver),
     );
     e.unwrap();
 }

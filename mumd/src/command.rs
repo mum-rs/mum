@@ -1,13 +1,13 @@
-use crate::state::{State, ExecutionContext};
+use crate::state::{ExecutionContext, State};
 
 use crate::network::tcp::{TcpEvent, TcpEventCallback};
 use ipc_channel::ipc::IpcSender;
 use log::*;
+use mumble_protocol::ping::PongPacket;
 use mumlib::command::{Command, CommandResponse};
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot};
-use mumble_protocol::ping::PongPacket;
-use std::net::SocketAddr;
 
 pub async fn handle(
     state: Arc<Mutex<State>>,
@@ -45,13 +45,17 @@ pub async fn handle(
             ExecutionContext::Ping(generator, converter) => {
                 match generator() {
                     Ok(addr) => {
-                        let res = ping_request_sender.send((0, addr, Box::new(move |packet| {
-                            response_sender.send(converter(packet)).unwrap();
-                        })));
+                        let res = ping_request_sender.send((
+                            0,
+                            addr,
+                            Box::new(move |packet| {
+                                response_sender.send(converter(packet)).unwrap();
+                            }),
+                        ));
                         if res.is_err() {
                             panic!();
                         }
-                    },
+                    }
                     Err(e) => {
                         response_sender.send(Err(e)).unwrap();
                     }
