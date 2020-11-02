@@ -155,7 +155,7 @@ fn main() {
             }
             "audio.output_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::InputVolumeSet(volume)).unwrap();
+                    send_command(Command::OutputVolumeSet(volume)).unwrap();
                     config.audio.output_volume = Some(volume);
                 }
             }
