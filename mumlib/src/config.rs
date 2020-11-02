@@ -137,9 +137,13 @@ impl From<Config> for TOMLConfig {
             } else {
                 None
             },
-            servers: Some(config.servers.into_iter()
-                .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
-                .collect()),
+            servers: Some(
+                config
+                    .servers
+                    .into_iter()
+                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
+                    .collect(),
+            ),
         }
     }
 }
@@ -149,6 +153,8 @@ pub fn read_default_cfg() -> Config {
         toml::from_str::<TOMLConfig>(&match fs::read_to_string(get_cfg_path()) {
             Ok(f) => f,
             Err(_) => return Config::default(),
-        }).expect("invalid TOML in config file"), //TODO
-    ).expect("invalid config in TOML") //TODO
+        })
+        .expect("invalid TOML in config file"), //TODO
+    )
+    .expect("invalid config in TOML") //TODO
 }

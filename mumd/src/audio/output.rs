@@ -74,7 +74,7 @@ impl SaturatingAdd for u16 {
 pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd>(
     buf: Arc<Mutex<HashMap<u32, ClientStream>>>,
     output_volume_receiver: watch::Receiver<f32>,
-    user_volumes: Arc<Mutex<HashMap<u32, f32>>>
+    user_volumes: Arc<Mutex<HashMap<u32, f32>>>,
 ) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {
     move |data: &mut [T], _info: &OutputCallbackInfo| {
         for sample in data.iter_mut() {
