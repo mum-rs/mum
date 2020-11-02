@@ -99,6 +99,16 @@ fn main() {
                 .arg(Arg::with_name("zsh").long("zsh"))
                 .arg(Arg::with_name("bash").long("bash"))
                 .arg(Arg::with_name("fish").long("fish")),
+        )
+        .subcommand(
+            SubCommand::with_name("volume")
+                .subcommand(
+                    SubCommand::with_name("set")
+                        .arg(Arg::with_name("user").required(true))
+                        .arg(Arg::with_name("volume").required(true))
+                )
+                .arg(Arg::with_name("user").required(true))
+                .setting(AppSettings::SubcommandsNegateReqs)
         );
 
     let matches = app.clone().get_matches();
@@ -176,6 +186,20 @@ fn main() {
             &mut io::stdout(),
         );
         return;
+    } else if let Some(matches) = matches.subcommand_matches("volume") {
+        if let Some(matches) = matches.subcommand_matches("set") {
+            let user = matches.value_of("user").unwrap();
+            let volume = matches.value_of("volume").unwrap();
+            if let Ok(val) = volume.parse() {
+                err_print!(send_command(Command::UserVolumeSet(user.to_string(), val)))
+            } else {
+                println!("{} Invalid volume value: {}", "error:".red(), volume);
+            }
+        } else {
+            let _user = matches.value_of("user").unwrap();
+            //TODO implement me
+            //needs work on mumd to implement
+        }
     };
 
     if !config::cfg_exists() {
