@@ -150,6 +150,13 @@ fn main() {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse() {
                     send_command(Command::InputVolumeSet(volume)).unwrap();
+                    config.audio.input_volume = Some(volume);
+                }
+            }
+            "audio.output_volume" => {
+                if let Ok(volume) = value.parse() {
+                    send_command(Command::InputVolumeSet(volume)).unwrap();
+                    config.audio.output_volume = Some(volume);
                 }
             }
             _ => {
@@ -171,27 +178,25 @@ fn main() {
         return;
     };
 
-    if let Some(config) = config {
-        if !config::cfg_exists() {
-            println!(
-                "Config file not found. Create one in {}? [Y/n]",
-                config::get_creatable_cfg_path()
-            );
-            let stdin = std::io::stdin();
-            let response = stdin.lock().lines().next();
-            match response.map(|e| e.map(|e| &e == "Y")) {
-                Some(Ok(true)) => {
-                    config.write_default_cfg(true).unwrap();
-                }
-                _ => {}
+    if !config::cfg_exists() {
+        println!(
+            "Config file not found. Create one in {}? [Y/n]",
+            config::get_creatable_cfg_path()
+        );
+        let stdin = std::io::stdin();
+        let response = stdin.lock().lines().next();
+        match response.map(|e| e.map(|e| &e == "Y")) {
+            Some(Ok(true)) => {
+                config.write_default_cfg(true).unwrap();
             }
-        } else {
-            config.write_default_cfg(false).unwrap();
+            _ => {}
         }
+    } else {
+        config.write_default_cfg(false).unwrap();
     }
 }
 
-fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &Option<mumlib::config::Config>) {
+fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config::Config) {
     let host = matches.value_of("host").unwrap();
     let username = matches.value_of("username");
     let port = match matches.value_of("port").map(|e| e.parse()) {
@@ -200,41 +205,35 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &Option<mumlib::
         Some(Ok(v)) => Some(v),
     };
     if let Some(port) = port {
-        let response = match config.as_ref().and_then(|e| {
-            e.servers
-                .as_ref()
-                .and_then(|e| e.iter().find(|e| e.name == host))
-        }) {
-            Some(config) => {
-                let host = config.host.as_str();
-                let port = config.port.unwrap_or(port);
-                let username = config.username.as_ref().map(|e| e.as_str()).or(username);
+        let (host, port, username) = match config.servers
+            .as_ref()
+            .and_then(|e| e.iter()
+                .find(|e| e.name == host))
+        {
+            Some(server_config) => {
+                let host = server_config.host.as_str();
+                let port = server_config.port.unwrap_or(port);
+                let username = server_config.username.as_ref().map(|e| e.as_str()).or(username);
                 if username.is_none() {
                     println!("{} no username specified", "error:".red());
                     return;
                 }
-                send_command(Command::ServerConnect {
-                    host: host.to_string(),
-                    port,
-                    username: username.unwrap().to_string(),
-                    accept_invalid_cert: true, //TODO
-                })
-                .map(|e| (e, host))
+                (host, port, username.unwrap())
             }
             None => {
                 if username.is_none() {
                     println!("{} no username specified", "error:".red());
                     return;
                 }
-                send_command(Command::ServerConnect {
-                    host: host.to_string(),
-                    port,
-                    username: username.unwrap().to_string(),
-                    accept_invalid_cert: true, //TODO
-                })
-                .map(|e| (e, host))
+                (host, port, username.unwrap())
             }
         };
+        let response = send_command(Command::ServerConnect {
+            host: host.to_string(),
+            port,
+            username: username.to_string(),
+            accept_invalid_cert: true, //TODO
+        }).map(|e| (e, host));
         match response {
             Ok((e, host)) => {
                 if let Some(CommandResponse::ServerConnect { welcome_message }) = e {
@@ -253,14 +252,8 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &Option<mumlib::
 
 fn match_server_config(
     matches: &clap::ArgMatches<'_>,
-    config: &mut Option<mumlib::config::Config>,
+    config: &mut mumlib::config::Config,
 ) {
-    if config.is_none() {
-        *config = Some(mumlib::config::Config::default());
-    }
-
-    let config = config.as_mut().unwrap();
-
     if let Some(server_name) = matches.value_of("server_name") {
         if let Some(servers) = &mut config.servers {
             let server = servers.iter_mut().find(|s| s.name == server_name);
@@ -365,14 +358,8 @@ fn match_server_config(
 
 fn match_server_rename(
     matches: &clap::ArgMatches<'_>,
-    config: &mut Option<mumlib::config::Config>,
+    config: &mut mumlib::config::Config,
 ) {
-    if config.is_none() {
-        *config = Some(mumlib::config::Config::default());
-    }
-
-    let config = config.as_mut().unwrap();
-
     if let Some(servers) = &mut config.servers {
         let prev_name = matches.value_of("prev_name").unwrap();
         let next_name = matches.value_of("next_name").unwrap();
@@ -386,14 +373,8 @@ fn match_server_rename(
 
 fn match_server_remove(
     matches: &clap::ArgMatches<'_>,
-    config: &mut Option<mumlib::config::Config>,
+    config: &mut mumlib::config::Config,
 ) {
-    if config.is_none() {
-        *config = Some(mumlib::config::Config::default());
-    }
-
-    let config = config.as_mut().unwrap();
-
     let name = matches.value_of("name").unwrap();
     if let Some(servers) = &mut config.servers {
         match servers.iter().position(|server| server.name == name) {
@@ -409,13 +390,7 @@ fn match_server_remove(
     }
 }
 
-fn match_server_add(matches: &clap::ArgMatches<'_>, config: &mut Option<mumlib::config::Config>) {
-    if config.is_none() {
-        *config = Some(mumlib::config::Config::default());
-    }
-
-    let mut config = config.as_mut().unwrap();
-
+fn match_server_add(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
     let name = matches.value_of("name").unwrap().to_string();
     let host = matches.value_of("host").unwrap().to_string();
     // optional arguments map None to None

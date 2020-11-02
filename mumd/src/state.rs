@@ -39,7 +39,7 @@ pub enum StatePhase {
 }
 
 pub struct State {
-    config: Option<Config>,
+    config: Config,
     server: Option<Server>,
     audio: Audio,
 
@@ -375,16 +375,12 @@ impl State {
     }
 
     pub fn reload_config(&mut self) {
-        if let Some(config) = mumlib::config::read_default_cfg() {
-            self.config = Some(config);
-            let config = &self.config.as_ref().unwrap();
-            if let Some(audio_config) = &config.audio {
-                if let Some(input_volume) = audio_config.input_volume {
-                    self.audio.set_input_volume(input_volume);
-                }
-            }
-        } else {
-            warn!("config file not found");
+        self.config = mumlib::config::read_default_cfg();
+        if let Some(input_volume) = self.config.audio.input_volume {
+            self.audio.set_input_volume(input_volume);
+        }
+        if let Some(output_volume) = self.config.audio.output_volume {
+            self.audio.set_output_volume(output_volume);
         }
     }
 
