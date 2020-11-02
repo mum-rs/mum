@@ -405,7 +405,6 @@ fn match_server_add(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config:
     let port = matches.value_of("port").map(|s| s.parse().unwrap());
     let username = matches.value_of("username").map(|s| s.to_string());
     let password = matches.value_of("password").map(|s| s.to_string());
-    //if let Some(servers) = &mut config.servers {
     if config.servers.iter().any(|s| s.name == name) {
         println!("{} a server named {} already exists", "error:".red(), name);
     } else {
@@ -417,15 +416,6 @@ fn match_server_add(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config:
             password,
         });
     }
-    /*} else {
-        config.servers = vec![ServerConfig {
-            name,
-            host,
-            port,
-            username,
-            password,
-        }];
-    }*/
 }
 
 fn parse_status(server_state: &mumlib::state::Server) {
