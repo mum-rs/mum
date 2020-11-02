@@ -14,7 +14,7 @@ struct TOMLConfig {
 #[derive(Clone, Debug, Default)]
 pub struct Config {
     pub audio: AudioConfig,
-    pub servers: Option<Vec<ServerConfig>>,
+    pub servers: Vec<ServerConfig>,
 }
 
 impl Config {
@@ -123,7 +123,8 @@ impl TryFrom<TOMLConfig> for Config {
                         .map(|s| s.try_into::<ServerConfig>())
                         .collect()
                 })
-                .transpose()?,
+                .transpose()?
+                .unwrap_or(Vec::new()),
         })
     }
 }
@@ -136,12 +137,9 @@ impl From<Config> for TOMLConfig {
             } else {
                 None
             },
-            servers: config.servers.map(|servers| {
-                servers
-                    .into_iter()
-                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
-                    .collect()
-            }),
+            servers: Some(config.servers.into_iter()
+                .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
+                .collect()),
         }
     }
 }
