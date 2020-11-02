@@ -19,6 +19,10 @@ pub struct Audio {
     input_channel_receiver: Option<mpsc::Receiver<VoicePacketPayload>>,
     input_volume_sender: watch::Sender<f32>,
 
+    output_volume_sender: watch::Sender<f32>,
+
+    user_volumes: Arc<Mutex<HashMap<u32, f32>>>,
+
     client_streams: Arc<Mutex<HashMap<u32, output::ClientStream>>>,
 }
 
@@ -65,21 +69,36 @@ impl Audio {
 
         let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
 
+        let user_volumes = Arc::new(Mutex::new(HashMap::new()));
+        let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(1.0);
+
         let client_streams = Arc::new(Mutex::new(HashMap::new()));
         let output_stream = match output_supported_sample_format {
             SampleFormat::F32 => output_device.build_output_stream(
                 &output_config,
-                output::curry_callback::<f32>(Arc::clone(&client_streams)),
+                output::curry_callback::<f32>(
+                    Arc::clone(&client_streams),
+                    output_volume_receiver,
+                    Arc::clone(&user_volumes),
+                ),
                 err_fn,
             ),
             SampleFormat::I16 => output_device.build_output_stream(
                 &output_config,
-                output::curry_callback::<i16>(Arc::clone(&client_streams)),
+                output::curry_callback::<i16>(
+                    Arc::clone(&client_streams),
+                    output_volume_receiver,
+                    Arc::clone(&user_volumes),
+                ),
                 err_fn,
             ),
             SampleFormat::U16 => output_device.build_output_stream(
                 &output_config,
-                output::curry_callback::<u16>(Arc::clone(&client_streams)),
+                output::curry_callback::<u16>(
+                    Arc::clone(&client_streams),
+                    output_volume_receiver,
+                    Arc::clone(&user_volumes),
+                ),
                 err_fn,
             ),
         }
@@ -109,7 +128,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
-                    input_volume_receiver.clone(),
+                    input_volume_receiver,
                     4, // 10 ms
                 ),
                 err_fn,
@@ -120,7 +139,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
-                    input_volume_receiver.clone(),
+                    input_volume_receiver,
                     4, // 10 ms
                 ),
                 err_fn,
@@ -131,7 +150,7 @@ impl Audio {
                     input_encoder,
                     input_sender,
                     input_config.sample_rate.0,
-                    input_volume_receiver.clone(),
+                    input_volume_receiver,
                     4, // 10 ms
                 ),
                 err_fn,
@@ -148,6 +167,8 @@ impl Audio {
             input_volume_sender,
             input_channel_receiver: Some(input_receiver),
             client_streams,
+            output_volume_sender,
+            user_volumes,
         }
     }
 
@@ -202,5 +223,13 @@ impl Audio {
 
     pub fn set_input_volume(&self, input_volume: f32) {
         self.input_volume_sender.broadcast(input_volume).unwrap();
+    }
+
+    pub fn set_output_volume(&self, output_volume: f32) {
+        self.output_volume_sender.broadcast(output_volume).unwrap();
+    }
+
+    pub fn set_user_volume(&self, id: u32, volume: f32) {
+        self.user_volumes.lock().unwrap().insert(id, volume);
     }
 }

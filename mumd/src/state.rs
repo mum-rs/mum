@@ -209,12 +209,35 @@ impl State {
                     .unwrap();
                 now!(Ok(None))
             }
+            Command::ConfigReload => {
+                self.reload_config();
+                now!(Ok(None))
+            }
             Command::InputVolumeSet(volume) => {
                 self.audio.set_input_volume(volume);
                 now!(Ok(None))
             }
-            Command::ConfigReload => {
-                self.reload_config();
+            Command::OutputVolumeSet(volume) => {
+                self.audio.set_output_volume(volume);
+                now!(Ok(None))
+            }
+            Command::UserVolumeSet(string, volume) => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+                let user_id = match self
+                    .server()
+                    .unwrap()
+                    .users()
+                    .iter()
+                    .find(|e| e.1.name() == &string)
+                    .map(|e| *e.0)
+                {
+                    None => return now!(Err(Error::InvalidUsernameError(string))),
+                    Some(v) => v,
+                };
+
+                self.audio.set_user_volume(user_id, volume);
                 now!(Ok(None))
             }
         }

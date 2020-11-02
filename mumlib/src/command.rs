@@ -10,6 +10,8 @@ pub enum Command {
     ChannelList,
     ConfigReload,
     InputVolumeSet(f32),
+    OutputVolumeSet(f32),
+    UserVolumeSet(String, f32),
     ServerConnect {
         host: String,
         port: u16,

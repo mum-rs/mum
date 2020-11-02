@@ -10,6 +10,7 @@ pub enum Error {
     AlreadyConnectedError,
     ChannelIdentifierError(String, ChannelIdentifierError),
     InvalidServerAddrError(String, u16),
+    InvalidUsernameError(String),
 }
 
 impl Display for Error {
@@ -18,9 +19,8 @@ impl Display for Error {
             Error::DisconnectedError => write!(f, "Not connected to a server"),
             Error::AlreadyConnectedError => write!(f, "Already connected to a server"),
             Error::ChannelIdentifierError(id, kind) => write!(f, "{}: {}", kind, id),
-            Error::InvalidServerAddrError(addr, port) => {
-                write!(f, "Invalid server address: {}: {}", addr, port)
-            }
+            Error::InvalidServerAddrError(addr, port) => write!(f, "Invalid server address: {}: {}", addr, port),
+            Error::InvalidUsernameError(username) => write!(f, "Invalid username: {}", username),
         }
     }
 }
