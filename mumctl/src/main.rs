@@ -374,7 +374,6 @@ fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
 }
 
 fn match_server_rename(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
-    //if let Some(servers) = &mut config.servers {
     let prev_name = matches.value_of("prev_name").unwrap();
     let next_name = matches.value_of("next_name").unwrap();
     if let Some(server) = config.servers.iter_mut().find(|s| s.name == prev_name) {
@@ -382,12 +381,10 @@ fn match_server_rename(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
     } else {
         println!("{} server {} not found", "error:".red(), prev_name);
     }
-    //}
 }
 
 fn match_server_remove(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
     let name = matches.value_of("name").unwrap();
-    //if let Some(servers) = &mut config.servers {
     match config.servers.iter().position(|server| server.name == name) {
         Some(idx) => {
             config.servers.remove(idx);
