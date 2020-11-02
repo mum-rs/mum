@@ -122,6 +122,9 @@ fn main() {
                 .as_ref()
                 .map(|e| e.servers.as_ref().map(|e| e.clone()).unwrap_or(Vec::new()))
                 .unwrap_or(Vec::new());
+            if servers.len() == 0 {
+                println!("{} No servers in config", "warning:".yellow());
+            }
             for (server, response) in servers
                 .into_iter()
                 .map(|e| {
