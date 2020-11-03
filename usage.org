@@ -145,3 +145,9 @@ $ mumctl config audio.input_volume 1.1
 $ mumctl config audio.input_volume
 $ mumctl config audio.input_volume --help
 #+END_SRC
+** TODO volume
+#+BEGIN_SRC bash
+$ mumctl volume set User1 1.1
+$ mumctl volume User1
+110%
+#+END_SRC

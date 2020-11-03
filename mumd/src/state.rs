@@ -11,24 +11,38 @@ use crate::network::tcp::{TcpEvent, TcpEventData};
 use log::*;
 use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
+use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
 use mumlib::error::{ChannelIdentifierError, Error};
 use mumlib::state::UserDiff;
-use std::net::ToSocketAddrs;
+use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::sync::{mpsc, watch};
 
 macro_rules! at {
     ($event:expr, $generator:expr) => {
-        (Some($event), Box::new($generator))
+        ExecutionContext::TcpEvent($event, Box::new($generator))
     };
 }
 
 macro_rules! now {
     ($data:expr) => {
-        (None, Box::new(move |_| $data))
+        ExecutionContext::Now(Box::new(move || $data))
     };
+}
+
+//TODO give me a better name
+pub enum ExecutionContext {
+    TcpEvent(
+        TcpEvent,
+        Box<dyn FnOnce(TcpEventData) -> mumlib::error::Result<Option<CommandResponse>>>,
+    ),
+    Now(Box<dyn FnOnce() -> mumlib::error::Result<Option<CommandResponse>>>),
+    Ping(
+        Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
+        Box<dyn FnOnce(PongPacket) -> mumlib::error::Result<Option<CommandResponse>>>,
+    ),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -39,7 +53,7 @@ pub enum StatePhase {
 }
 
 pub struct State {
-    config: Option<Config>,
+    config: Config,
     server: Option<Server>,
     audio: Audio,
 
@@ -68,13 +82,7 @@ impl State {
     }
 
     //TODO? move bool inside Result
-    pub fn handle_command(
-        &mut self,
-        command: Command,
-    ) -> (
-        Option<TcpEvent>,
-        Box<dyn FnOnce(Option<&TcpEventData>) -> mumlib::error::Result<Option<CommandResponse>>>,
-    ) {
+    pub fn handle_command(&mut self, command: Command) -> ExecutionContext {
         match command {
             Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
@@ -128,7 +136,7 @@ impl State {
             }
             Command::ChannelList => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return (None, Box::new(|_| Err(Error::DisconnectedError)));
+                    return now!(Err(Error::DisconnectedError));
                 }
                 let list = channel::into_channel(
                     self.server.as_ref().unwrap().channels(),
@@ -173,7 +181,7 @@ impl State {
                     .unwrap();
                 at!(TcpEvent::Connected, |e| {
                     //runs the closure when the client is connected
-                    if let Some(TcpEventData::Connected(msg)) = e {
+                    if let TcpEventData::Connected(msg) = e {
                         Ok(Some(CommandResponse::ServerConnect {
                             welcome_message: if msg.has_welcome_text() {
                                 Some(msg.get_welcome_text().to_string())
@@ -209,12 +217,16 @@ impl State {
                     .unwrap();
                 now!(Ok(None))
             }
+            Command::ConfigReload => {
+                self.reload_config();
+                now!(Ok(None))
+            }
             Command::InputVolumeSet(volume) => {
                 self.audio.set_input_volume(volume);
                 now!(Ok(None))
             }
-            Command::ConfigReload => {
-                self.reload_config();
+            Command::OutputVolumeSet(volume) => {
+                self.audio.set_output_volume(volume);
                 now!(Ok(None))
             }
             Command::DeafenSelf => {
@@ -258,6 +270,44 @@ impl State {
 
                 return now!(Ok(None));
             }
+            Command::UserVolumeSet(string, volume) => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+                let user_id = match self
+                    .server()
+                    .unwrap()
+                    .users()
+                    .iter()
+                    .find(|e| e.1.name() == &string)
+                    .map(|e| *e.0)
+                {
+                    None => return now!(Err(Error::InvalidUsernameError(string))),
+                    Some(v) => v,
+                };
+
+                self.audio.set_user_volume(user_id, volume);
+                now!(Ok(None))
+            }
+            Command::ServerStatus { host, port } => ExecutionContext::Ping(
+                Box::new(move || {
+                    match (host.as_str(), port)
+                        .to_socket_addrs()
+                        .map(|mut e| e.next())
+                    {
+                        Ok(Some(v)) => Ok(v),
+                        _ => Err(mumlib::error::Error::InvalidServerAddrError(host, port)),
+                    }
+                }),
+                Box::new(move |pong| {
+                    Ok(Some(CommandResponse::ServerStatus {
+                        version: pong.version,
+                        users: pong.users,
+                        max_users: pong.max_users,
+                        bandwidth: pong.bandwidth,
+                    }))
+                }),
+            ),
         }
     }
 
@@ -270,9 +320,9 @@ impl State {
         // check if this is initial state
         if !self.server().unwrap().users().contains_key(&session) {
             self.parse_initial_user_state(session, msg);
-            return None;
+            None
         } else {
-            return Some(self.parse_updated_user_state(session, msg));
+            Some(self.parse_updated_user_state(session, msg))
         }
     }
 
@@ -393,16 +443,12 @@ impl State {
     }
 
     pub fn reload_config(&mut self) {
-        if let Some(config) = mumlib::config::read_default_cfg() {
-            self.config = Some(config);
-            let config = &self.config.as_ref().unwrap();
-            if let Some(audio_config) = &config.audio {
-                if let Some(input_volume) = audio_config.input_volume {
-                    self.audio.set_input_volume(input_volume);
-                }
-            }
-        } else {
-            warn!("config file not found");
+        self.config = mumlib::config::read_default_cfg();
+        if let Some(input_volume) = self.config.audio.input_volume {
+            self.audio.set_input_volume(input_volume);
+        }
+        if let Some(output_volume) = self.config.audio.output_volume {
+            self.audio.set_output_volume(output_volume);
         }
     }
 
