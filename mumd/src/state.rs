@@ -217,6 +217,47 @@ impl State {
                 self.reload_config();
                 now!(Ok(None))
             }
+            Command::DeafenSelf => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+
+                let mut msg = msgs::UserState::new();
+                msg.set_self_deaf(true);
+                self.packet_sender.send(msg.into()).unwrap();
+
+                now!(Ok(None))
+            }
+            Command::MuteSelf => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+
+                let mut msg = msgs::UserState::new();
+                msg.set_self_mute(true);
+                self.packet_sender.send(msg.into()).unwrap();
+
+                now!(Ok(None))
+            }
+            Command::MuteOther(string) => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+
+                let id = self.server().unwrap().users().iter().find(|(_, user)| user.name() == &string);
+
+                let id = match id {
+                    Some(id) => *id.0,
+                    None => return now!(Err(Error::InvalidUserIdentifierError(string))),
+                };
+
+                let mut msg = msgs::UserState::new();
+                msg.set_mute(true);
+                msg.set_session(id);
+                self.packet_sender.send(msg.into()).unwrap();
+
+                return now!(Ok(None));
+            }
         }
     }
 

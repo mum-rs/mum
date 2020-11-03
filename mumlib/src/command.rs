@@ -18,6 +18,9 @@ pub enum Command {
     },
     ServerDisconnect,
     Status,
+    DeafenSelf,
+    MuteSelf,
+    MuteOther(String),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
