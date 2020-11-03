@@ -1,6 +1,8 @@
+use crate::DEFAULT_PORT;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fs;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::Path;
 use toml::value::Array;
 use toml::Value;
@@ -56,6 +58,18 @@ pub struct ServerConfig {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
+}
+
+impl ServerConfig {
+    pub fn to_socket_addr(&self) -> Option<SocketAddr> {
+        match (self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
+            .to_socket_addrs()
+            .map(|mut e| e.next())
+        {
+            Ok(Some(addr)) => Some(addr),
+            _ => None,
+        }
+    }
 }
 
 pub fn get_cfg_path() -> String {

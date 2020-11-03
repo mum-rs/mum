@@ -74,7 +74,8 @@ fn main() {
                 )
                 .subcommand(
                     SubCommand::with_name("remove").arg(Arg::with_name("name").required(true)),
-                ),
+                )
+                .subcommand(SubCommand::with_name("list")),
         )
         .subcommand(
             SubCommand::with_name("channel")
@@ -116,6 +117,35 @@ fn main() {
             match_server_remove(matches, &mut config);
         } else if let Some(matches) = matches.subcommand_matches("add") {
             match_server_add(matches, &mut config);
+        } else if let Some(_) = matches.subcommand_matches("list") {
+            let servers = config
+                .as_ref()
+                .map(|e| e.servers.as_ref().map(|e| e.clone()).unwrap_or(Vec::new()))
+                .unwrap_or(Vec::new());
+            if servers.len() == 0 {
+                println!("{} No servers in config", "warning:".yellow());
+            }
+            for (server, response) in servers
+                .into_iter()
+                .map(|e| {
+                    let response = send_command(Command::ServerStatus {
+                        host: e.host.clone(),
+                        port: e.port.unwrap_or(mumlib::DEFAULT_PORT),
+                    });
+                    (e, response)
+                })
+                .filter(|e| e.1.is_ok())
+                .map(|e| (e.0, e.1.unwrap().unwrap()))
+            {
+                if let CommandResponse::ServerStatus {
+                    users, max_users, ..
+                } = response
+                {
+                    println!("{} [{}/{}]", server.name, users, max_users)
+                } else {
+                    unreachable!()
+                }
+            }
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
         if let Some(_matches) = matches.subcommand_matches("list") {
@@ -195,7 +225,7 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &Option<mumlib::
     let host = matches.value_of("host").unwrap();
     let username = matches.value_of("username");
     let port = match matches.value_of("port").map(|e| e.parse()) {
-        None => Some(64738),
+        None => Some(mumlib::DEFAULT_PORT),
         Some(Err(_)) => None,
         Some(Ok(v)) => Some(v),
     };
