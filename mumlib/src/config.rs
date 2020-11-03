@@ -15,8 +15,8 @@ struct TOMLConfig {
 
 #[derive(Clone, Debug, Default)]
 pub struct Config {
-    pub audio: Option<AudioConfig>,
-    pub servers: Option<Vec<ServerConfig>>,
+    pub audio: AudioConfig,
+    pub servers: Vec<ServerConfig>,
 }
 
 impl Config {
@@ -46,9 +46,10 @@ impl Config {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct AudioConfig {
     pub input_volume: Option<f32>,
+    pub output_volume: Option<f32>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -127,7 +128,7 @@ impl TryFrom<TOMLConfig> for Config {
 
     fn try_from(config: TOMLConfig) -> Result<Self, Self::Error> {
         Ok(Config {
-            audio: config.audio,
+            audio: config.audio.unwrap_or_default(),
             servers: config
                 .servers
                 .map(|servers| {
@@ -136,7 +137,8 @@ impl TryFrom<TOMLConfig> for Config {
                         .map(|s| s.try_into::<ServerConfig>())
                         .collect()
                 })
-                .transpose()?,
+                .transpose()?
+                .unwrap_or(Vec::new()),
         })
     }
 }
@@ -144,26 +146,29 @@ impl TryFrom<TOMLConfig> for Config {
 impl From<Config> for TOMLConfig {
     fn from(config: Config) -> Self {
         TOMLConfig {
-            audio: config.audio,
-            servers: config.servers.map(|servers| {
-                servers
+            audio: if config.audio.output_volume.is_some() || config.audio.input_volume.is_some() {
+                Some(config.audio)
+            } else {
+                None
+            },
+            servers: Some(
+                config
+                    .servers
                     .into_iter()
                     .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
-                    .collect()
-            }),
+                    .collect(),
+            ),
         }
     }
 }
 
-pub fn read_default_cfg() -> Option<Config> {
-    Some(
-        Config::try_from(
-            toml::from_str::<TOMLConfig>(&match fs::read_to_string(get_cfg_path()) {
-                Ok(f) => f.to_string(),
-                Err(_) => return None,
-            })
-            .expect("invalid TOML in config file"), //TODO
-        )
-        .expect("invalid config in TOML"),
-    ) //TODO
+pub fn read_default_cfg() -> Config {
+    Config::try_from(
+        toml::from_str::<TOMLConfig>(&match fs::read_to_string(get_cfg_path()) {
+            Ok(f) => f,
+            Err(_) => return Config::default(),
+        })
+        .expect("invalid TOML in config file"), //TODO
+    )
+    .expect("invalid config in TOML") //TODO
 }

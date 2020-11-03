@@ -4,6 +4,7 @@ use opus::Channels;
 use std::collections::{HashMap, VecDeque};
 use std::ops::AddAssign;
 use std::sync::{Arc, Mutex};
+use tokio::sync::watch;
 
 pub struct ClientStream {
     buffer: VecDeque<f32>, //TODO ring buffer?
@@ -72,17 +73,22 @@ impl SaturatingAdd for u16 {
 
 pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd>(
     buf: Arc<Mutex<HashMap<u32, ClientStream>>>,
+    output_volume_receiver: watch::Receiver<f32>,
+    user_volumes: Arc<Mutex<HashMap<u32, f32>>>,
 ) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {
     move |data: &mut [T], _info: &OutputCallbackInfo| {
         for sample in data.iter_mut() {
             *sample = Sample::from(&0.0);
         }
 
+        let volume = *output_volume_receiver.borrow();
+
         let mut lock = buf.lock().unwrap();
-        for client_stream in lock.values_mut() {
+        for (id, client_stream) in &mut *lock {
+            let user_volume = user_volumes.lock().unwrap().get(id).cloned().unwrap_or(1.0);
             for sample in data.iter_mut() {
                 *sample = sample.saturating_add(Sample::from(
-                    &client_stream.buffer.pop_front().unwrap_or(0.0),
+                    &(client_stream.buffer.pop_front().unwrap_or(0.0) * volume * user_volume),
                 ));
             }
         }

@@ -10,6 +10,7 @@ pub enum Error {
     AlreadyConnectedError,
     ChannelIdentifierError(String, ChannelIdentifierError),
     InvalidServerAddrError(String, u16),
+    InvalidUsernameError(String),
 }
 
 impl Display for Error {
@@ -21,6 +22,7 @@ impl Display for Error {
             Error::InvalidServerAddrError(addr, port) => {
                 write!(f, "Invalid server address: {}: {}", addr, port)
             }
+            Error::InvalidUsernameError(username) => write!(f, "Invalid username: {}", username),
         }
     }
 }

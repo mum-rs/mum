@@ -53,7 +53,7 @@ pub enum StatePhase {
 }
 
 pub struct State {
-    config: Option<Config>,
+    config: Config,
     server: Option<Server>,
     audio: Audio,
 
@@ -217,12 +217,35 @@ impl State {
                     .unwrap();
                 now!(Ok(None))
             }
+            Command::ConfigReload => {
+                self.reload_config();
+                now!(Ok(None))
+            }
             Command::InputVolumeSet(volume) => {
                 self.audio.set_input_volume(volume);
                 now!(Ok(None))
             }
-            Command::ConfigReload => {
-                self.reload_config();
+            Command::OutputVolumeSet(volume) => {
+                self.audio.set_output_volume(volume);
+                now!(Ok(None))
+            }
+            Command::UserVolumeSet(string, volume) => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+                let user_id = match self
+                    .server()
+                    .unwrap()
+                    .users()
+                    .iter()
+                    .find(|e| e.1.name() == &string)
+                    .map(|e| *e.0)
+                {
+                    None => return now!(Err(Error::InvalidUsernameError(string))),
+                    Some(v) => v,
+                };
+
+                self.audio.set_user_volume(user_id, volume);
                 now!(Ok(None))
             }
             Command::ServerStatus { host, port } => ExecutionContext::Ping(
@@ -379,16 +402,12 @@ impl State {
     }
 
     pub fn reload_config(&mut self) {
-        if let Some(config) = mumlib::config::read_default_cfg() {
-            self.config = Some(config);
-            let config = &self.config.as_ref().unwrap();
-            if let Some(audio_config) = &config.audio {
-                if let Some(input_volume) = audio_config.input_volume {
-                    self.audio.set_input_volume(input_volume);
-                }
-            }
-        } else {
-            warn!("config file not found");
+        self.config = mumlib::config::read_default_cfg();
+        if let Some(input_volume) = self.config.audio.input_volume {
+            self.audio.set_input_volume(input_volume);
+        }
+        if let Some(output_volume) = self.config.audio.output_volume {
+            self.audio.set_output_volume(output_volume);
         }
     }
 
