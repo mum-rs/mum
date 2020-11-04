@@ -317,15 +317,9 @@ impl State {
                     None => Some(!user.suppressed()),
                 };
 
-                debug!("{:?}", action);
-
                 if let Some(action) = action {
                     user.set_suppressed(action);
                     self.audio.set_mute(id, action);
-                    /*let mut msg = msgs::UserState::new();
-                    msg.set_suppress(true);
-                    msg.set_session(*id.0);
-                    self.packet_sender.send(msg.into()).unwrap();*/
                 }
 
                 return now!(Ok(None));
