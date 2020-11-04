@@ -20,13 +20,13 @@ pub enum Command {
     },
     ServerDisconnect,
     Status,
-    DeafenSelf,
-    MuteSelf,
-    MuteOther(String),
     ServerStatus {
         host: String,
         port: u16,
     },
+    DeafenSelf(Option<bool>),
+    MuteSelf(Option<bool>),
+    MuteOther(String, Option<bool>),
 }
 
 #[derive(Debug, Deserialize, Serialize)]

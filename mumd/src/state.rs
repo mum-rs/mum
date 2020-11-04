@@ -68,9 +68,12 @@ impl State {
         packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
         connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
     ) -> Self {
-        let audio = Audio::new();
+        let config = mumlib::config::read_default_cfg();
+        let audio = Audio::new(
+            config.audio.input_volume.unwrap_or(1.0),
+            config.audio.output_volume.unwrap_or(1.0));
         let mut state = Self {
-            config: mumlib::config::read_default_cfg(),
+            config,
             server: None,
             audio,
             packet_sender,
@@ -229,44 +232,95 @@ impl State {
                 self.audio.set_output_volume(volume);
                 now!(Ok(None))
             }
-            Command::DeafenSelf => {
+            Command::DeafenSelf(toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let mut msg = msgs::UserState::new();
-                msg.set_self_deaf(true);
-                self.packet_sender.send(msg.into()).unwrap();
+                let action = match toggle {
+                    Some(state) => {
+                        if self.server().unwrap().deafened() != state {
+                            Some(state)
+                        } else {
+                            None
+                        }
+                    }
+                    None => Some(!self.server().unwrap().deafened())
+                };
+
+                if let Some(action) = action {
+                    if action {
+                        self.server_mut().unwrap().set_muted(true);
+                    }
+                    let mut msg = msgs::UserState::new();
+                    msg.set_self_deaf(action);
+                    self.packet_sender.send(msg.into()).unwrap();
+                    self.server_mut().unwrap().set_deafened(action);
+                }
 
                 now!(Ok(None))
             }
-            Command::MuteSelf => {
+            Command::MuteSelf(toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let mut msg = msgs::UserState::new();
-                msg.set_self_mute(true);
-                self.packet_sender.send(msg.into()).unwrap();
+                let action = match toggle {
+                    Some(state) => {
+                        if self.server().unwrap().muted() != state {
+                            Some(state)
+                        } else {
+                            None
+                        }
+                    }
+                    None => Some(!self.server().unwrap().muted())
+                };
+
+                if let Some(action) = action {
+                    if !action {
+                        self.server_mut().unwrap().set_deafened(false);
+                    }
+                    let mut msg = msgs::UserState::new();
+                    msg.set_self_mute(action);
+                    self.packet_sender.send(msg.into()).unwrap();
+                    self.server_mut().unwrap().set_muted(action);
+                }
 
                 now!(Ok(None))
             }
-            Command::MuteOther(string) => {
+            Command::MuteOther(string, toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let id = self.server().unwrap().users().iter().find(|(_, user)| user.name() == &string);
+                let id = self.server_mut().unwrap().users_mut().iter_mut().find(|(_, user)| user.name() == &string);
 
-                let id = match id {
-                    Some(id) => *id.0,
+                let (id, user) = match id {
+                    Some(id) => (*id.0, id.1),
                     None => return now!(Err(Error::InvalidUserIdentifierError(string))),
                 };
 
-                let mut msg = msgs::UserState::new();
-                msg.set_mute(true);
-                msg.set_session(id);
-                self.packet_sender.send(msg.into()).unwrap();
+                let action = match toggle {
+                    Some(state) => {
+                        if user.suppressed() != state {
+                            Some(state)
+                        } else {
+                            None
+                        }
+                    }
+                    None => Some(!user.suppressed())
+                };
+
+                debug!("{:?}", action);
+
+                if let Some(action) = action {
+                    user.set_suppressed(action);
+                    self.audio.set_mute(id, action);
+                    /*let mut msg = msgs::UserState::new();
+                    msg.set_suppress(true);
+                    msg.set_session(*id.0);
+                    self.packet_sender.send(msg.into()).unwrap();*/
+                }
 
                 return now!(Ok(None));
             }
