@@ -85,7 +85,12 @@ pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd>(
 
         let mut lock = buf.lock().unwrap();
         for (id, client_stream) in &mut *lock {
-            let (user_volume, muted) = user_volumes.lock().unwrap().get(id).cloned().unwrap_or((1.0, false));
+            let (user_volume, muted) = user_volumes
+                .lock()
+                .unwrap()
+                .get(id)
+                .cloned()
+                .unwrap_or((1.0, false));
             for sample in data.iter_mut() {
                 let s = client_stream.buffer.pop_front().unwrap_or(0.0) * volume * user_volume;
                 if !muted {

@@ -131,18 +131,27 @@ pub struct User {
 }
 
 macro_rules! true_to_str {
-    ($condition:expr, $res:expr) => {if $condition { $res } else { "" }};
+    ($condition:expr, $res:expr) => {
+        if $condition {
+            $res
+        } else {
+            ""
+        }
+    };
 }
 
 impl Display for User {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}{}{}{}{}",
-               self.name,
-               true_to_str!(self.suppress, "s"),
-               true_to_str!(self.self_mute, "M"),
-               true_to_str!(self.self_deaf, "D"),
-               true_to_str!(self.mute, "m"),
-               true_to_str!(self.deaf, "d"))
+        write!(
+            f,
+            "{} {}{}{}{}{}",
+            self.name,
+            true_to_str!(self.suppress, "s"),
+            true_to_str!(self.self_mute, "M"),
+            true_to_str!(self.self_deaf, "D"),
+            true_to_str!(self.mute, "m"),
+            true_to_str!(self.deaf, "d")
+        )
     }
 }
 

@@ -71,7 +71,8 @@ impl State {
         let config = mumlib::config::read_default_cfg();
         let audio = Audio::new(
             config.audio.input_volume.unwrap_or(1.0),
-            config.audio.output_volume.unwrap_or(1.0));
+            config.audio.output_volume.unwrap_or(1.0),
+        );
         let mut state = Self {
             config,
             server: None,
@@ -245,7 +246,7 @@ impl State {
                             None
                         }
                     }
-                    None => Some(!self.server().unwrap().deafened())
+                    None => Some(!self.server().unwrap().deafened()),
                 };
 
                 if let Some(action) = action {
@@ -273,7 +274,7 @@ impl State {
                             None
                         }
                     }
-                    None => Some(!self.server().unwrap().muted())
+                    None => Some(!self.server().unwrap().muted()),
                 };
 
                 if let Some(action) = action {
@@ -293,7 +294,12 @@ impl State {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let id = self.server_mut().unwrap().users_mut().iter_mut().find(|(_, user)| user.name() == &string);
+                let id = self
+                    .server_mut()
+                    .unwrap()
+                    .users_mut()
+                    .iter_mut()
+                    .find(|(_, user)| user.name() == &string);
 
                 let (id, user) = match id {
                     Some(id) => (*id.0, id.1),
@@ -308,7 +314,7 @@ impl State {
                             None
                         }
                     }
-                    None => Some(!user.suppressed())
+                    None => Some(!user.suppressed()),
                 };
 
                 debug!("{:?}", action);
