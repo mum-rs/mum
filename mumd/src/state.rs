@@ -303,7 +303,7 @@ impl State {
 
                 let (id, user) = match id {
                     Some(id) => (*id.0, id.1),
-                    None => return now!(Err(Error::InvalidUserIdentifierError(string))),
+                    None => return now!(Err(Error::InvalidUsernameError(string))),
                 };
 
                 let action = match toggle {
