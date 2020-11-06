@@ -15,6 +15,8 @@ pub struct Server {
 
     username: Option<String>,
     session_id: Option<u32>,
+    muted: bool,
+    deafened: bool,
 
     host: Option<String>,
 }
@@ -27,6 +29,8 @@ impl Server {
             welcome_text: None,
             username: None,
             session_id: None,
+            muted: false,
+            deafened: false,
             host: None,
         }
     }
@@ -108,6 +112,22 @@ impl Server {
 
     pub fn username_mut(&mut self) -> &mut Option<String> {
         &mut self.username
+    }
+
+    pub fn muted(&self) -> bool {
+        self.muted
+    }
+
+    pub fn deafened(&self) -> bool {
+        self.deafened
+    }
+
+    pub fn set_muted(&mut self, value: bool) {
+        self.muted = value;
+    }
+
+    pub fn set_deafened(&mut self, value: bool) {
+        self.deafened = value;
     }
 }
 

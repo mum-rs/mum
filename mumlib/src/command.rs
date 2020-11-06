@@ -24,6 +24,9 @@ pub enum Command {
         host: String,
         port: u16,
     },
+    DeafenSelf(Option<bool>),
+    MuteSelf(Option<bool>),
+    MuteOther(String, Option<bool>),
 }
 
 #[derive(Debug, Deserialize, Serialize)]

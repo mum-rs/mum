@@ -151,3 +151,23 @@ $ mumctl volume set User1 1.1
 $ mumctl volume User1
 110%
 #+END_SRC
+
+* 0.3
+** mute
+#+BEGIN_SRC bash
+$ mumctl mute true
+$ mumctl mute false
+$ mumctl mute toggle
+#+END_SRC
+** deafen
+#+BEGIN_SRC bash
+$ mumctl deafen true
+$ mumctl deafen false
+$ mumctl deafen toggle
+#+END_SRC
+** user
+#+BEGIN_SRC bash
+$ mumctl user Username mute true
+$ mumctl user Username mute false
+$ mumctl user Username mute toggle
+#+END_SRC

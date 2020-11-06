@@ -74,7 +74,7 @@ impl SaturatingAdd for u16 {
 pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd>(
     buf: Arc<Mutex<HashMap<u32, ClientStream>>>,
     output_volume_receiver: watch::Receiver<f32>,
-    user_volumes: Arc<Mutex<HashMap<u32, f32>>>,
+    user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 ) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {
     move |data: &mut [T], _info: &OutputCallbackInfo| {
         for sample in data.iter_mut() {
@@ -85,11 +85,17 @@ pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd>(
 
         let mut lock = buf.lock().unwrap();
         for (id, client_stream) in &mut *lock {
-            let user_volume = user_volumes.lock().unwrap().get(id).cloned().unwrap_or(1.0);
+            let (user_volume, muted) = user_volumes
+                .lock()
+                .unwrap()
+                .get(id)
+                .cloned()
+                .unwrap_or((1.0, false));
             for sample in data.iter_mut() {
-                *sample = sample.saturating_add(Sample::from(
-                    &(client_stream.buffer.pop_front().unwrap_or(0.0) * volume * user_volume),
-                ));
+                let s = client_stream.buffer.pop_front().unwrap_or(0.0) * volume * user_volume;
+                if !muted {
+                    *sample = sample.saturating_add(Sample::from(&s));
+                }
             }
         }
     }

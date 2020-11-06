@@ -21,13 +21,13 @@ pub struct Audio {
 
     output_volume_sender: watch::Sender<f32>,
 
-    user_volumes: Arc<Mutex<HashMap<u32, f32>>>,
+    user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
     client_streams: Arc<Mutex<HashMap<u32, output::ClientStream>>>,
 }
 
 impl Audio {
-    pub fn new() -> Self {
+    pub fn new(input_volume: f32, output_volume: f32) -> Self {
         let sample_rate = SampleRate(48000);
 
         let host = cpal::default_host();
@@ -70,7 +70,7 @@ impl Audio {
         let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
 
         let user_volumes = Arc::new(Mutex::new(HashMap::new()));
-        let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(1.0);
+        let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
 
         let client_streams = Arc::new(Mutex::new(HashMap::new()));
         let output_stream = match output_supported_sample_format {
@@ -119,7 +119,7 @@ impl Audio {
         .unwrap();
         let (input_sender, input_receiver) = mpsc::channel(100);
 
-        let (input_volume_sender, input_volume_receiver) = watch::channel::<f32>(1.0);
+        let (input_volume_sender, input_volume_receiver) = watch::channel::<f32>(input_volume);
 
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
@@ -230,6 +230,24 @@ impl Audio {
     }
 
     pub fn set_user_volume(&self, id: u32, volume: f32) {
-        self.user_volumes.lock().unwrap().insert(id, volume);
+        match self.user_volumes.lock().unwrap().entry(id) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().0 = volume;
+            }
+            Entry::Vacant(entry) => {
+                entry.insert((volume, false));
+            }
+        }
+    }
+
+    pub fn set_mute(&self, id: u32, mute: bool) {
+        match self.user_volumes.lock().unwrap().entry(id) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().1 = mute;
+            }
+            Entry::Vacant(entry) => {
+                entry.insert((1.0, mute));
+            }
+        }
     }
 }

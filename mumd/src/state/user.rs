@@ -129,6 +129,14 @@ impl User {
     pub fn self_deaf(&self) -> bool {
         self.self_deaf
     }
+
+    pub fn suppressed(&self) -> bool {
+        self.suppress
+    }
+
+    pub fn set_suppressed(&mut self, value: bool) {
+        self.suppress = value;
+    }
 }
 
 impl From<&User> for mumlib::state::User {

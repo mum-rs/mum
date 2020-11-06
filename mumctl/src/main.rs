@@ -110,6 +110,32 @@ fn main() {
                 )
                 .arg(Arg::with_name("user").required(true))
                 .setting(AppSettings::SubcommandsNegateReqs),
+        )
+        .subcommand(
+            SubCommand::with_name("mute")
+                .subcommand(SubCommand::with_name("true").alias("1"))
+                .subcommand(SubCommand::with_name("false").alias("0"))
+                .subcommand(SubCommand::with_name("toggle"))
+                .setting(AppSettings::SubcommandRequiredElseHelp),
+        )
+        .subcommand(
+            SubCommand::with_name("deafen")
+                .subcommand(SubCommand::with_name("true").alias("1"))
+                .subcommand(SubCommand::with_name("false").alias("0"))
+                .subcommand(SubCommand::with_name("toggle"))
+                .setting(AppSettings::SubcommandRequiredElseHelp),
+        )
+        .subcommand(
+            SubCommand::with_name("user")
+                .arg(Arg::with_name("user").required(true))
+                .subcommand(
+                    SubCommand::with_name("mute")
+                        .subcommand(SubCommand::with_name("true").alias("1"))
+                        .subcommand(SubCommand::with_name("false").alias("0"))
+                        .subcommand(SubCommand::with_name("toggle"))
+                        .setting(AppSettings::SubcommandRequiredElseHelp),
+                )
+                .setting(AppSettings::SubcommandRequiredElseHelp),
         );
 
     let matches = app.clone().get_matches();
@@ -128,15 +154,12 @@ fn main() {
         } else if let Some(matches) = matches.subcommand_matches("add") {
             match_server_add(matches, &mut config);
         } else if let Some(_) = matches.subcommand_matches("list") {
-            let servers = config
-                .as_ref()
-                .map(|e| e.servers.as_ref().map(|e| e.clone()).unwrap_or(Vec::new()))
-                .unwrap_or(Vec::new());
-            if servers.len() == 0 {
+            if config.servers.len() == 0 {
                 println!("{} No servers in config", "warning:".yellow());
             }
-            for (server, response) in servers
-                .into_iter()
+            for (server, response) in config
+                .servers
+                .iter()
                 .map(|e| {
                     let response = send_command(Command::ServerStatus {
                         host: e.host.clone(),
@@ -229,6 +252,46 @@ fn main() {
             let _user = matches.value_of("user").unwrap();
             //TODO implement me
             //needs work on mumd to implement
+        }
+    } else if let Some(matches) = matches.subcommand_matches("mute") {
+        let command =
+            Command::MuteSelf(if let Some(_matches) = matches.subcommand_matches("true") {
+                Some(true)
+            } else if let Some(_matches) = matches.subcommand_matches("false") {
+                Some(false)
+            } else if let Some(_matches) = matches.subcommand_matches("toggle") {
+                None
+            } else {
+                unreachable!()
+            });
+        err_print!(send_command(command));
+    } else if let Some(matches) = matches.subcommand_matches("deafen") {
+        let command =
+            Command::DeafenSelf(if let Some(_matches) = matches.subcommand_matches("true") {
+                Some(true)
+            } else if let Some(_matches) = matches.subcommand_matches("false") {
+                Some(false)
+            } else if let Some(_matches) = matches.subcommand_matches("toggle") {
+                None
+            } else {
+                unreachable!()
+            });
+        err_print!(send_command(command));
+    } else if let Some(matches) = matches.subcommand_matches("user") {
+        let name = matches.value_of("user").unwrap();
+        if let Some(matches) = matches.subcommand_matches("mute") {
+            let toggle = if let Some(_matches) = matches.subcommand_matches("true") {
+                Some(true)
+            } else if let Some(_matches) = matches.subcommand_matches("false") {
+                Some(false)
+            } else if let Some(_matches) = matches.subcommand_matches("toggle") {
+                None
+            } else {
+                unreachable!()
+            };
+            err_print!(send_command(Command::MuteOther(name.to_string(), toggle)));
+        } else {
+            unreachable!();
         }
     };
 
