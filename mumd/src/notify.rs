@@ -15,6 +15,6 @@ pub fn send(msg: String) -> Option<bool> {
 }
 
 #[cfg(not(feature = "libnotify"))]
-pub fn send(_msg: String) -> Option<bool> {
+pub fn send(_: String) -> Option<bool> {
     None
 }
