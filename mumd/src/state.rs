@@ -450,7 +450,9 @@ impl State {
                 warn!("{} moved to invalid channel {}", &user.name(), channel_id);
             }
         }
-
+        
+        //     send notification if a user muted/unmuted
+        //TODO our channel only
         let notify_desc = match (mute, deaf) {
             (Some(true), Some(true)) => Some(format!("{} muted and deafend themselves", &user.name())),
             (Some(false), Some(false)) => Some(format!("{} unmuted and undeafend themselves", &user.name())),
@@ -462,23 +464,6 @@ impl State {
             (Some(false), Some(true)) => Some(format!("{} unmuted and deafened themselves", &user.name())),
             (None, None) => None,
         };
-        //     send notification if a user muted/unmuted
-        //TODO our channel only
-        /*let notif_desc = if let Some(deaf) = deaf {
-            if deaf {
-                Some(format!("{} muted and deafend themselves", &user.name()))
-            } else {
-                Some(format!("{} unmuted and undeafend themselves", &user.name()))
-            }
-        } else if let Some(mute) = mute {
-            if mute {
-                Some(format!("{} muted themselves", &user.name()))
-            } else {
-                Some(format!("{} unmuted themselves", &user.name()))
-            }
-        } else {
-            None
-        };*/
         if let Some(notify_desc) = notify_desc {
             notify::send(notify_desc);
         }
