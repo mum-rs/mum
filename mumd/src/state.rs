@@ -431,6 +431,8 @@ impl State {
             None
         };
 
+        debug!("{:?} {:?} {:?}", mute, deaf, msg);
+
         let diff = UserDiff::from(msg);
         user.apply_user_diff(&diff);
         let user = self.server().unwrap().users().get(&session).unwrap();
@@ -449,31 +451,36 @@ impl State {
             }
         }
 
+        let notify_desc = match (mute, deaf) {
+            (Some(true), Some(true)) => Some(format!("{} muted and deafend themselves", &user.name())),
+            (Some(false), Some(false)) => Some(format!("{} unmuted and undeafend themselves", &user.name())),
+            (None, Some(true)) => Some(format!("{} deafend themselves", &user.name())),
+            (None, Some(false)) => Some(format!("{} undeafend themselves", &user.name())),
+            (Some(true), None) => Some(format!("{} muted themselves", &user.name())),
+            (Some(false), None) => Some(format!("{} unmuted themselves", &user.name())),
+            (Some(true), Some(false)) => Some(format!("{} muted and undeafened themselves", &user.name())),
+            (Some(false), Some(true)) => Some(format!("{} unmuted and deafened themselves", &user.name())),
+            (None, None) => None,
+        };
         //     send notification if a user muted/unmuted
         //TODO our channel only
-        let notif_desc = if let Some(deaf) = deaf {
+        /*let notif_desc = if let Some(deaf) = deaf {
             if deaf {
                 Some(format!("{} muted and deafend themselves", &user.name()))
-            } else if !deaf {
-                Some(format!("{} unmuted and undeafend themselves", &user.name()))
             } else {
-                warn!("Invalid user state received");
-                None
+                Some(format!("{} unmuted and undeafend themselves", &user.name()))
             }
         } else if let Some(mute) = mute {
             if mute {
                 Some(format!("{} muted themselves", &user.name()))
-            } else if !mute {
-                Some(format!("{} unmuted themselves", &user.name()))
             } else {
-                warn!("Invalid user state received");
-                None
+                Some(format!("{} unmuted themselves", &user.name()))
             }
         } else {
             None
-        };
-        if let Some(notif_desc) = notif_desc {
-            notify::send(notif_desc);
+        };*/
+        if let Some(notify_desc) = notify_desc {
+            notify::send(notify_desc);
         }
 
         diff
