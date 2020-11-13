@@ -238,25 +238,35 @@ impl State {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let action = match toggle {
-                    Some(state) => {
-                        if self.server().unwrap().deafened() != state {
-                            Some(state)
-                        } else {
-                            None
-                        }
-                    }
-                    None => Some(!self.server().unwrap().deafened()),
+                let server = self.server_mut().unwrap();
+                let action = match (toggle, server.muted(), server.deafened()) {
+                    (Some(false), false, false) => None,
+                    (Some(false), false, true) => Some((false, false)),
+                    (Some(false), true, false) => None,
+                    (Some(false), true, true) => Some((true, false)),
+                    (Some(true), false, false) => Some((false, true)),
+                    (Some(true), false, true) => None,
+                    (Some(true), true, false) => Some((true, true)),
+                    (Some(true), true, true) => None,
+                    (None, false, false) => Some((false, true)),
+                    (None, false, true) => Some((false, false)),
+                    (None, true, false) => Some((true, true)),
+                    (None, true, true) => Some((true, false)),
                 };
 
-                if let Some(action) = action {
-                    if action {
-                        self.server_mut().unwrap().set_muted(true);
-                    }
+                if let Some((mute, deafen)) = action {
                     let mut msg = msgs::UserState::new();
-                    msg.set_self_deaf(action);
+                    if server.muted() != mute {
+                        msg.set_self_mute(mute);
+                    } else if !mute && !deafen && server.deafened() {
+                        msg.set_self_mute(false);
+                    }
+                    if server.deafened() != deafen {
+                        msg.set_self_deaf(deafen);
+                    }
+                    server.set_muted(mute);
+                    server.set_deafened(deafen);
                     self.packet_sender.send(msg.into()).unwrap();
-                    self.server_mut().unwrap().set_deafened(action);
                 }
 
                 now!(Ok(None))
@@ -266,25 +276,35 @@ impl State {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let action = match toggle {
-                    Some(state) => {
-                        if self.server().unwrap().muted() != state {
-                            Some(state)
-                        } else {
-                            None
-                        }
-                    }
-                    None => Some(!self.server().unwrap().muted()),
+                let server = self.server_mut().unwrap();
+                let action = match (toggle, server.muted(), server.deafened()) {
+                    (Some(false), false, false) => None,
+                    (Some(false), false, true) => Some((false, false)),
+                    (Some(false), true, false) => Some((false, false)),
+                    (Some(false), true, true) => Some((false, false)),
+                    (Some(true), false, false) => Some((true, false)),
+                    (Some(true), false, true) => None,
+                    (Some(true), true, false) => None,
+                    (Some(true), true, true) => None,
+                    (None, false, false) => Some((true, false)),
+                    (None, false, true) => Some((false, false)),
+                    (None, true, false) => Some((false, false)),
+                    (None, true, true) => Some((false, false)),
                 };
 
-                if let Some(action) = action {
-                    if !action {
-                        self.server_mut().unwrap().set_deafened(false);
-                    }
+                if let Some((mute, deafen)) = action {
                     let mut msg = msgs::UserState::new();
-                    msg.set_self_mute(action);
+                    if server.muted() != mute {
+                        msg.set_self_mute(mute);
+                    } else if !mute && !deafen && server.deafened() {
+                        msg.set_self_mute(false);
+                    }
+                    if server.deafened() != deafen {
+                        msg.set_self_deaf(deafen);
+                    }
+                    server.set_muted(mute);
+                    server.set_deafened(deafen);
                     self.packet_sender.send(msg.into()).unwrap();
-                    self.server_mut().unwrap().set_muted(action);
                 }
 
                 now!(Ok(None))
@@ -451,29 +471,19 @@ impl State {
 
         //     send notification if a user muted/unmuted
         //TODO our channel only
-        let notif_desc = if let Some(deaf) = deaf {
-            if deaf {
-                Some(format!("{} muted and deafend themselves", &user.name()))
-            } else if !deaf {
-                Some(format!("{} unmuted and undeafend themselves", &user.name()))
-            } else {
-                warn!("Invalid user state received");
-                None
-            }
-        } else if let Some(mute) = mute {
-            if mute {
-                Some(format!("{} muted themselves", &user.name()))
-            } else if !mute {
-                Some(format!("{} unmuted themselves", &user.name()))
-            } else {
-                warn!("Invalid user state received");
-                None
-            }
-        } else {
-            None
+        let notify_desc = match (mute, deaf) {
+            (Some(true), Some(true)) => Some(format!("{} muted and deafend themselves", &user.name())),
+            (Some(false), Some(false)) => Some(format!("{} unmuted and undeafend themselves", &user.name())),
+            (None, Some(true)) => Some(format!("{} deafend themselves", &user.name())),
+            (None, Some(false)) => Some(format!("{} undeafend themselves", &user.name())),
+            (Some(true), None) => Some(format!("{} muted themselves", &user.name())),
+            (Some(false), None) => Some(format!("{} unmuted themselves", &user.name())),
+            (Some(true), Some(false)) => Some(format!("{} muted and undeafened themselves", &user.name())),
+            (Some(false), Some(true)) => Some(format!("{} unmuted and deafened themselves", &user.name())),
+            (None, None) => None,
         };
-        if let Some(notif_desc) = notif_desc {
-            notify::send(notif_desc);
+        if let Some(notify_desc) = notify_desc {
+            notify::send(notify_desc);
         }
 
         diff
