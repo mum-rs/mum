@@ -2,7 +2,7 @@ pub mod channel;
 pub mod server;
 pub mod user;
 
-use crate::audio::Audio;
+use crate::audio::{Audio, NotificationEvents};
 use crate::network::ConnectionInfo;
 use crate::notify;
 use crate::state::server::Server;
@@ -85,7 +85,6 @@ impl State {
         state
     }
 
-    //TODO? move bool inside Result
     pub fn handle_command(&mut self, command: Command) -> ExecutionContext {
         match command {
             Command::ChannelJoin { channel_identifier } => {
@@ -423,6 +422,7 @@ impl State {
                         &msg.get_name(),
                         channel.name()
                     ));
+                    self.audio.play_effect(NotificationEvents::ServerConnect);
                 }
             }
         }

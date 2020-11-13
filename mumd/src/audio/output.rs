@@ -71,8 +71,9 @@ impl SaturatingAdd for u16 {
     }
 }
 
-pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd>(
-    buf: Arc<Mutex<HashMap<u32, ClientStream>>>,
+pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
+    effect_sound: Arc<Mutex<VecDeque<f32>>>,
+    user_bufs: Arc<Mutex<HashMap<u32, ClientStream>>>,
     output_volume_receiver: watch::Receiver<f32>,
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 ) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {
@@ -83,8 +84,9 @@ pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd>(
 
         let volume = *output_volume_receiver.borrow();
 
-        let mut lock = buf.lock().unwrap();
-        for (id, client_stream) in &mut *lock {
+        let mut effects_sound = effect_sound.lock().unwrap();
+        let mut user_bufs = user_bufs.lock().unwrap();
+        for (id, client_stream) in &mut *user_bufs {
             let (user_volume, muted) = user_volumes
                 .lock()
                 .unwrap()
@@ -97,6 +99,10 @@ pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd>(
                     *sample = sample.saturating_add(Sample::from(&s));
                 }
             }
+        }
+
+        for sample in data.iter_mut() {
+            *sample = sample.saturating_add(Sample::from(&(effects_sound.pop_front().unwrap_or(0.0) * volume)));
         }
     }
 }
