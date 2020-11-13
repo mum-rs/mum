@@ -1,15 +1,20 @@
-use log::*;
-
 pub fn init() {
+    #[cfg(feature = "libnotify")]
     libnotify::init("mumd").unwrap();
 }
 
-pub fn send(msg: String) -> bool {
+#[cfg(feature = "libnotify")]
+pub fn send(msg: String) -> Option<bool> {
     match libnotify::Notification::new("mumd", Some(msg.as_str()), None).show() {
-        Ok(_) => true,
+        Ok(_) => Some(true),
         Err(_) => {
-            debug!("Unable to send notification");
-            false
+            log::debug!("Unable to send notification");
+            Some(false)
         }
     }
+}
+
+#[cfg(not(feature = "libnotify"))]
+pub fn send(_: String) -> Option<bool> {
+    None
 }
