@@ -384,25 +384,29 @@ impl State {
         }
     }
 
-    pub fn parse_user_state(&mut self, msg: msgs::UserState) -> Option<UserDiff> {
+    pub fn parse_user_state(&mut self, msg: msgs::UserState) {
         if !msg.has_session() {
             warn!("Can't parse user state without session");
-            return None;
+            return;
         }
         let session = msg.get_session();
         // check if this is initial state
         if !self.server().unwrap().users().contains_key(&session) {
-            self.parse_initial_user_state(session, msg);
-            None
+            self.create_user(msg);
         } else {
-            Some(self.parse_updated_user_state(session, msg))
+            self.update_user(msg);
         }
     }
 
-    fn parse_initial_user_state(&mut self, session: u32, msg: msgs::UserState) {
+    fn create_user(&mut self, msg: msgs::UserState) {
         if !msg.has_name() {
             warn!("Missing name in initial user state");
-        } else if msg.get_name() == self.server().unwrap().username().unwrap() {
+            return;
+        }
+
+        let session = msg.get_session();
+
+        if msg.get_name() == self.server().unwrap().username().unwrap() {
             // this is us
             *self.server_mut().unwrap().session_id_mut() = Some(session);
         } else {
@@ -411,31 +415,28 @@ impl State {
 
             // send notification only if we've passed the connecting phase
             if *self.phase_receiver().borrow() == StatePhase::Connected {
-                let channel_id = if msg.has_channel_id() {
-                    msg.get_channel_id()
-                } else {
-                    0
-                };
+                let channel_id = msg.get_channel_id();
                 if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
                     notify::send(format!(
                         "{} connected and joined {}",
                         &msg.get_name(),
                         channel.name()
                     ));
-                    self.audio.play_effect(NotificationEvents::ServerConnect);
                 }
             }
         }
+
         self.server_mut()
             .unwrap()
             .users_mut()
             .insert(session, user::User::new(msg));
     }
 
-    fn parse_updated_user_state(&mut self, session: u32, msg: msgs::UserState) -> UserDiff {
-        let user = self
-            .server_mut()
-            .unwrap()
+    fn update_user(&mut self, msg: msgs::UserState) {
+        let session = msg.get_session();
+        let server = self.server_mut().unwrap();
+
+        let user = server
             .users_mut()
             .get_mut(&session)
             .unwrap();
@@ -453,40 +454,42 @@ impl State {
 
         let diff = UserDiff::from(msg);
         user.apply_user_diff(&diff);
-        let user = self.server().unwrap().users().get(&session).unwrap();
 
-        //     send notification if the user moved to or from any channel
-        //TODO our channel only
-        if let Some(channel_id) = diff.channel_id {
-            if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                notify::send(format!(
-                    "{} moved to channel {}",
-                    &user.name(),
-                    channel.name()
-                ));
-            } else {
-                warn!("{} moved to invalid channel {}", &user.name(), channel_id);
+        let user = server
+            .users()
+            .get(&session)
+            .unwrap();
+
+        if Some(session) != server.session_id() {
+            //send notification if the user moved to or from any channel
+            if let Some(channel_id) = diff.channel_id {
+                if let Some(channel) = server.channels().get(&channel_id) {
+                    notify::send(format!(
+                        "{} moved to channel {}",
+                        user.name(),
+                        channel.name()
+                    ));
+                } else {
+                    warn!("{} moved to invalid channel {}", user.name(), channel_id);
+                }
+            }
+
+            //send notification if a user muted/unmuted
+            let notify_desc = match (mute, deaf) {
+                (Some(true), Some(true)) => Some(format!("{} muted and deafend themselves", &user.name())),
+                (Some(false), Some(false)) => Some(format!("{} unmuted and undeafend themselves", &user.name())),
+                (None, Some(true)) => Some(format!("{} deafend themselves", &user.name())),
+                (None, Some(false)) => Some(format!("{} undeafend themselves", &user.name())),
+                (Some(true), None) => Some(format!("{} muted themselves", &user.name())),
+                (Some(false), None) => Some(format!("{} unmuted themselves", &user.name())),
+                (Some(true), Some(false)) => Some(format!("{} muted and undeafened themselves", &user.name())),
+                (Some(false), Some(true)) => Some(format!("{} unmuted and deafened themselves", &user.name())),
+                (None, None) => None,
+            };
+            if let Some(notify_desc) = notify_desc {
+                notify::send(notify_desc);
             }
         }
-
-        //     send notification if a user muted/unmuted
-        //TODO our channel only
-        let notify_desc = match (mute, deaf) {
-            (Some(true), Some(true)) => Some(format!("{} muted and deafend themselves", &user.name())),
-            (Some(false), Some(false)) => Some(format!("{} unmuted and undeafend themselves", &user.name())),
-            (None, Some(true)) => Some(format!("{} deafend themselves", &user.name())),
-            (None, Some(false)) => Some(format!("{} undeafend themselves", &user.name())),
-            (Some(true), None) => Some(format!("{} muted themselves", &user.name())),
-            (Some(false), None) => Some(format!("{} unmuted themselves", &user.name())),
-            (Some(true), Some(false)) => Some(format!("{} muted and undeafened themselves", &user.name())),
-            (Some(false), Some(true)) => Some(format!("{} unmuted and deafened themselves", &user.name())),
-            (None, None) => None,
-        };
-        if let Some(notify_desc) = notify_desc {
-            notify::send(notify_desc);
-        }
-
-        diff
     }
 
     pub fn remove_client(&mut self, msg: msgs::UserRemove) {
@@ -516,11 +519,12 @@ impl State {
         }
     }
 
-    pub fn initialized(&self) {
+    pub fn initialized(&mut self) {
         self.phase_watcher
             .0
             .broadcast(StatePhase::Connected)
             .unwrap();
+        self.audio.play_effect(NotificationEvents::ServerConnect);
     }
 
     pub fn audio(&self) -> &Audio {

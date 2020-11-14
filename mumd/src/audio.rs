@@ -188,7 +188,6 @@ impl Audio {
             .map(|(path, event)| {
                 let reader =  hound::WavReader::open(path).unwrap();
                 let spec = reader.spec();
-                debug!("{:?}", spec);
                 let samples = match spec.sample_format {
                     hound::SampleFormat::Float => reader.into_samples::<f32>().map(|e| e.unwrap()).collect::<Vec<_>>(),
                     hound::SampleFormat::Int => reader.into_samples::<i16>().map(|e| cpal::Sample::to_f32(&e.unwrap())).collect::<Vec<_>>(),
