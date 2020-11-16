@@ -218,6 +218,7 @@ impl State {
                     .0
                     .broadcast(StatePhase::Disconnected)
                     .unwrap();
+                self.audio.play_effect(NotificationEvents::ServerDisconnect);
                 now!(Ok(None))
             }
             Command::ConfigReload => {
@@ -416,12 +417,17 @@ impl State {
             // send notification only if we've passed the connecting phase
             if *self.phase_receiver().borrow() == StatePhase::Connected {
                 let channel_id = msg.get_channel_id();
-                if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                    notify::send(format!(
-                        "{} connected and joined {}",
-                        &msg.get_name(),
-                        channel.name()
-                    ));
+
+                if channel_id == self.get_users_channel(self.server().unwrap().session_id().unwrap()) {
+                    if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
+                        notify::send(format!(
+                            "{} connected and joined {}",
+                            &msg.get_name(),
+                            channel.name()
+                        ));
+                    }
+
+                    self.audio.play_effect(NotificationEvents::UserConnected);
                 }
             }
         }
@@ -434,9 +440,11 @@ impl State {
 
     fn update_user(&mut self, msg: msgs::UserState) {
         let session = msg.get_session();
-        let server = self.server_mut().unwrap();
 
-        let user = server
+        let from_channel = self.get_users_channel(session);
+
+        let user = self.server_mut()
+            .unwrap()
             .users_mut()
             .get_mut(&session)
             .unwrap();
@@ -455,22 +463,27 @@ impl State {
         let diff = UserDiff::from(msg);
         user.apply_user_diff(&diff);
 
-        let user = server
+        let user = self.server()
+            .unwrap()
             .users()
             .get(&session)
             .unwrap();
 
-        if Some(session) != server.session_id() {
+        if Some(session) != self.server().unwrap().session_id() {
             //send notification if the user moved to or from any channel
-            if let Some(channel_id) = diff.channel_id {
-                if let Some(channel) = server.channels().get(&channel_id) {
-                    notify::send(format!(
-                        "{} moved to channel {}",
-                        user.name(),
-                        channel.name()
-                    ));
-                } else {
-                    warn!("{} moved to invalid channel {}", user.name(), channel_id);
+            if let Some(to_channel) = diff.channel_id {
+                let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
+                if from_channel == this_channel || to_channel == this_channel {
+                    if let Some(channel) = self.server().unwrap().channels().get(&to_channel) {
+                        notify::send(format!(
+                            "{} moved to channel {}",
+                            user.name(),
+                            channel.name()
+                        ));
+                    } else {
+                        warn!("{} moved to invalid channel {}", user.name(), to_channel);
+                    }
+                    self.audio.play_effect(if from_channel == this_channel { NotificationEvents::UserJoinedChannel } else { NotificationEvents::UserLeftChannel });
                 }
             }
 
@@ -497,8 +510,14 @@ impl State {
             warn!("Tried to remove user state without session");
             return;
         }
-        if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
-            notify::send(format!("{} disconnected", &user.name()));
+
+        let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
+        let other_channel = self.get_users_channel(msg.get_session());
+        if this_channel == other_channel {
+            self.audio.play_effect(NotificationEvents::UserDisconnected);
+            if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
+                notify::send(format!("{} disconnected", &user.name()));
+            }
         }
 
         self.audio().remove_client(msg.get_session());
@@ -547,5 +566,8 @@ impl State {
     }
     pub fn username(&self) -> Option<&str> {
         self.server.as_ref().map(|e| e.username()).flatten()
+    }
+    fn get_users_channel(&self, user_id: u32) -> u32 {
+        self.server().unwrap().users().iter().find(|e| *e.0 == user_id).unwrap().1.channel()
     }
 }

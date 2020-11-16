@@ -17,6 +17,10 @@ use crate::audio::output::SaturatingAdd;
 pub const EVENT_SOUNDS: &[(&str, NotificationEvents)] = &[
     ("resources/connect.wav", NotificationEvents::ServerConnect),
     ("resources/disconnect.wav", NotificationEvents::ServerDisconnect),
+    ("resources/channel_join.wav", NotificationEvents::UserConnected),
+    ("resources/channel_leave.wav", NotificationEvents::UserDisconnected),
+    ("resources/channel_join.wav", NotificationEvents::UserJoinedChannel),
+    ("resources/channel_leave.wav", NotificationEvents::UserLeftChannel),
 ];
 
 const SAMPLE_RATE: u32 = 48000;
@@ -25,6 +29,10 @@ const SAMPLE_RATE: u32 = 48000;
 pub enum NotificationEvents {
     ServerConnect,
     ServerDisconnect,
+    UserConnected,
+    UserDisconnected,
+    UserJoinedChannel,
+    UserLeftChannel,
 }
 
 pub struct Audio {
@@ -296,7 +304,7 @@ impl Audio {
         }
     }
 
-    pub fn play_effect(&mut self, effect: NotificationEvents) {
+    pub fn play_effect(&self, effect: NotificationEvents) {
         let samples = self.sounds.get(&effect).unwrap();
 
         let mut play_sounds = self.play_sounds.lock().unwrap();
