@@ -9,13 +9,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = []
-
-all = ["libnotify", "hound", "samplerate"]
+default = ["notifications", "sound_effects"]
 
 notifications = ["libnotify"]
 
-sounds = ["hound", "samplerate"]
+sound_effects = ["hound", "samplerate"]
 
 [dependencies]
 mumlib = { path = "../mumlib" }
