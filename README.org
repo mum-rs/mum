@@ -13,6 +13,8 @@ and operating systems, or they might be named something different.
 - `alsa-lib`
 - `openssl`
 - `opus`
+- `libnotify` (optional)
+- `libsamplerate` (optional)
 
 Windows is not currently supported but could be in the future. macOS should work.
 Other operating systems haven't been tested. The limiting factor on Windows
@@ -27,6 +29,35 @@ is IPC communication which is (currently) done via the crate `ipc-channel`.
 $ cargo build --release
 $ ln -s $PWD/target/release/mumctl $HOME/.local/bin/
 $ ln -s $PWD/target/release/mumd $HOME/.local/bin/
+#+END_SRC
+
+*** Optional features
+`mum` contains optional features that are enabled by default. To compile without
+them, build with `--no-default-features`. Features can then be enabled with
+`--features "FEATURES"`.
+
+The following features can be specified:
+
+| Name               | Needed for    | Additional crates |
+|--------------------+---------------+-------------------|
+| mumd/libnotify     | Notifications |                20 |
+| mumd/libsamplerate | Sound effects |                54 |
+
+Note that the "additional crates" isn't continually updated and might change.
+Features might also have overlapping dependencies.
+
+Awaiting `-Z package-features`, changing which features are compiled requires
+you to compile `mumd/` separately by entering its directory and specifying
+its features.
+
+To summarize with an example, the following compiles with only libnotify
+enabled.
+
+#+BEGIN_SRC sh
+$ cd mumd
+$ cargo build --release --no-default-features --features "libnotify"
+$ cd ../mumctl
+$ cargo build --release
 #+END_SRC
 
 ** Usage
