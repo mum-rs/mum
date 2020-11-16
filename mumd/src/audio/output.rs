@@ -102,7 +102,9 @@ pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>
         }
 
         for sample in data.iter_mut() {
-            *sample = sample.saturating_add(Sample::from(&(effects_sound.pop_front().unwrap_or(0.0) * volume)));
+            *sample = sample.saturating_add(Sample::from(
+                &(effects_sound.pop_front().unwrap_or(0.0) * volume),
+            ));
         }
     }
 }

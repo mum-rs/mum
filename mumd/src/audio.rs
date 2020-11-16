@@ -1,26 +1,41 @@
 pub mod input;
 pub mod output;
 
+use crate::audio::output::SaturatingAdd;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use opus::Channels;
+use samplerate::ConverterType;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
-use samplerate::ConverterType;
-use crate::audio::output::SaturatingAdd;
 
 //TODO? move to mumlib
 pub const EVENT_SOUNDS: &[(&str, NotificationEvents)] = &[
     ("resources/connect.wav", NotificationEvents::ServerConnect),
-    ("resources/disconnect.wav", NotificationEvents::ServerDisconnect),
-    ("resources/channel_join.wav", NotificationEvents::UserConnected),
-    ("resources/channel_leave.wav", NotificationEvents::UserDisconnected),
-    ("resources/channel_join.wav", NotificationEvents::UserJoinedChannel),
-    ("resources/channel_leave.wav", NotificationEvents::UserLeftChannel),
+    (
+        "resources/disconnect.wav",
+        NotificationEvents::ServerDisconnect,
+    ),
+    (
+        "resources/channel_join.wav",
+        NotificationEvents::UserConnected,
+    ),
+    (
+        "resources/channel_leave.wav",
+        NotificationEvents::UserDisconnected,
+    ),
+    (
+        "resources/channel_join.wav",
+        NotificationEvents::UserJoinedChannel,
+    ),
+    (
+        "resources/channel_leave.wav",
+        NotificationEvents::UserLeftChannel,
+    ),
     ("resources/mute.wav", NotificationEvents::Mute),
     ("resources/unmute.wav", NotificationEvents::Unmute),
     ("resources/deafen.wav", NotificationEvents::Deafen),
@@ -200,21 +215,29 @@ impl Audio {
 
         output_stream.play().unwrap();
 
-        let sounds = EVENT_SOUNDS.iter()
+        let sounds = EVENT_SOUNDS
+            .iter()
             .map(|(path, event)| {
-                let reader =  hound::WavReader::open(path).unwrap();
+                let reader = hound::WavReader::open(path).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
-                    hound::SampleFormat::Float => reader.into_samples::<f32>().map(|e| e.unwrap()).collect::<Vec<_>>(),
-                    hound::SampleFormat::Int => reader.into_samples::<i16>().map(|e| cpal::Sample::to_f32(&e.unwrap())).collect::<Vec<_>>(),
+                    hound::SampleFormat::Float => reader
+                        .into_samples::<f32>()
+                        .map(|e| e.unwrap())
+                        .collect::<Vec<_>>(),
+                    hound::SampleFormat::Int => reader
+                        .into_samples::<i16>()
+                        .map(|e| cpal::Sample::to_f32(&e.unwrap()))
+                        .collect::<Vec<_>>(),
                 };
                 let samples = samplerate::convert(
                     spec.sample_rate,
                     SAMPLE_RATE,
                     spec.channels as usize,
                     ConverterType::SincBestQuality,
-                    &samples)
-                    .unwrap();
+                    &samples,
+                )
+                .unwrap();
                 (*event, samples)
             })
             .collect();

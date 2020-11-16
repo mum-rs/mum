@@ -256,9 +256,17 @@ impl State {
 
                 if let Some((mute, deafen)) = action {
                     if server.deafened() != deafen {
-                        self.audio.play_effect(if deafen { NotificationEvents::Deafen } else { NotificationEvents::Undeafen });
+                        self.audio.play_effect(if deafen {
+                            NotificationEvents::Deafen
+                        } else {
+                            NotificationEvents::Undeafen
+                        });
                     } else if server.muted() != mute {
-                        self.audio.play_effect(if mute { NotificationEvents::Mute } else { NotificationEvents::Unmute });
+                        self.audio.play_effect(if mute {
+                            NotificationEvents::Mute
+                        } else {
+                            NotificationEvents::Unmute
+                        });
                     }
                     let mut msg = msgs::UserState::new();
                     if server.muted() != mute {
@@ -300,9 +308,17 @@ impl State {
 
                 if let Some((mute, deafen)) = action {
                     if server.deafened() != deafen {
-                        self.audio.play_effect(if deafen { NotificationEvents::Deafen } else { NotificationEvents::Undeafen });
+                        self.audio.play_effect(if deafen {
+                            NotificationEvents::Deafen
+                        } else {
+                            NotificationEvents::Undeafen
+                        });
                     } else if server.muted() != mute {
-                        self.audio.play_effect(if mute { NotificationEvents::Mute } else { NotificationEvents::Unmute });
+                        self.audio.play_effect(if mute {
+                            NotificationEvents::Mute
+                        } else {
+                            NotificationEvents::Unmute
+                        });
                     }
                     let mut msg = msgs::UserState::new();
                     if server.muted() != mute {
@@ -430,7 +446,9 @@ impl State {
             if *self.phase_receiver().borrow() == StatePhase::Connected {
                 let channel_id = msg.get_channel_id();
 
-                if channel_id == self.get_users_channel(self.server().unwrap().session_id().unwrap()) {
+                if channel_id
+                    == self.get_users_channel(self.server().unwrap().session_id().unwrap())
+                {
                     if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
                         notify::send(format!(
                             "{} connected and joined {}",
@@ -455,7 +473,8 @@ impl State {
 
         let from_channel = self.get_users_channel(session);
 
-        let user = self.server_mut()
+        let user = self
+            .server_mut()
             .unwrap()
             .users_mut()
             .get_mut(&session)
@@ -475,16 +494,13 @@ impl State {
         let diff = UserDiff::from(msg);
         user.apply_user_diff(&diff);
 
-        let user = self.server()
-            .unwrap()
-            .users()
-            .get(&session)
-            .unwrap();
+        let user = self.server().unwrap().users().get(&session).unwrap();
 
         if Some(session) != self.server().unwrap().session_id() {
             //send notification if the user moved to or from any channel
             if let Some(to_channel) = diff.channel_id {
-                let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
+                let this_channel =
+                    self.get_users_channel(self.server().unwrap().session_id().unwrap());
                 if from_channel == this_channel || to_channel == this_channel {
                     if let Some(channel) = self.server().unwrap().channels().get(&to_channel) {
                         notify::send(format!(
@@ -495,20 +511,32 @@ impl State {
                     } else {
                         warn!("{} moved to invalid channel {}", user.name(), to_channel);
                     }
-                    self.audio.play_effect(if from_channel == this_channel { NotificationEvents::UserJoinedChannel } else { NotificationEvents::UserLeftChannel });
+                    self.audio.play_effect(if from_channel == this_channel {
+                        NotificationEvents::UserJoinedChannel
+                    } else {
+                        NotificationEvents::UserLeftChannel
+                    });
                 }
             }
 
             //send notification if a user muted/unmuted
             let notify_desc = match (mute, deaf) {
-                (Some(true), Some(true)) => Some(format!("{} muted and deafend themselves", &user.name())),
-                (Some(false), Some(false)) => Some(format!("{} unmuted and undeafend themselves", &user.name())),
+                (Some(true), Some(true)) => {
+                    Some(format!("{} muted and deafend themselves", &user.name()))
+                }
+                (Some(false), Some(false)) => {
+                    Some(format!("{} unmuted and undeafend themselves", &user.name()))
+                }
                 (None, Some(true)) => Some(format!("{} deafend themselves", &user.name())),
                 (None, Some(false)) => Some(format!("{} undeafend themselves", &user.name())),
                 (Some(true), None) => Some(format!("{} muted themselves", &user.name())),
                 (Some(false), None) => Some(format!("{} unmuted themselves", &user.name())),
-                (Some(true), Some(false)) => Some(format!("{} muted and undeafened themselves", &user.name())),
-                (Some(false), Some(true)) => Some(format!("{} unmuted and deafened themselves", &user.name())),
+                (Some(true), Some(false)) => {
+                    Some(format!("{} muted and undeafened themselves", &user.name()))
+                }
+                (Some(false), Some(true)) => {
+                    Some(format!("{} unmuted and deafened themselves", &user.name()))
+                }
                 (None, None) => None,
             };
             if let Some(notify_desc) = notify_desc {
@@ -580,6 +608,13 @@ impl State {
         self.server.as_ref().map(|e| e.username()).flatten()
     }
     fn get_users_channel(&self, user_id: u32) -> u32 {
-        self.server().unwrap().users().iter().find(|e| *e.0 == user_id).unwrap().1.channel()
+        self.server()
+            .unwrap()
+            .users()
+            .iter()
+            .find(|e| *e.0 == user_id)
+            .unwrap()
+            .1
+            .channel()
     }
 }
