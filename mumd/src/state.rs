@@ -238,7 +238,7 @@ impl State {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let server = self.server_mut().unwrap();
+                let server = self.server().unwrap();
                 let action = match (toggle, server.muted(), server.deafened()) {
                     (Some(false), false, false) => None,
                     (Some(false), false, true) => Some((false, false)),
@@ -258,12 +258,15 @@ impl State {
                     let mut msg = msgs::UserState::new();
                     if server.muted() != mute {
                         msg.set_self_mute(mute);
+                        self.audio.play_effect(if mute { NotificationEvents::Mute } else { NotificationEvents::Unmute });
                     } else if !mute && !deafen && server.deafened() {
                         msg.set_self_mute(false);
                     }
                     if server.deafened() != deafen {
                         msg.set_self_deaf(deafen);
+                        self.audio.play_effect(if deafen { NotificationEvents::Deafen } else { NotificationEvents::Undeafen });
                     }
+                    let server = self.server_mut().unwrap();
                     server.set_muted(mute);
                     server.set_deafened(deafen);
                     self.packet_sender.send(msg.into()).unwrap();
@@ -276,7 +279,7 @@ impl State {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let server = self.server_mut().unwrap();
+                let server = self.server().unwrap();
                 let action = match (toggle, server.muted(), server.deafened()) {
                     (Some(false), false, false) => None,
                     (Some(false), false, true) => Some((false, false)),
@@ -296,12 +299,15 @@ impl State {
                     let mut msg = msgs::UserState::new();
                     if server.muted() != mute {
                         msg.set_self_mute(mute);
+                        self.audio.play_effect(if mute { NotificationEvents::Mute } else { NotificationEvents::Unmute });
                     } else if !mute && !deafen && server.deafened() {
                         msg.set_self_mute(false);
                     }
                     if server.deafened() != deafen {
                         msg.set_self_deaf(deafen);
+                        self.audio.play_effect(if deafen { NotificationEvents::Deafen } else { NotificationEvents::Undeafen });
                     }
+                    let server = self.server_mut().unwrap();
                     server.set_muted(mute);
                     server.set_deafened(deafen);
                     self.packet_sender.send(msg.into()).unwrap();

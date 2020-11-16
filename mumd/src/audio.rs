@@ -21,6 +21,10 @@ pub const EVENT_SOUNDS: &[(&str, NotificationEvents)] = &[
     ("resources/channel_leave.wav", NotificationEvents::UserDisconnected),
     ("resources/channel_join.wav", NotificationEvents::UserJoinedChannel),
     ("resources/channel_leave.wav", NotificationEvents::UserLeftChannel),
+    ("resources/mute.wav", NotificationEvents::Mute),
+    ("resources/unmute.wav", NotificationEvents::Unmute),
+    ("resources/deafen.wav", NotificationEvents::Deafen),
+    ("resources/undeafen.wav", NotificationEvents::Undeafen),
 ];
 
 const SAMPLE_RATE: u32 = 48000;
@@ -33,6 +37,10 @@ pub enum NotificationEvents {
     UserDisconnected,
     UserJoinedChannel,
     UserLeftChannel,
+    Mute,
+    Unmute,
+    Deafen,
+    Undeafen,
 }
 
 pub struct Audio {
