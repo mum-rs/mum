@@ -1,12 +1,14 @@
 pub mod input;
 pub mod output;
 
+#[cfg(any(feature = "sounds", feature = "all"))]
 use crate::audio::output::SaturatingAdd;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use opus::Channels;
+#[cfg(any(feature = "sounds", feature = "all"))]
 use samplerate::ConverterType;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
@@ -14,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 
 //TODO? move to mumlib
+#[cfg(any(feature = "sounds", feature = "all"))]
 pub const EVENT_SOUNDS: &[(&str, NotificationEvents)] = &[
     ("resources/connect.wav", NotificationEvents::ServerConnect),
     (
@@ -72,8 +75,10 @@ pub struct Audio {
 
     client_streams: Arc<Mutex<HashMap<u32, output::ClientStream>>>,
 
+    #[cfg(any(feature = "sounds", feature = "all"))]
     sounds: HashMap<NotificationEvents, Vec<f32>>,
 
+    #[cfg(any(feature = "sounds", feature = "all"))]
     play_sounds: Arc<Mutex<VecDeque<f32>>>,
 }
 
@@ -215,6 +220,7 @@ impl Audio {
 
         output_stream.play().unwrap();
 
+        #[cfg(any(feature = "sounds", feature = "all"))]
         let sounds = EVENT_SOUNDS
             .iter()
             .map(|(path, event)| {
@@ -249,9 +255,11 @@ impl Audio {
             input_volume_sender,
             input_channel_receiver: Some(input_receiver),
             client_streams,
+            #[cfg(any(feature = "sounds", feature = "all"))]
             sounds,
             output_volume_sender,
             user_volumes,
+            #[cfg(any(feature = "sounds", feature = "all"))]
             play_sounds,
         }
     }
@@ -335,6 +343,7 @@ impl Audio {
         }
     }
 
+    #[cfg(any(feature = "sounds", feature = "all"))]
     pub fn play_effect(&self, effect: NotificationEvents) {
         let samples = self.sounds.get(&effect).unwrap();
 
@@ -347,4 +356,7 @@ impl Audio {
         let l = play_sounds.len();
         play_sounds.extend(samples.iter().skip(l));
     }
+
+    #[cfg(not(any(feature = "sounds", feature = "all")))]
+    pub fn play_effect(&self, _: NotificationEvents) {}
 }
