@@ -520,27 +520,19 @@ impl State {
             }
 
             //send notification if a user muted/unmuted
-            let notify_desc = match (mute, deaf) {
-                (Some(true), Some(true)) => {
-                    Some(format!("{} muted and deafend themselves", &user.name()))
+            if mute != None || deaf != None {
+                let mut s = user.name().to_string();
+                if let Some(mute) = mute {
+                    s += if mute { " muted" } else { " unmuted" };
                 }
-                (Some(false), Some(false)) => {
-                    Some(format!("{} unmuted and undeafend themselves", &user.name()))
+                if mute.is_some() && deaf.is_some() {
+                    s += " and";
                 }
-                (None, Some(true)) => Some(format!("{} deafend themselves", &user.name())),
-                (None, Some(false)) => Some(format!("{} undeafend themselves", &user.name())),
-                (Some(true), None) => Some(format!("{} muted themselves", &user.name())),
-                (Some(false), None) => Some(format!("{} unmuted themselves", &user.name())),
-                (Some(true), Some(false)) => {
-                    Some(format!("{} muted and undeafened themselves", &user.name()))
+                if let Some(deaf) = deaf {
+                    s += if deaf { " deafened" } else { " undeafened" };
                 }
-                (Some(false), Some(true)) => {
-                    Some(format!("{} unmuted and deafened themselves", &user.name()))
-                }
-                (None, None) => None,
-            };
-            if let Some(notify_desc) = notify_desc {
-                notify::send(notify_desc);
+                s += " themselves";
+                notify::send(s);
             }
         }
     }
