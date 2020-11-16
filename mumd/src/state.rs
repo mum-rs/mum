@@ -550,7 +550,7 @@ impl State {
         }
     }
 
-    pub fn initialized(&mut self) {
+    pub fn initialized(&self) {
         self.phase_watcher
             .0
             .broadcast(StatePhase::Connected)
