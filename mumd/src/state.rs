@@ -254,6 +254,7 @@ impl State {
                     (None, true, true) => Some((true, false)),
                 };
 
+                let mut new_deaf = None;
                 if let Some((mute, deafen)) = action {
                     if server.deafened() != deafen {
                         self.audio.play_effect(if deafen {
@@ -276,6 +277,7 @@ impl State {
                     }
                     if server.deafened() != deafen {
                         msg.set_self_deaf(deafen);
+                        new_deaf = Some(deafen);
                     }
                     let server = self.server_mut().unwrap();
                     server.set_muted(mute);
@@ -283,7 +285,7 @@ impl State {
                     self.packet_sender.send(msg.into()).unwrap();
                 }
 
-                now!(Ok(None))
+                now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
             }
             Command::MuteSelf(toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
@@ -306,6 +308,7 @@ impl State {
                     (None, true, true) => Some((false, false)),
                 };
 
+                let mut new_mute = None;
                 if let Some((mute, deafen)) = action {
                     if server.deafened() != deafen {
                         self.audio.play_effect(if deafen {
@@ -323,8 +326,10 @@ impl State {
                     let mut msg = msgs::UserState::new();
                     if server.muted() != mute {
                         msg.set_self_mute(mute);
+                        new_mute = Some(mute)
                     } else if !mute && !deafen && server.deafened() {
                         msg.set_self_mute(false);
+                        new_mute = Some(false)
                     }
                     if server.deafened() != deafen {
                         msg.set_self_deaf(deafen);
@@ -335,7 +340,7 @@ impl State {
                     self.packet_sender.send(msg.into()).unwrap();
                 }
 
-                now!(Ok(None))
+                now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
             }
             Command::MuteOther(string, toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
