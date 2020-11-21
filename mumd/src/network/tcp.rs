@@ -247,13 +247,7 @@ async fn listen(
                     warn!("Login rejected: {:?}", msg);
                 }
                 ControlPacket::UserState(msg) => {
-                    let mut state = state.lock().unwrap();
-                    if *state.phase_receiver().borrow() == StatePhase::Connecting {
-                        state.audio_mut().add_client(msg.get_session());
-                        state.parse_user_state(*msg);
-                    } else {
-                        state.parse_user_state(*msg);
-                    }
+                    state.lock().unwrap().parse_user_state(*msg);
                 }
                 ControlPacket::UserRemove(msg) => {
                     state.lock().unwrap().remove_client(*msg);

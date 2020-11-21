@@ -2,7 +2,7 @@ pub mod channel;
 pub mod server;
 pub mod user;
 
-use crate::audio::Audio;
+use crate::audio::{Audio, NotificationEvents};
 use crate::network::ConnectionInfo;
 use crate::notify;
 use crate::state::server::Server;
@@ -85,7 +85,6 @@ impl State {
         state
     }
 
-    //TODO? move bool inside Result
     pub fn handle_command(&mut self, command: Command) -> ExecutionContext {
         match command {
             Command::ChannelJoin { channel_identifier } => {
@@ -219,6 +218,7 @@ impl State {
                     .0
                     .broadcast(StatePhase::Disconnected)
                     .unwrap();
+                self.audio.play_effect(NotificationEvents::ServerDisconnect);
                 now!(Ok(None))
             }
             Command::ConfigReload => {
@@ -238,7 +238,7 @@ impl State {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let server = self.server_mut().unwrap();
+                let server = self.server().unwrap();
                 let action = match (toggle, server.muted(), server.deafened()) {
                     (Some(false), false, false) => None,
                     (Some(false), false, true) => Some((false, false)),
@@ -255,6 +255,19 @@ impl State {
                 };
 
                 if let Some((mute, deafen)) = action {
+                    if server.deafened() != deafen {
+                        self.audio.play_effect(if deafen {
+                            NotificationEvents::Deafen
+                        } else {
+                            NotificationEvents::Undeafen
+                        });
+                    } else if server.muted() != mute {
+                        self.audio.play_effect(if mute {
+                            NotificationEvents::Mute
+                        } else {
+                            NotificationEvents::Unmute
+                        });
+                    }
                     let mut msg = msgs::UserState::new();
                     if server.muted() != mute {
                         msg.set_self_mute(mute);
@@ -264,6 +277,7 @@ impl State {
                     if server.deafened() != deafen {
                         msg.set_self_deaf(deafen);
                     }
+                    let server = self.server_mut().unwrap();
                     server.set_muted(mute);
                     server.set_deafened(deafen);
                     self.packet_sender.send(msg.into()).unwrap();
@@ -276,7 +290,7 @@ impl State {
                     return now!(Err(Error::DisconnectedError));
                 }
 
-                let server = self.server_mut().unwrap();
+                let server = self.server().unwrap();
                 let action = match (toggle, server.muted(), server.deafened()) {
                     (Some(false), false, false) => None,
                     (Some(false), false, true) => Some((false, false)),
@@ -293,6 +307,19 @@ impl State {
                 };
 
                 if let Some((mute, deafen)) = action {
+                    if server.deafened() != deafen {
+                        self.audio.play_effect(if deafen {
+                            NotificationEvents::Deafen
+                        } else {
+                            NotificationEvents::Undeafen
+                        });
+                    } else if server.muted() != mute {
+                        self.audio.play_effect(if mute {
+                            NotificationEvents::Mute
+                        } else {
+                            NotificationEvents::Unmute
+                        });
+                    }
                     let mut msg = msgs::UserState::new();
                     if server.muted() != mute {
                         msg.set_self_mute(mute);
@@ -302,6 +329,7 @@ impl State {
                     if server.deafened() != deafen {
                         msg.set_self_deaf(deafen);
                     }
+                    let server = self.server_mut().unwrap();
                     server.set_muted(mute);
                     server.set_deafened(deafen);
                     self.packet_sender.send(msg.into()).unwrap();
@@ -385,25 +413,29 @@ impl State {
         }
     }
 
-    pub fn parse_user_state(&mut self, msg: msgs::UserState) -> Option<UserDiff> {
+    pub fn parse_user_state(&mut self, msg: msgs::UserState) {
         if !msg.has_session() {
             warn!("Can't parse user state without session");
-            return None;
+            return;
         }
         let session = msg.get_session();
         // check if this is initial state
         if !self.server().unwrap().users().contains_key(&session) {
-            self.parse_initial_user_state(session, msg);
-            None
+            self.create_user(msg);
         } else {
-            Some(self.parse_updated_user_state(session, msg))
+            self.update_user(msg);
         }
     }
 
-    fn parse_initial_user_state(&mut self, session: u32, msg: msgs::UserState) {
+    fn create_user(&mut self, msg: msgs::UserState) {
         if !msg.has_name() {
             warn!("Missing name in initial user state");
-        } else if msg.get_name() == self.server().unwrap().username().unwrap() {
+            return;
+        }
+
+        let session = msg.get_session();
+
+        if msg.get_name() == self.server().unwrap().username().unwrap() {
             // this is us
             *self.server_mut().unwrap().session_id_mut() = Some(session);
         } else {
@@ -412,27 +444,35 @@ impl State {
 
             // send notification only if we've passed the connecting phase
             if *self.phase_receiver().borrow() == StatePhase::Connected {
-                let channel_id = if msg.has_channel_id() {
-                    msg.get_channel_id()
-                } else {
-                    0
-                };
-                if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                    notify::send(format!(
-                        "{} connected and joined {}",
-                        &msg.get_name(),
-                        channel.name()
-                    ));
+                let channel_id = msg.get_channel_id();
+
+                if channel_id
+                    == self.get_users_channel(self.server().unwrap().session_id().unwrap())
+                {
+                    if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
+                        notify::send(format!(
+                            "{} connected and joined {}",
+                            &msg.get_name(),
+                            channel.name()
+                        ));
+                    }
+
+                    self.audio.play_effect(NotificationEvents::UserConnected);
                 }
             }
         }
+
         self.server_mut()
             .unwrap()
             .users_mut()
             .insert(session, user::User::new(msg));
     }
 
-    fn parse_updated_user_state(&mut self, session: u32, msg: msgs::UserState) -> UserDiff {
+    fn update_user(&mut self, msg: msgs::UserState) {
+        let session = msg.get_session();
+
+        let from_channel = self.get_users_channel(session);
+
         let user = self
             .server_mut()
             .unwrap()
@@ -453,40 +493,48 @@ impl State {
 
         let diff = UserDiff::from(msg);
         user.apply_user_diff(&diff);
+
         let user = self.server().unwrap().users().get(&session).unwrap();
 
-        //     send notification if the user moved to or from any channel
-        //TODO our channel only
-        if let Some(channel_id) = diff.channel_id {
-            if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                notify::send(format!(
-                    "{} moved to channel {}",
-                    &user.name(),
-                    channel.name()
-                ));
-            } else {
-                warn!("{} moved to invalid channel {}", &user.name(), channel_id);
+        if Some(session) != self.server().unwrap().session_id() {
+            //send notification if the user moved to or from any channel
+            if let Some(to_channel) = diff.channel_id {
+                let this_channel =
+                    self.get_users_channel(self.server().unwrap().session_id().unwrap());
+                if from_channel == this_channel || to_channel == this_channel {
+                    if let Some(channel) = self.server().unwrap().channels().get(&to_channel) {
+                        notify::send(format!(
+                            "{} moved to channel {}",
+                            user.name(),
+                            channel.name()
+                        ));
+                    } else {
+                        warn!("{} moved to invalid channel {}", user.name(), to_channel);
+                    }
+                    self.audio.play_effect(if from_channel == this_channel {
+                        NotificationEvents::UserJoinedChannel
+                    } else {
+                        NotificationEvents::UserLeftChannel
+                    });
+                }
+            }
+
+            //send notification if a user muted/unmuted
+            if mute != None || deaf != None {
+                let mut s = user.name().to_string();
+                if let Some(mute) = mute {
+                    s += if mute { " muted" } else { " unmuted" };
+                }
+                if mute.is_some() && deaf.is_some() {
+                    s += " and";
+                }
+                if let Some(deaf) = deaf {
+                    s += if deaf { " deafened" } else { " undeafened" };
+                }
+                s += " themselves";
+                notify::send(s);
             }
         }
-
-        //     send notification if a user muted/unmuted
-        //TODO our channel only
-        let notify_desc = match (mute, deaf) {
-            (Some(true), Some(true)) => Some(format!("{} muted and deafend themselves", &user.name())),
-            (Some(false), Some(false)) => Some(format!("{} unmuted and undeafend themselves", &user.name())),
-            (None, Some(true)) => Some(format!("{} deafend themselves", &user.name())),
-            (None, Some(false)) => Some(format!("{} undeafend themselves", &user.name())),
-            (Some(true), None) => Some(format!("{} muted themselves", &user.name())),
-            (Some(false), None) => Some(format!("{} unmuted themselves", &user.name())),
-            (Some(true), Some(false)) => Some(format!("{} muted and undeafened themselves", &user.name())),
-            (Some(false), Some(true)) => Some(format!("{} unmuted and deafened themselves", &user.name())),
-            (None, None) => None,
-        };
-        if let Some(notify_desc) = notify_desc {
-            notify::send(notify_desc);
-        }
-
-        diff
     }
 
     pub fn remove_client(&mut self, msg: msgs::UserRemove) {
@@ -494,8 +542,14 @@ impl State {
             warn!("Tried to remove user state without session");
             return;
         }
-        if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
-            notify::send(format!("{} disconnected", &user.name()));
+
+        let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
+        let other_channel = self.get_users_channel(msg.get_session());
+        if this_channel == other_channel {
+            self.audio.play_effect(NotificationEvents::UserDisconnected);
+            if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
+                notify::send(format!("{} disconnected", &user.name()));
+            }
         }
 
         self.audio().remove_client(msg.get_session());
@@ -521,6 +575,7 @@ impl State {
             .0
             .broadcast(StatePhase::Connected)
             .unwrap();
+        self.audio.play_effect(NotificationEvents::ServerConnect);
     }
 
     pub fn audio(&self) -> &Audio {
@@ -543,5 +598,15 @@ impl State {
     }
     pub fn username(&self) -> Option<&str> {
         self.server.as_ref().map(|e| e.username()).flatten()
+    }
+    fn get_users_channel(&self, user_id: u32) -> u32 {
+        self.server()
+            .unwrap()
+            .users()
+            .iter()
+            .find(|e| *e.0 == user_id)
+            .unwrap()
+            .1
+            .channel()
     }
 }

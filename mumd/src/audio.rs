@@ -1,15 +1,65 @@
 pub mod input;
 pub mod output;
 
+#[cfg(feature = "sound-effects")]
+use crate::audio::output::SaturatingAdd;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use opus::Channels;
+#[cfg(feature = "sound-effects")]
+use samplerate::ConverterType;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
+
+//TODO? move to mumlib
+#[cfg(feature = "sound-effects")]
+pub const EVENT_SOUNDS: &[(&str, NotificationEvents)] = &[
+    ("resources/connect.wav", NotificationEvents::ServerConnect),
+    (
+        "resources/disconnect.wav",
+        NotificationEvents::ServerDisconnect,
+    ),
+    (
+        "resources/channel_join.wav",
+        NotificationEvents::UserConnected,
+    ),
+    (
+        "resources/channel_leave.wav",
+        NotificationEvents::UserDisconnected,
+    ),
+    (
+        "resources/channel_join.wav",
+        NotificationEvents::UserJoinedChannel,
+    ),
+    (
+        "resources/channel_leave.wav",
+        NotificationEvents::UserLeftChannel,
+    ),
+    ("resources/mute.wav", NotificationEvents::Mute),
+    ("resources/unmute.wav", NotificationEvents::Unmute),
+    ("resources/deafen.wav", NotificationEvents::Deafen),
+    ("resources/undeafen.wav", NotificationEvents::Undeafen),
+];
+
+const SAMPLE_RATE: u32 = 48000;
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
+pub enum NotificationEvents {
+    ServerConnect,
+    ServerDisconnect,
+    UserConnected,
+    UserDisconnected,
+    UserJoinedChannel,
+    UserLeftChannel,
+    Mute,
+    Unmute,
+    Deafen,
+    Undeafen,
+}
 
 pub struct Audio {
     output_config: StreamConfig,
@@ -24,11 +74,17 @@ pub struct Audio {
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
     client_streams: Arc<Mutex<HashMap<u32, output::ClientStream>>>,
+
+    #[cfg(feature = "sound-effects")]
+    sounds: HashMap<NotificationEvents, Vec<f32>>,
+
+    #[cfg(feature = "sound-effects")]
+    play_sounds: Arc<Mutex<VecDeque<f32>>>,
 }
 
 impl Audio {
     pub fn new(input_volume: f32, output_volume: f32) -> Self {
-        let sample_rate = SampleRate(48000);
+        let sample_rate = SampleRate(SAMPLE_RATE);
 
         let host = cpal::default_host();
         let output_device = host
@@ -71,12 +127,14 @@ impl Audio {
 
         let user_volumes = Arc::new(Mutex::new(HashMap::new()));
         let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
+        let play_sounds = Arc::new(Mutex::new(VecDeque::new()));
 
         let client_streams = Arc::new(Mutex::new(HashMap::new()));
         let output_stream = match output_supported_sample_format {
             SampleFormat::F32 => output_device.build_output_stream(
                 &output_config,
                 output::curry_callback::<f32>(
+                    Arc::clone(&play_sounds),
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     Arc::clone(&user_volumes),
@@ -86,6 +144,7 @@ impl Audio {
             SampleFormat::I16 => output_device.build_output_stream(
                 &output_config,
                 output::curry_callback::<i16>(
+                    Arc::clone(&play_sounds),
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     Arc::clone(&user_volumes),
@@ -95,6 +154,7 @@ impl Audio {
             SampleFormat::U16 => output_device.build_output_stream(
                 &output_config,
                 output::curry_callback::<u16>(
+                    Arc::clone(&play_sounds),
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     Arc::clone(&user_volumes),
@@ -160,6 +220,34 @@ impl Audio {
 
         output_stream.play().unwrap();
 
+        #[cfg(feature = "sound-effects")]
+        let sounds = EVENT_SOUNDS
+            .iter()
+            .map(|(path, event)| {
+                let reader = hound::WavReader::open(path).unwrap();
+                let spec = reader.spec();
+                let samples = match spec.sample_format {
+                    hound::SampleFormat::Float => reader
+                        .into_samples::<f32>()
+                        .map(|e| e.unwrap())
+                        .collect::<Vec<_>>(),
+                    hound::SampleFormat::Int => reader
+                        .into_samples::<i16>()
+                        .map(|e| cpal::Sample::to_f32(&e.unwrap()))
+                        .collect::<Vec<_>>(),
+                };
+                let samples = samplerate::convert(
+                    spec.sample_rate,
+                    SAMPLE_RATE,
+                    spec.channels as usize,
+                    ConverterType::SincBestQuality,
+                    &samples,
+                )
+                .unwrap();
+                (*event, samples)
+            })
+            .collect();
+
         Self {
             output_config,
             _output_stream: output_stream,
@@ -167,8 +255,12 @@ impl Audio {
             input_volume_sender,
             input_channel_receiver: Some(input_receiver),
             client_streams,
+            #[cfg(feature = "sound-effects")]
+            sounds,
             output_volume_sender,
             user_volumes,
+            #[cfg(feature = "sound-effects")]
+            play_sounds,
         }
     }
 
@@ -250,4 +342,21 @@ impl Audio {
             }
         }
     }
+
+    #[cfg(feature = "sound-effects")]
+    pub fn play_effect(&self, effect: NotificationEvents) {
+        let samples = self.sounds.get(&effect).unwrap();
+
+        let mut play_sounds = self.play_sounds.lock().unwrap();
+
+        for (val, e) in play_sounds.iter_mut().zip(samples.iter()) {
+            *val = val.saturating_add(*e);
+        }
+
+        let l = play_sounds.len();
+        play_sounds.extend(samples.iter().skip(l));
+    }
+
+    #[cfg(not(feature = "sound-effects"))]
+    pub fn play_effect(&self, _: NotificationEvents) {}
 }

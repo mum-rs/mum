@@ -9,7 +9,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["libnotify"]
+default = ["notifications", "sound-effects"]
+
+notifications = ["libnotify"]
+
+sound-effects = ["hound", "samplerate"]
 
 [dependencies]
 mumlib = { path = "../mumlib" }
@@ -23,7 +27,7 @@ ipc-channel = "0.14"
 log = "0.4"
 mumble-protocol = "0.3"
 native-tls = "0.2"
-openssl = { version = "0.10", optional = true }
+openssl = { version = "0.10" }
 opus = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "0.2", features = ["blocking", "macros", "rt-core", "sync", "tcp", "time"] }
@@ -31,6 +35,9 @@ tokio-tls = "0.3"
 tokio-util = { version = "0.3", features = ["codec", "udp"] }
 
 libnotify = { version = "1.0", optional = true }
+
+hound = { version = "3.4.0", optional = true }
+samplerate = { version = "0.2.2", optional = true }
 
 #compressor = "0.3"
 #daemonize = "0.4"
