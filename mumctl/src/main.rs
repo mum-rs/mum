@@ -1,26 +1,53 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use colored::Colorize;
 use ipc_channel::ipc::{self, IpcSender};
+use log::{error, warn};
+use log::{Record, Level, Metadata, LevelFilter};
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config;
 use mumlib::config::ServerConfig;
-use mumlib::setup_logger;
 use mumlib::state::Channel;
 use std::io::BufRead;
 use std::{fs, io, iter};
 
 const INDENTATION: &str = "  ";
 
-macro_rules! err_print {
+macro_rules! error_if_err {
     ($func:expr) => {
         if let Err(e) = $func {
-            println!("{} {}", "error:".red(), e);
+            error!("{}", e);
         }
     };
 }
 
+struct SimpleLogger;
+
+impl log::Log for SimpleLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= Level::Info
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            println!(
+                "{}{}",
+                match record.level() {
+                    Level::Error => "error: ".red(),
+                    Level::Warn => "warning: ".yellow(),
+                    _ => "".normal(),
+                },
+                record.args());
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+static LOGGER: SimpleLogger = SimpleLogger;
+
 fn main() {
-    setup_logger(io::stderr(), true);
+    log::set_logger(&LOGGER)
+        .map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
     let mut config = config::read_default_cfg();
 
     let mut app = App::new("mumctl")
@@ -168,7 +195,7 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("connect") {
         match_server_connect(matches, &config);
     } else if let Some(_) = matches.subcommand_matches("disconnect") {
-        err_print!(send_command(Command::ServerDisconnect));
+        error_if_err!(send_command(Command::ServerDisconnect));
     } else if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("config") {
             match_server_config(matches, &mut config);
@@ -180,7 +207,7 @@ fn main() {
             match_server_add(matches, &mut config);
         } else if let Some(_) = matches.subcommand_matches("list") {
             if config.servers.len() == 0 {
-                println!("{} No servers in config", "warning:".yellow());
+                warn!("No servers in config");
             }
             for (server, response) in config
                 .servers
@@ -214,10 +241,10 @@ fn main() {
                     }
                     _ => unreachable!(),
                 },
-                Err(e) => println!("{} {}", "error:".red(), e),
+                Err(e) => error!("{}", e),
             }
         } else if let Some(matches) = matches.subcommand_matches("connect") {
-            err_print!(send_command(Command::ChannelJoin {
+            error_if_err!(send_command(Command::ChannelJoin {
                 channel_identifier: matches.value_of("channel").unwrap().to_string()
             }));
         }
@@ -229,7 +256,7 @@ fn main() {
                 }
                 _ => unreachable!(),
             },
-            Err(e) => println!("{} {}", "error:".red(), e),
+            Err(e) => error!("{}", e),
         }
     } else if let Some(matches) = matches.subcommand_matches("config") {
         let name = matches.value_of("name").unwrap();
@@ -248,7 +275,7 @@ fn main() {
                 }
             }
             _ => {
-                println!("{} Unknown config value {}", "error:".red(), name);
+                error!("unknown config value {}", name);
             }
         }
     } else if matches.subcommand_matches("config-reload").is_some() {
@@ -269,9 +296,9 @@ fn main() {
             let user = matches.value_of("user").unwrap();
             let volume = matches.value_of("volume").unwrap();
             if let Ok(val) = volume.parse() {
-                err_print!(send_command(Command::UserVolumeSet(user.to_string(), val)))
+                error_if_err!(send_command(Command::UserVolumeSet(user.to_string(), val)))
             } else {
-                println!("{} Invalid volume value: {}", "error:".red(), volume);
+                error!("invalid volume value: {}", volume);
             }
         } else {
             let _user = matches.value_of("user").unwrap();
@@ -296,7 +323,7 @@ fn main() {
                 "Unmuted"
             }),
             Ok(_) => {},
-            Err(e) => println!("{} {}", "error".red(), e),
+            Err(e) => error!("{}", e),
         }
     } else if let Some(matches) = matches.subcommand_matches("deafen") {
         let command =
@@ -316,7 +343,7 @@ fn main() {
                 "Undeafened"
             }),
             Ok(_) => {},
-            Err(e) => println!("{} {}", "error".red(), e),
+            Err(e) => error!("{}", e),
         }
     } else if let Some(matches) = matches.subcommand_matches("user") {
         let name = matches.value_of("user").unwrap();
@@ -330,7 +357,7 @@ fn main() {
             } else {
                 unreachable!()
             };
-            err_print!(send_command(Command::MuteOther(name.to_string(), toggle)));
+            error_if_err!(send_command(Command::MuteOther(name.to_string(), toggle)));
         } else {
             unreachable!();
         }
@@ -373,14 +400,14 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config:
                     .map(|e| e.as_str())
                     .or(username);
                 if username.is_none() {
-                    println!("{} no username specified", "error:".red());
+                    error!("no username specified");
                     return;
                 }
                 (host, port, username.unwrap())
             }
             None => {
                 if username.is_none() {
-                    println!("{} no username specified", "error:".red());
+                    error!("no username specified");
                     return;
                 }
                 (host, port, username.unwrap())
@@ -403,7 +430,7 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config:
                 }
             }
             Err(e) => {
-                println!("{} {}", "error:".red(), e);
+                error!("{}", e);
             }
         };
     }
@@ -418,7 +445,7 @@ fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
                     // save var_value in var_name (if it is valid)
                     match var_name {
                         "name" => {
-                            println!("{} use mumctl server rename instead!", "error:".red());
+                            error!("use mumctl server rename instead!");
                         }
                         "host" => {
                             server.host = var_value.to_string();
@@ -433,7 +460,7 @@ fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
                             server.password = Some(var_value.to_string()); //TODO ask stdin if empty
                         }
                         _ => {
-                            println!("{} variable {} not found", "error:".red(), var_name);
+                            error!("variable {} not found", var_name);
                         }
                     };
                 } else {
@@ -498,7 +525,7 @@ fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
             }
         } else {
             // server is None
-            println!("{} server {} not found", "error:".red(), server_name);
+            error!("server {} not found", server_name);
         }
     } else {
         for server in config.servers.iter() {
@@ -513,7 +540,7 @@ fn match_server_rename(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
     if let Some(server) = config.servers.iter_mut().find(|s| s.name == prev_name) {
         server.name = next_name.to_string();
     } else {
-        println!("{} server {} not found", "error:".red(), prev_name);
+        error!("server {} not found", prev_name);
     }
 }
 
@@ -524,7 +551,7 @@ fn match_server_remove(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
             config.servers.remove(idx);
         }
         None => {
-            println!("{} server {} not found", "error:".red(), name);
+            error!("server {} not found", name);
         }
     };
 }
@@ -537,7 +564,7 @@ fn match_server_add(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config:
     let username = matches.value_of("username").map(|s| s.to_string());
     let password = matches.value_of("password").map(|s| s.to_string());
     if config.servers.iter().any(|s| s.name == name) {
-        println!("{} a server named {} already exists", "error:".red(), name);
+        error!("a server named {} already exists", name);
     } else {
         config.servers.push(ServerConfig {
             name,
