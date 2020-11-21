@@ -27,6 +27,7 @@ fn main() {
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(
             SubCommand::with_name("connect")
+                .about("Connect to a server")
                 .arg(Arg::with_name("host").required(true))
                 .arg(Arg::with_name("username"))
                 .arg(
@@ -36,23 +37,30 @@ fn main() {
                         .takes_value(true),
                 ),
         )
-        .subcommand(SubCommand::with_name("disconnect"))
+        .subcommand(
+            SubCommand::with_name("disconnect")
+                .about("Disconnect from the currently connected server"),
+        )
         .subcommand(
             SubCommand::with_name("server")
                 .setting(AppSettings::ArgRequiredElseHelp)
+                .about("Handle servers")
                 .subcommand(
                     SubCommand::with_name("config")
+                        .about("Configure a saved server")
                         .arg(Arg::with_name("server_name"))
                         .arg(Arg::with_name("var_name"))
                         .arg(Arg::with_name("var_value")),
                 )
                 .subcommand(
                     SubCommand::with_name("rename")
+                        .about("Rename a saved server")
                         .arg(Arg::with_name("prev_name").required(true))
                         .arg(Arg::with_name("next_name").required(true)),
                 )
                 .subcommand(
                     SubCommand::with_name("add")
+                        .about("Add a new saved server")
                         .arg(Arg::with_name("name").required(true))
                         .arg(Arg::with_name("host").required(true))
                         .arg(
@@ -73,36 +81,50 @@ fn main() {
                         ),
                 )
                 .subcommand(
-                    SubCommand::with_name("remove").arg(Arg::with_name("name").required(true)),
+                    SubCommand::with_name("remove")
+                        .about("Remove a saved server")
+                        .arg(Arg::with_name("name").required(true)),
                 )
-                .subcommand(SubCommand::with_name("list")),
+                .subcommand(
+                    SubCommand::with_name("list")
+                        .about("List saved servers and number of people connected"),
+                ),
         )
         .subcommand(
             SubCommand::with_name("channel")
+                .about("Handle channels in the connected server")
                 .setting(AppSettings::ArgRequiredElseHelp)
                 .subcommand(
                     SubCommand::with_name("list")
+                        .about("List all channels")
                         .arg(Arg::with_name("short").long("short").short("s")),
                 )
                 .subcommand(
-                    SubCommand::with_name("connect").arg(Arg::with_name("channel").required(true)),
+                    SubCommand::with_name("connect")
+                        .about("Connect to another channel")
+                        .arg(Arg::with_name("channel").required(true)),
                 ),
         )
-        .subcommand(SubCommand::with_name("status"))
+        .subcommand(SubCommand::with_name("status").about("Show current status"))
         .subcommand(
             SubCommand::with_name("config")
+                .about("Change config values")
                 .arg(Arg::with_name("name").required(true))
                 .arg(Arg::with_name("value").required(true)),
         )
-        .subcommand(SubCommand::with_name("config-reload"))
+        .subcommand(
+            SubCommand::with_name("config-reload").about("Force a reload of the config file"),
+        )
         .subcommand(
             SubCommand::with_name("completions")
+                .about("Generate CLI completions")
                 .arg(Arg::with_name("zsh").long("zsh"))
                 .arg(Arg::with_name("bash").long("bash"))
                 .arg(Arg::with_name("fish").long("fish")),
         )
         .subcommand(
             SubCommand::with_name("volume")
+                .about("Change volume of either you or someone else")
                 .subcommand(
                     SubCommand::with_name("set")
                         .arg(Arg::with_name("user").required(true))
@@ -113,6 +135,7 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("mute")
+                .about("Mute/unmute yourself")
                 .subcommand(SubCommand::with_name("true").alias("1"))
                 .subcommand(SubCommand::with_name("false").alias("0"))
                 .subcommand(SubCommand::with_name("toggle"))
@@ -120,6 +143,7 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("deafen")
+                .about("Deafen/undeafen yourself")
                 .subcommand(SubCommand::with_name("true").alias("1"))
                 .subcommand(SubCommand::with_name("false").alias("0"))
                 .subcommand(SubCommand::with_name("toggle"))
@@ -127,6 +151,7 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("user")
+                .about("Configure someone else")
                 .arg(Arg::with_name("user").required(true))
                 .subcommand(
                     SubCommand::with_name("mute")
