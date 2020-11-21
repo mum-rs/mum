@@ -46,4 +46,10 @@ pub enum CommandResponse {
         max_users: u32,
         bandwidth: u32,
     },
+    MuteStatus {
+        is_muted: bool,
+    },
+    DeafenStatus {
+        is_deafened: bool,
+    },
 }

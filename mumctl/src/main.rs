@@ -289,7 +289,15 @@ fn main() {
             } else {
                 unreachable!()
             });
-        err_print!(send_command(command));
+        match send_command(command) {
+            Ok(Some(CommandResponse::MuteStatus { is_muted })) => println!("{}", if is_muted {
+                "Muted"
+            } else {
+                "Unmuted"
+            }),
+            Ok(_) => {},
+            Err(e) => println!("{} {}", "error".red(), e),
+        }
     } else if let Some(matches) = matches.subcommand_matches("deafen") {
         let command =
             Command::DeafenSelf(if let Some(_matches) = matches.subcommand_matches("true") {
@@ -301,7 +309,15 @@ fn main() {
             } else {
                 unreachable!()
             });
-        err_print!(send_command(command));
+        match send_command(command) {
+            Ok(Some(CommandResponse::DeafenStatus { is_deafened })) => println!("{}", if is_deafened {
+                "Deafened"
+            } else {
+                "Undeafened"
+            }),
+            Ok(_) => {},
+            Err(e) => println!("{} {}", "error".red(), e),
+        }
     } else if let Some(matches) = matches.subcommand_matches("user") {
         let name = matches.value_of("user").unwrap();
         if let Some(matches) = matches.subcommand_matches("mute") {
