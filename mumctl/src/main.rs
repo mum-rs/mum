@@ -26,20 +26,20 @@ fn main() {
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(
+            SubCommand::with_name("connect")
+                .arg(Arg::with_name("host").required(true))
+                .arg(Arg::with_name("username"))
+                .arg(
+                    Arg::with_name("port")
+                        .long("port")
+                        .short("p")
+                        .takes_value(true),
+                ),
+        )
+        .subcommand(SubCommand::with_name("disconnect"))
+        .subcommand(
             SubCommand::with_name("server")
                 .setting(AppSettings::ArgRequiredElseHelp)
-                .subcommand(
-                    SubCommand::with_name("connect")
-                        .arg(Arg::with_name("host").required(true))
-                        .arg(Arg::with_name("username"))
-                        .arg(
-                            Arg::with_name("port")
-                                .long("port")
-                                .short("p")
-                                .takes_value(true),
-                        ),
-                )
-                .subcommand(SubCommand::with_name("disconnect"))
                 .subcommand(
                     SubCommand::with_name("config")
                         .arg(Arg::with_name("server_name"))
@@ -140,12 +140,12 @@ fn main() {
 
     let matches = app.clone().get_matches();
 
-    if let Some(matches) = matches.subcommand_matches("server") {
-        if let Some(matches) = matches.subcommand_matches("connect") {
-            match_server_connect(matches, &config);
-        } else if let Some(_) = matches.subcommand_matches("disconnect") {
-            err_print!(send_command(Command::ServerDisconnect));
-        } else if let Some(matches) = matches.subcommand_matches("config") {
+    if let Some(matches) = matches.subcommand_matches("connect") {
+        match_server_connect(matches, &config);
+    } else if let Some(_) = matches.subcommand_matches("disconnect") {
+        err_print!(send_command(Command::ServerDisconnect));
+    } else if let Some(matches) = matches.subcommand_matches("server") {
+        if let Some(matches) = matches.subcommand_matches("config") {
             match_server_config(matches, &mut config);
         } else if let Some(matches) = matches.subcommand_matches("rename") {
             match_server_rename(matches, &mut config);
