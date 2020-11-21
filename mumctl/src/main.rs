@@ -12,10 +12,10 @@ use std::{fs, io, iter};
 
 const INDENTATION: &str = "  ";
 
-macro_rules! err_print {
+macro_rules! error_if_err {
     ($func:expr) => {
         if let Err(e) = $func {
-            println!("{} {}", "error:".red(), e);
+            error!("{}", e);
         }
     };
 }
@@ -195,7 +195,7 @@ fn main() {
     if let Some(matches) = matches.subcommand_matches("connect") {
         match_server_connect(matches, &config);
     } else if let Some(_) = matches.subcommand_matches("disconnect") {
-        err_print!(send_command(Command::ServerDisconnect));
+        error_if_err!(send_command(Command::ServerDisconnect));
     } else if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("config") {
             match_server_config(matches, &mut config);
@@ -244,7 +244,7 @@ fn main() {
                 Err(e) => error!("{}", e),
             }
         } else if let Some(matches) = matches.subcommand_matches("connect") {
-            err_print!(send_command(Command::ChannelJoin {
+            error_if_err!(send_command(Command::ChannelJoin {
                 channel_identifier: matches.value_of("channel").unwrap().to_string()
             }));
         }
@@ -296,7 +296,7 @@ fn main() {
             let user = matches.value_of("user").unwrap();
             let volume = matches.value_of("volume").unwrap();
             if let Ok(val) = volume.parse() {
-                err_print!(send_command(Command::UserVolumeSet(user.to_string(), val)))
+                error_if_err!(send_command(Command::UserVolumeSet(user.to_string(), val)))
             } else {
                 error!("invalid volume value: {}", volume);
             }
@@ -323,7 +323,7 @@ fn main() {
                 "Unmuted"
             }),
             Ok(_) => {},
-            Err(e) => println!("{} {}", "error".red(), e),
+            Err(e) => error!("{}", e),
         }
     } else if let Some(matches) = matches.subcommand_matches("deafen") {
         let command =
@@ -343,7 +343,7 @@ fn main() {
                 "Undeafened"
             }),
             Ok(_) => {},
-            Err(e) => println!("{} {}", "error".red(), e),
+            Err(e) => error!("{}", e),
         }
     } else if let Some(matches) = matches.subcommand_matches("user") {
         let name = matches.value_of("user").unwrap();
@@ -357,7 +357,7 @@ fn main() {
             } else {
                 unreachable!()
             };
-            err_print!(send_command(Command::MuteOther(name.to_string(), toggle)));
+            error_if_err!(send_command(Command::MuteOther(name.to_string(), toggle)));
         } else {
             unreachable!();
         }
