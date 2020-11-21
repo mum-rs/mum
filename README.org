@@ -40,8 +40,8 @@ The following features can be specified:
 
 | Name               | Needed for    | Additional crates |
 |--------------------+---------------+-------------------|
-| mumd/libnotify     | Notifications |                20 |
-| mumd/libsamplerate | Sound effects |                54 |
+| mumd/notifications | Notifications |                20 |
+| mumd/sound-effects | Sound effects |                54 |
 
 Note that the "additional crates" isn't continually updated and might change.
 Features might also have overlapping dependencies.
@@ -50,12 +50,12 @@ Awaiting `-Z package-features`, changing which features are compiled requires
 you to compile `mumd/` separately by entering its directory and specifying
 its features.
 
-To summarize with an example, the following compiles with only libnotify
-enabled.
+To summarize with an example, the following compiles with only the
+notifications-feature enabled.
 
 #+BEGIN_SRC sh
 $ cd mumd
-$ cargo build --release --no-default-features --features "libnotify"
+$ cargo build --release --no-default-features --features "notifications"
 $ cd ../mumctl
 $ cargo build --release
 #+END_SRC
