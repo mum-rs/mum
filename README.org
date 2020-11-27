@@ -14,7 +14,6 @@ and operating systems, or they might be named something different.
 - `openssl`
 - `opus`
 - `libnotify` (optional)
-- `libsamplerate` (optional)
 
 Windows is not currently supported but could be in the future. macOS should work.
 Other operating systems haven't been tested. The limiting factor on Windows
@@ -41,7 +40,7 @@ The following features can be specified:
 | Name               | Needed for    | Additional crates |
 |--------------------+---------------+-------------------|
 | mumd/notifications | Notifications |                20 |
-| mumd/sound-effects | Sound effects |                54 |
+| mumd/sound-effects | Sound effects |                10 |
 
 Note that the "additional crates" isn't continually updated and might change.
 Features might also have overlapping dependencies.
