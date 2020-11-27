@@ -269,7 +269,9 @@ async fn listen(
                         .unwrap()
                         .parse_channel_remove(*msg);
                 }
-                _ => {}
+                packet => {
+                    debug!("Received unhandled ControlPacket {:#?}", packet);
+                }
             }
         },
         || async {
