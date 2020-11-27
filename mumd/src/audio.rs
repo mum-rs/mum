@@ -5,11 +5,14 @@ pub mod output;
 use crate::audio::output::SaturatingAdd;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
+#[cfg(feature = "sound-effects")]
+use {
+    dasp_interpolate::linear::Linear,
+    dasp_signal::{self as signal, Signal, interpolate::Converter},
+};
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use opus::Channels;
-#[cfg(feature = "sound-effects")]
-use samplerate::ConverterType;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -236,14 +239,13 @@ impl Audio {
                         .map(|e| cpal::Sample::to_f32(&e.unwrap()))
                         .collect::<Vec<_>>(),
                 };
-                let samples = samplerate::convert(
-                    spec.sample_rate,
-                    SAMPLE_RATE,
-                    spec.channels as usize,
-                    ConverterType::SincBestQuality,
-                    &samples,
-                )
-                .unwrap();
+                let mut signal = signal::from_iter(samples.iter().cloned());
+                let interp = Linear::new(signal.next(), signal.next());
+                let converter = Converter::from_hz_to_hz(signal,
+                                                         interp,
+                                                         spec.sample_rate.into(),
+                                                         SAMPLE_RATE.into());
+                let samples = converter.until_exhausted().collect::<Vec<_>>();
                 (*event, samples)
             })
             .collect();

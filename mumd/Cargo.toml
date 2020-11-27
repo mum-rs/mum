@@ -13,7 +13,7 @@ default = ["notifications", "sound-effects"]
 
 notifications = ["libnotify"]
 
-sound-effects = ["hound", "samplerate"]
+sound-effects = ["hound", "dasp_signal", "dasp_interpolate"]
 
 [dependencies]
 mumlib = { path = "../mumlib" }
@@ -36,8 +36,9 @@ tokio-util = { version = "0.3", features = ["codec", "udp"] }
 
 libnotify = { version = "1.0", optional = true }
 
-hound = { version = "3.4.0", optional = true }
-samplerate = { version = "0.2.2", optional = true }
+dasp_signal = { version = "0.11", optional = true }
+dasp_interpolate = { version = "0.11", features = ["linear"], optional = true }
+hound = { version = "3.4", optional = true }
 
 #compressor = "0.3"
 #daemonize = "0.4"
