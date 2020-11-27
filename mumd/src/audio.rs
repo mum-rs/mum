@@ -234,7 +234,7 @@ impl Audio {
                 let mut signal = signal::from_iter(samples.iter().cloned());
                 let interp = Linear::new(signal.next(), signal.next());
                 let samples = signal
-                    .from_hz_to_hz(interp, spec.sample_rate.into(), SAMPLE_RATE.into())
+                    .from_hz_to_hz(interp, spec.sample_rate as f64, SAMPLE_RATE as f64)
                     .until_exhausted()
                     .collect::<Vec<_>>();
                 (*event, samples)
