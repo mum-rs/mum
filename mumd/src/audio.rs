@@ -5,11 +5,6 @@ pub mod output;
 use crate::audio::output::SaturatingAdd;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
-#[cfg(feature = "sound-effects")]
-use {
-    dasp_interpolate::linear::Linear,
-    dasp_signal::{self as signal, Signal, interpolate::Converter},
-};
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use opus::Channels;
@@ -17,6 +12,11 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
+#[cfg(feature = "sound-effects")]
+use {
+    dasp_interpolate::linear::Linear,
+    dasp_signal::{self as signal, Signal},
+};
 
 //TODO? move to mumlib
 #[cfg(feature = "sound-effects")]
@@ -241,11 +241,10 @@ impl Audio {
                 };
                 let mut signal = signal::from_iter(samples.iter().cloned());
                 let interp = Linear::new(signal.next(), signal.next());
-                let converter = Converter::from_hz_to_hz(signal,
-                                                         interp,
-                                                         spec.sample_rate.into(),
-                                                         SAMPLE_RATE.into());
-                let samples = converter.until_exhausted().collect::<Vec<_>>();
+                let samples = signal
+                    .from_hz_to_hz(interp, spec.sample_rate.into(), SAMPLE_RATE.into())
+                    .until_exhausted()
+                    .collect::<Vec<_>>();
                 (*event, samples)
             })
             .collect();
