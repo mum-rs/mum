@@ -1,10 +1,12 @@
 pub mod input;
 pub mod output;
 
-#[cfg(feature = "sound-effects")]
 use crate::audio::output::SaturatingAdd;
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
+use dasp_interpolate::linear::Linear;
+use dasp_signal::{self as signal, Signal};
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use opus::Channels;
@@ -12,14 +14,8 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
-#[cfg(feature = "sound-effects")]
-use {
-    dasp_interpolate::linear::Linear,
-    dasp_signal::{self as signal, Signal},
-};
 
 //TODO? move to mumlib
-#[cfg(feature = "sound-effects")]
 pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
     (include_bytes!("resources/connect.wav"), NotificationEvents::ServerConnect),
     (
@@ -78,10 +74,7 @@ pub struct Audio {
 
     client_streams: Arc<Mutex<HashMap<u32, output::ClientStream>>>,
 
-    #[cfg(feature = "sound-effects")]
     sounds: HashMap<NotificationEvents, Vec<f32>>,
-
-    #[cfg(feature = "sound-effects")]
     play_sounds: Arc<Mutex<VecDeque<f32>>>,
 }
 
@@ -223,7 +216,6 @@ impl Audio {
 
         output_stream.play().unwrap();
 
-        #[cfg(feature = "sound-effects")]
         let sounds = EVENT_SOUNDS
             .iter()
             .map(|(bytes, event)| {
@@ -256,11 +248,9 @@ impl Audio {
             input_volume_sender,
             input_channel_receiver: Some(input_receiver),
             client_streams,
-            #[cfg(feature = "sound-effects")]
             sounds,
             output_volume_sender,
             user_volumes,
-            #[cfg(feature = "sound-effects")]
             play_sounds,
         }
     }
@@ -344,7 +334,6 @@ impl Audio {
         }
     }
 
-    #[cfg(feature = "sound-effects")]
     pub fn play_effect(&self, effect: NotificationEvents) {
         let samples = self.sounds.get(&effect).unwrap();
 
@@ -357,7 +346,4 @@ impl Audio {
         let l = play_sounds.len();
         play_sounds.extend(samples.iter().skip(l));
     }
-
-    #[cfg(not(feature = "sound-effects"))]
-    pub fn play_effect(&self, _: NotificationEvents) {}
 }

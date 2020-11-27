@@ -40,7 +40,6 @@ The following features can be specified:
 | Name               | Needed for    | Additional crates |
 |--------------------+---------------+-------------------|
 | mumd/notifications | Notifications |                20 |
-| mumd/sound-effects | Sound effects |                10 |
 
 Note that the "additional crates" isn't continually updated and might change.
 Features might also have overlapping dependencies.
