@@ -8,7 +8,7 @@ use crate::network::ConnectionInfo;
 use crate::state::State;
 
 use futures::join;
-use ipc_channel::ipc::{IpcOneShotServer, IpcSender};
+use ipc_channel::ipc::{self, IpcOneShotServer, IpcSender};
 use log::*;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::crypt::ClientCryptState;
@@ -24,6 +24,26 @@ use tokio::task::spawn_blocking;
 async fn main() {
     setup_logger(std::io::stderr(), true);
     notify::init();
+
+    // check if another instance is live
+    let (tx_client, rx_client) =
+        ipc::channel::<mumlib::error::Result<Option<CommandResponse>>>().unwrap();
+    if let Ok(server_name) = fs::read_to_string(mumlib::SOCKET_PATH) {
+        if let Ok(tx0) = IpcSender::connect(server_name) {
+            if tx0.send((Command::Ping, tx_client)).is_ok() {
+                match rx_client.recv() {
+                    Ok(Ok(Some(CommandResponse::Pong))) => {
+                        error!("Another instance of mumd is already running");
+                        return;
+                    },
+                    resp => {
+                        warn!("Ping with weird response. Continuing...");
+                        debug!("Response was {:?}", resp);
+                    }
+                }
+            }
+        }
+    }
 
     // Oneshot channel for setting UDP CryptState from control task
     // For simplicity we don't deal with re-syncing, real applications would have to.

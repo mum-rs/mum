@@ -147,90 +147,8 @@ impl State {
                 );
                 now!(Ok(Some(CommandResponse::ChannelList { channels: list })))
             }
-            Command::ServerConnect {
-                host,
-                port,
-                username,
-                accept_invalid_cert,
-            } => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
-                    return now!(Err(Error::AlreadyConnectedError));
-                }
-                let mut server = Server::new();
-                *server.username_mut() = Some(username);
-                *server.host_mut() = Some(format!("{}:{}", host, port));
-                self.server = Some(server);
-                self.phase_watcher
-                    .0
-                    .broadcast(StatePhase::Connecting)
-                    .unwrap();
-
-                let socket_addr = match (host.as_ref(), port)
-                    .to_socket_addrs()
-                    .map(|mut e| e.next())
-                {
-                    Ok(Some(v)) => v,
-                    _ => {
-                        warn!("Error parsing server addr");
-                        return now!(Err(Error::InvalidServerAddrError(host, port)));
-                    }
-                };
-                self.connection_info_sender
-                    .broadcast(Some(ConnectionInfo::new(
-                        socket_addr,
-                        host,
-                        accept_invalid_cert,
-                    )))
-                    .unwrap();
-                at!(TcpEvent::Connected, |e| {
-                    //runs the closure when the client is connected
-                    if let TcpEventData::Connected(msg) = e {
-                        Ok(Some(CommandResponse::ServerConnect {
-                            welcome_message: if msg.has_welcome_text() {
-                                Some(msg.get_welcome_text().to_string())
-                            } else {
-                                None
-                            },
-                        }))
-                    } else {
-                        unreachable!("callback should be provided with a TcpEventData::Connected");
-                    }
-                })
-            }
-            Command::Status => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
-                }
-                let state = self.server.as_ref().unwrap().into();
-                now!(Ok(Some(CommandResponse::Status {
-                    server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
-                })))
-            }
-            Command::ServerDisconnect => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
-                }
-
-                self.server = None;
-                self.audio.clear_clients();
-
-                self.phase_watcher
-                    .0
-                    .broadcast(StatePhase::Disconnected)
-                    .unwrap();
-                self.audio.play_effect(NotificationEvents::ServerDisconnect);
-                now!(Ok(None))
-            }
             Command::ConfigReload => {
                 self.reload_config();
-                now!(Ok(None))
-            }
-            Command::InputVolumeSet(volume) => {
-                self.audio.set_input_volume(volume);
-                now!(Ok(None))
-            }
-            Command::OutputVolumeSet(volume) => {
-                self.audio.set_output_volume(volume);
                 now!(Ok(None))
             }
             Command::DeafenSelf(toggle) => {
@@ -287,6 +205,45 @@ impl State {
 
                 now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
             }
+            Command::InputVolumeSet(volume) => {
+                self.audio.set_input_volume(volume);
+                now!(Ok(None))
+            }
+            Command::MuteOther(string, toggle) => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+
+                let id = self
+                    .server_mut()
+                    .unwrap()
+                    .users_mut()
+                    .iter_mut()
+                    .find(|(_, user)| user.name() == &string);
+
+                let (id, user) = match id {
+                    Some(id) => (*id.0, id.1),
+                    None => return now!(Err(Error::InvalidUsernameError(string))),
+                };
+
+                let action = match toggle {
+                    Some(state) => {
+                        if user.suppressed() != state {
+                            Some(state)
+                        } else {
+                            None
+                        }
+                    }
+                    None => Some(!user.suppressed()),
+                };
+
+                if let Some(action) = action {
+                    user.set_suppressed(action);
+                    self.audio.set_mute(id, action);
+                }
+
+                return now!(Ok(None));
+            }
             Command::MuteSelf(toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return now!(Err(Error::DisconnectedError));
@@ -342,58 +299,76 @@ impl State {
 
                 now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
             }
-            Command::MuteOther(string, toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
-                }
-
-                let id = self
-                    .server_mut()
-                    .unwrap()
-                    .users_mut()
-                    .iter_mut()
-                    .find(|(_, user)| user.name() == &string);
-
-                let (id, user) = match id {
-                    Some(id) => (*id.0, id.1),
-                    None => return now!(Err(Error::InvalidUsernameError(string))),
-                };
-
-                let action = match toggle {
-                    Some(state) => {
-                        if user.suppressed() != state {
-                            Some(state)
-                        } else {
-                            None
-                        }
-                    }
-                    None => Some(!user.suppressed()),
-                };
-
-                if let Some(action) = action {
-                    user.set_suppressed(action);
-                    self.audio.set_mute(id, action);
-                }
-
-                return now!(Ok(None));
+            Command::OutputVolumeSet(volume) => {
+                self.audio.set_output_volume(volume);
+                now!(Ok(None))
             }
-            Command::UserVolumeSet(string, volume) => {
+            Command::Ping => {
+                now!(Ok(Some(CommandResponse::Pong)))
+            }
+            Command::ServerConnect {
+                host,
+                port,
+                username,
+                accept_invalid_cert,
+            } => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
+                    return now!(Err(Error::AlreadyConnectedError));
+                }
+                let mut server = Server::new();
+                *server.username_mut() = Some(username);
+                *server.host_mut() = Some(format!("{}:{}", host, port));
+                self.server = Some(server);
+                self.phase_watcher
+                    .0
+                    .broadcast(StatePhase::Connecting)
+                    .unwrap();
+
+                let socket_addr = match (host.as_ref(), port)
+                    .to_socket_addrs()
+                    .map(|mut e| e.next())
+                {
+                    Ok(Some(v)) => v,
+                    _ => {
+                        warn!("Error parsing server addr");
+                        return now!(Err(Error::InvalidServerAddrError(host, port)));
+                    }
+                };
+                self.connection_info_sender
+                    .broadcast(Some(ConnectionInfo::new(
+                        socket_addr,
+                        host,
+                        accept_invalid_cert,
+                    )))
+                    .unwrap();
+                at!(TcpEvent::Connected, |e| {
+                    //runs the closure when the client is connected
+                    if let TcpEventData::Connected(msg) = e {
+                        Ok(Some(CommandResponse::ServerConnect {
+                            welcome_message: if msg.has_welcome_text() {
+                                Some(msg.get_welcome_text().to_string())
+                            } else {
+                                None
+                            },
+                        }))
+                    } else {
+                        unreachable!("callback should be provided with a TcpEventData::Connected");
+                    }
+                })
+            }
+            Command::ServerDisconnect => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
                     return now!(Err(Error::DisconnectedError));
                 }
-                let user_id = match self
-                    .server()
-                    .unwrap()
-                    .users()
-                    .iter()
-                    .find(|e| e.1.name() == &string)
-                    .map(|e| *e.0)
-                {
-                    None => return now!(Err(Error::InvalidUsernameError(string))),
-                    Some(v) => v,
-                };
 
-                self.audio.set_user_volume(user_id, volume);
+                self.server = None;
+                self.audio.clear_clients();
+
+                self.phase_watcher
+                    .0
+                    .broadcast(StatePhase::Disconnected)
+                    .unwrap();
+                self.audio.play_effect(NotificationEvents::ServerDisconnect);
                 now!(Ok(None))
             }
             Command::ServerStatus { host, port } => ExecutionContext::Ping(
@@ -415,6 +390,34 @@ impl State {
                     }))
                 }),
             ),
+            Command::Status => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+                let state = self.server.as_ref().unwrap().into();
+                now!(Ok(Some(CommandResponse::Status {
+                    server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
+                })))
+            }
+            Command::UserVolumeSet(string, volume) => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
+                    return now!(Err(Error::DisconnectedError));
+                }
+                let user_id = match self
+                    .server()
+                    .unwrap()
+                    .users()
+                    .iter()
+                    .find(|e| e.1.name() == &string)
+                    .map(|e| *e.0)
+                {
+                    None => return now!(Err(Error::InvalidUsernameError(string))),
+                    Some(v) => v,
+                };
+
+                self.audio.set_user_volume(user_id, volume);
+                now!(Ok(None))
+            }
         }
     }
 
