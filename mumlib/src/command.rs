@@ -14,6 +14,7 @@ pub enum Command {
     MuteOther(String, Option<bool>),
     MuteSelf(Option<bool>),
     OutputVolumeSet(f32),
+    Ping,
     ServerConnect {
         host: String,
         port: u16,
@@ -40,6 +41,7 @@ pub enum CommandResponse {
     MuteStatus {
         is_muted: bool,
     },
+    Pong,
     ServerConnect {
         welcome_message: Option<String>,
     },

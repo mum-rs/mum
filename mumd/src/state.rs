@@ -303,6 +303,9 @@ impl State {
                 self.audio.set_output_volume(volume);
                 now!(Ok(None))
             }
+            Command::Ping => {
+                now!(Ok(Some(CommandResponse::Pong)))
+            }
             Command::ServerConnect {
                 host,
                 port,
