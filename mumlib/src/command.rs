@@ -9,9 +9,11 @@ pub enum Command {
     },
     ChannelList,
     ConfigReload,
+    DeafenSelf(Option<bool>),
     InputVolumeSet(f32),
+    MuteOther(String, Option<bool>),
+    MuteSelf(Option<bool>),
     OutputVolumeSet(f32),
-    UserVolumeSet(String, f32),
     ServerConnect {
         host: String,
         port: u16,
@@ -19,14 +21,12 @@ pub enum Command {
         accept_invalid_cert: bool,
     },
     ServerDisconnect,
-    Status,
     ServerStatus {
         host: String,
         port: u16,
     },
-    DeafenSelf(Option<bool>),
-    MuteSelf(Option<bool>),
-    MuteOther(String, Option<bool>),
+    Status,
+    UserVolumeSet(String, f32),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -34,11 +34,14 @@ pub enum CommandResponse {
     ChannelList {
         channels: Channel,
     },
+    DeafenStatus {
+        is_deafened: bool,
+    },
+    MuteStatus {
+        is_muted: bool,
+    },
     ServerConnect {
         welcome_message: Option<String>,
-    },
-    Status {
-        server_state: Server,
     },
     ServerStatus {
         version: u32,
@@ -46,10 +49,7 @@ pub enum CommandResponse {
         max_users: u32,
         bandwidth: u32,
     },
-    MuteStatus {
-        is_muted: bool,
-    },
-    DeafenStatus {
-        is_deafened: bool,
+    Status {
+        server_state: Server,
     },
 }
