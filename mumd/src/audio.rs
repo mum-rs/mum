@@ -17,32 +17,32 @@ use tokio::sync::{mpsc, watch};
 
 //TODO? move to mumlib
 #[cfg(feature = "sound-effects")]
-pub const EVENT_SOUNDS: &[(&str, NotificationEvents)] = &[
-    ("resources/connect.wav", NotificationEvents::ServerConnect),
+pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
+    (include_bytes!("resources/connect.wav"), NotificationEvents::ServerConnect),
     (
-        "resources/disconnect.wav",
+        include_bytes!("resources/disconnect.wav"),
         NotificationEvents::ServerDisconnect,
     ),
     (
-        "resources/channel_join.wav",
+        include_bytes!("resources/channel_join.wav"),
         NotificationEvents::UserConnected,
     ),
     (
-        "resources/channel_leave.wav",
+        include_bytes!("resources/channel_leave.wav"),
         NotificationEvents::UserDisconnected,
     ),
     (
-        "resources/channel_join.wav",
+        include_bytes!("resources/channel_join.wav"),
         NotificationEvents::UserJoinedChannel,
     ),
     (
-        "resources/channel_leave.wav",
+        include_bytes!("resources/channel_leave.wav"),
         NotificationEvents::UserLeftChannel,
     ),
-    ("resources/mute.wav", NotificationEvents::Mute),
-    ("resources/unmute.wav", NotificationEvents::Unmute),
-    ("resources/deafen.wav", NotificationEvents::Deafen),
-    ("resources/undeafen.wav", NotificationEvents::Undeafen),
+    (include_bytes!("resources/mute.wav"), NotificationEvents::Mute),
+    (include_bytes!("resources/unmute.wav"), NotificationEvents::Unmute),
+    (include_bytes!("resources/deafen.wav"), NotificationEvents::Deafen),
+    (include_bytes!("resources/undeafen.wav"), NotificationEvents::Undeafen),
 ];
 
 const SAMPLE_RATE: u32 = 48000;
@@ -223,8 +223,8 @@ impl Audio {
         #[cfg(feature = "sound-effects")]
         let sounds = EVENT_SOUNDS
             .iter()
-            .map(|(path, event)| {
-                let reader = hound::WavReader::open(path).unwrap();
+            .map(|(bytes, event)| {
+                let reader = hound::WavReader::new(*bytes).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
                     hound::SampleFormat::Float => reader
