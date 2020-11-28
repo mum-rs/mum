@@ -24,7 +24,7 @@ type UdpReceiver = SplitStream<UdpFramed<ClientCryptState>>;
 pub async fn handle(
     state: Arc<Mutex<State>>,
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
-    mut crypt_state: mpsc::Receiver<ClientCryptState>,
+    mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
 ) {
     let mut receiver = state.lock().unwrap().audio_mut().take_receiver().unwrap();
 
@@ -40,7 +40,7 @@ pub async fn handle(
                 }
             }
         };
-        let (mut sink, source) = connect(&mut crypt_state).await;
+        let (mut sink, source) = connect(&mut crypt_state_receiver).await;
 
         // Note: A normal application would also send periodic Ping packets, and its own audio
         //       via UDP. We instead trick the server into accepting us by sending it one
@@ -48,23 +48,25 @@ pub async fn handle(
         send_ping(&mut sink, connection_info.socket_addr).await;
 
         let sink = Arc::new(Mutex::new(sink));
+        let source = Arc::new(Mutex::new(source));
 
         let phase_watcher = state.lock().unwrap().phase_receiver();
         join!(
-            listen(Arc::clone(&state), source, phase_watcher.clone()),
+            listen(Arc::clone(&state), Arc::clone(&source), phase_watcher.clone()),
             send_voice(
-                sink,
+                Arc::clone(&sink),
                 connection_info.socket_addr,
                 phase_watcher,
                 &mut receiver
             ),
+            new_crypt_state(&mut crypt_state_receiver, sink, source)
         );
 
         debug!("Fully disconnected UDP stream, waiting for new connection info");
     }
 }
 
-pub async fn connect(
+async fn connect(
     crypt_state: &mut mpsc::Receiver<ClientCryptState>,
 ) -> (UdpSender, UdpReceiver) {
     // Bind UDP socket
@@ -84,9 +86,30 @@ pub async fn connect(
     UdpFramed::new(udp_socket, crypt_state).split()
 }
 
+async fn new_crypt_state(
+    crypt_state: &mut mpsc::Receiver<ClientCryptState>,
+    sink: Arc<Mutex<UdpSender>>,
+    source: Arc<Mutex<UdpReceiver>>,
+) {
+    loop {
+        match crypt_state.recv().await {
+            Some(crypt_state) => {
+                info!("Received new crypt state");
+                let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
+                    .await
+                    .expect("Failed to bind UDP socket");
+                let (new_sink, new_source) = UdpFramed::new(udp_socket, crypt_state).split();
+                *sink.lock().unwrap() = new_sink;
+                *source.lock().unwrap() = new_source;
+            },
+            None => {},
+        }
+    }
+}
+
 async fn listen(
     state: Arc<Mutex<State>>,
-    mut source: UdpReceiver,
+    source: Arc<Mutex<UdpReceiver>>,
     mut phase_watcher: watch::Receiver<StatePhase>,
 ) {
     let (tx, rx) = oneshot::channel();
@@ -102,6 +125,7 @@ async fn listen(
         let rx = rx.fuse();
         pin_mut!(rx);
         loop {
+            let mut source = source.lock().unwrap();
             let packet_recv = source.next().fuse();
             pin_mut!(packet_recv);
             let exitor = select! {
