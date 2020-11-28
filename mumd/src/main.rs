@@ -31,11 +31,15 @@ async fn main() {
     if let Ok(server_name) = fs::read_to_string(mumlib::SOCKET_PATH) {
         if let Ok(tx0) = IpcSender::connect(server_name) {
             if tx0.send((Command::Ping, tx_client)).is_ok() {
-                if matches!(rx_client.recv().unwrap(), Ok(Some(CommandResponse::Pong))) {
-                    error!("Another instance of mumd is already running");
-                    return;
-                } else {
-                    warn!("Ping with no response. Continuing...");
+                match rx_client.recv() {
+                    Ok(Ok(Some(CommandResponse::Pong))) => {
+                        error!("Another instance of mumd is already running");
+                        return;
+                    },
+                    resp => {
+                        warn!("Ping with weird response. Continuing...");
+                        debug!("Response was {:?}", resp);
+                    }
                 }
             }
         }
