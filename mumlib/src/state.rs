@@ -1,4 +1,3 @@
-use mumble_protocol::control::msgs;
 use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -152,68 +151,5 @@ impl Display for User {
             true_to_str!(self.mute, "m"),
             true_to_str!(self.deaf, "d")
         )
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct UserDiff {
-    pub comment: Option<String>,
-    pub hash: Option<String>,
-    pub name: Option<String>,
-    pub priority_speaker: Option<bool>,
-    pub recording: Option<bool>,
-
-    pub suppress: Option<bool>,  // by me
-    pub self_mute: Option<bool>, // by self
-    pub self_deaf: Option<bool>, // by self
-    pub mute: Option<bool>,      // by admin
-    pub deaf: Option<bool>,      // by admin
-
-    pub channel_id: Option<u32>,
-}
-
-impl UserDiff {
-    pub fn new() -> Self {
-        UserDiff::default()
-    }
-}
-
-impl From<msgs::UserState> for UserDiff {
-    fn from(mut msg: msgs::UserState) -> Self {
-        let mut ud = UserDiff::new();
-        if msg.has_comment() {
-            ud.comment = Some(msg.take_comment());
-        }
-        if msg.has_hash() {
-            ud.hash = Some(msg.take_hash());
-        }
-        if msg.has_name() {
-            ud.name = Some(msg.take_name());
-        }
-        if msg.has_priority_speaker() {
-            ud.priority_speaker = Some(msg.get_priority_speaker());
-        }
-        if msg.has_recording() {
-            ud.recording = Some(msg.get_recording());
-        }
-        if msg.has_suppress() {
-            ud.suppress = Some(msg.get_suppress());
-        }
-        if msg.has_self_mute() {
-            ud.self_mute = Some(msg.get_self_mute());
-        }
-        if msg.has_self_deaf() {
-            ud.self_deaf = Some(msg.get_self_deaf());
-        }
-        if msg.has_mute() {
-            ud.mute = Some(msg.get_mute());
-        }
-        if msg.has_deaf() {
-            ud.deaf = Some(msg.get_deaf());
-        }
-        if msg.has_channel_id() {
-            ud.channel_id = Some(msg.get_channel_id());
-        }
-        ud
     }
 }
