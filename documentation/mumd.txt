@@ -1,0 +1,45 @@
+mumd(1)
+=======
+
+Name
+----
+
+mumd - Mumble client daemon
+
+Synopsis
+--------
+
+mumd
+
+Description
+-----------
+
+mumd is a client daemon for Mumble, a free and open source voice chat system.
+It is controlled via a controller like mumctl(1).
+
+Files
+-----
+
+Configuration is stored in and read from
+
+1. $XDG_CONFIG_HOME/mumdrc if $XDG_CONFIG_HOME is set, otherwise
+2. $HOME/.config/mumdrc if $HOME is set, otherwise
+3. /etc/mumdrc.
+
+See mumdrc(5) for information about the configuration file.
+
+Authors
+-------
+
+Gustav Sörnäs and Eskil Queseth.
+
+Reporting bugs
+--------------
+
+Please report bugs to the Github repository at https://github.com/sornas/mum/
+or by e-mail to gustav@sornas.net.
+
+See also
+--------
+
+mumctl(1), mumdrc(5)
