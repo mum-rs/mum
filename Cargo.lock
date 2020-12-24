@@ -842,7 +842,6 @@ dependencies = [
  "colored",
  "fern",
  "log",
- "mumble-protocol",
  "serde",
  "toml",
 ]
