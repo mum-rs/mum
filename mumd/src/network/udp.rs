@@ -283,10 +283,7 @@ pub async fn handle_pings(
         while let Ok(read) = receiver.recv(&mut buf).await {
             assert_eq!(read, 24);
 
-            let packet = match PongPacket::try_from(buf.as_slice()) {
-                Ok(v) => v,
-                Err(_) => panic!(),
-            };
+            let packet = PongPacket::try_from(buf.as_slice()).unwrap();
 
             if let Some(handler) = pending.lock().unwrap().remove(&packet.id) {
                 handler(packet);
