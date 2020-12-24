@@ -231,12 +231,18 @@ impl Audio {
                         .map(|e| cpal::Sample::to_f32(&e.unwrap()))
                         .collect::<Vec<_>>(),
                 };
-                let mut signal = signal::from_iter(samples.iter().cloned());
+                let iter: Box<dyn Iterator<Item = f32>> = match spec.channels {
+                    1 => Box::new(samples.into_iter().flat_map(|e| vec![e, e])),
+                    2 => Box::new(samples.into_iter()),
+                    _ => unimplemented!() // TODO handle gracefully (this might not even happen)
+                };
+                let mut signal = signal::from_interleaved_samples_iter::<_, [f32; 2]>(iter);
                 let interp = Linear::new(signal.next(), signal.next());
                 let samples = signal
                     .from_hz_to_hz(interp, spec.sample_rate as f64, SAMPLE_RATE as f64)
                     .until_exhausted()
-                    .collect::<Vec<_>>();
+                    .flat_map(|e| if output_config.channels == 1 { vec![e[0]] } else { e.to_vec() })
+                    .collect::<Vec<f32>>();
                 (*event, samples)
             })
             .collect();
