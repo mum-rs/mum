@@ -1,6 +1,6 @@
 [package]
 name = "mumctl"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Gustav Sörnäs <gustav@sornas.net>",
            "Eskil Queseth <eskilq@kth.se>"]
 license = "MIT"
