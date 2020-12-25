@@ -1,0 +1,55 @@
+mumdrc(5)
+=========
+
+Name
+----
+
+mumdrc - mumd configuration file
+
+Description
+-----------
+
+This file contains persistent configuration for mumd(1). It can be written to
+using mumctl(1).
+
+The following configuration values are supported:
+
+audio.input_volume ::
+    Default 1.0.
+
+audio.output_volume ::
+    Default 1.0.
+
+Servers are specified as \[[servers]]-entries and support the following
+variables:
+
+host ::
+    IP or URL of the server.
+
+name ::
+    Custom alias for the server.
+
+port ::
+    The port to connect to. (Optional)
+
+username ::
+    The username to connect with. (Optional)
+
+password ::
+    The password to supply to the server. (Optional)
+
+Authors
+-------
+
+Gustav Sörnäs and Eskil Queseth.
+
+Reporting bugs
+--------------
+
+Please report bugs to the Github repository at https://github.com/sornas/mum/
+or by e-mail to gustav@sornas.net.
+
+See also
+--------
+
+mumctl(1), mumd(1)

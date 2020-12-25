@@ -1,0 +1,107 @@
+mumd(1)
+=======
+
+Name
+----
+
+mumctl - mumd(1) controller
+
+Synopsis
+--------
+
+mumctl <subcommand> [<args>]
+
+Description
+-----------
+
+mumctl is a CLI controller for mumd(1), a client daemon for Mumble, a free and
+open source voice chat system.
+
+Options
+-------
+
+-h, --help ::
+    Prints help information.
+
+--version ::
+    Prints version information.
+
+Subcommands contain additional options.
+
+Subcommands
+-----------
+
+mumctl channel connect <name> ::
+    Connect to another channel.
+
+mumctl channel list ::
+    List all channels in the connected server.
+
+mumctl completions [--bash|--fish|--zsh] ::
+    Generate a completion file for the specified shell.
+
+mumctl config <name> <value> ::
+    Set a configuration value in the mumd(1) config-file.
+
+mumctl config-reload ::
+    Force a reload of the configuration file (e.g. after editing it externally.
+
+mumctl connect [-p|--port <port>] <host> [username] ::
+    Connect to a server on the specified port. The host may be either the name
+    of a saved server or an IP or a URL (in which case username needs to be passed
+    as well).
+    If omitted, the port defaults to 64738.
+
+mumctl deafen <true|false|toggle> ::
+    Deafen/undeafen yourself.
+
+mumctl disconnect ::
+    Disconnect from the currently connected server.
+
+mumctl help ::
+    Show a help message.
+
+mumctl server add [--password <password>] [--port <port>] [--username <username>] [<name>] <host> ::
+    Add a saved server configuration.
+
+mumctl server config <server> <name> <value> ::
+    Configure a variable in a saved server configuration.
+
+mumctl server list ::
+    List all saved servers and how many are connected to them.
+
+mumctl server remove <name> ::
+    Remove a saved server.
+
+mumctl server rename <old name> <new name> ::
+    Rename a saved server.
+
+mumctl status ::
+    Show the currently conneced channel and server.
+
+mumctl user <name> mute <true|false|toggle> ::
+    Mute someone else locally.
+
+mumctl volume set <volume> ::
+    Set the outgoing volume level.
+    1.0 is the default.
+
+mumctl volume <user> set <volume> ::
+    Set the volume of another user's incoming audio.
+    1.0 is the default.
+
+Authors
+-------
+
+Gustav Sörnäs and Eskil Queseth.
+
+Reporting bugs
+--------------
+
+Please report bugs to the Github repository at https://github.com/sornas/mum/
+or by e-mail to gustav@sornas.net.
+
+See also
+--------
+
+mumd(1), mumdrc(5)

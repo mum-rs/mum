@@ -1,0 +1,159 @@
+'\" t
+.\"     Title: mumd
+.\"    Author: [see the "AUTHOR(S)" section]
+.\" Generator: Asciidoctor 2.0.12
+.\"      Date: 2020-12-25
+.\"    Manual: \ \&
+.\"    Source: \ \&
+.\"  Language: English
+.\"
+.TH "MUMCTL" "1" "2020-12-25" "\ \&" "\ \&"
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.ss \n[.ss] 0
+.nh
+.ad l
+.de URL
+\fI\\$2\fP <\\$1>\\$3
+..
+.als MTO URL
+.if \n[.g] \{\
+.  mso www.tmac
+.  am URL
+.    ad l
+.  .
+.  am MTO
+.    ad l
+.  .
+.  LINKSTYLE blue R < >
+.\}
+.SH "NAME"
+mumctl \- mumd(1) controller
+.SH "SYNOPSIS"
+.sp
+mumctl <subcommand> [<args>]
+.SH "DESCRIPTION"
+.sp
+mumctl is a CLI controller for mumd(1), a client daemon for Mumble, a free and
+open source voice chat system.
+.SH "OPTIONS"
+.sp
+\-h, \-\-help
+.RS 4
+Prints help information.
+.RE
+.sp
+\-\-version
+.RS 4
+Prints version information.
+.RE
+.sp
+Subcommands contain additional options.
+.SH "SUBCOMMANDS"
+.sp
+mumctl channel connect <name>
+.RS 4
+Connect to another channel.
+.RE
+.sp
+mumctl channel list
+.RS 4
+List all channels in the connected server.
+.RE
+.sp
+mumctl completions [\-\-bash|\-\-fish|\-\-zsh]
+.RS 4
+Generate a completion file for the specified shell.
+.RE
+.sp
+mumctl config <name> <value>
+.RS 4
+Set a configuration value in the mumd(1) config\-file.
+.RE
+.sp
+mumctl config\-reload
+.RS 4
+Force a reload of the configuration file (e.g. after editing it externally.
+.RE
+.sp
+mumctl connect [\-p|\-\-port <port>] <host> [username]
+.RS 4
+Connect to a server on the specified port. The host may be either the name
+of a saved server or an IP or a URL (in which case username needs to be passed
+as well).
+If omitted, the port defaults to 64738.
+.RE
+.sp
+mumctl deafen <true|false|toggle>
+.RS 4
+Deafen/undeafen yourself.
+.RE
+.sp
+mumctl disconnect
+.RS 4
+Disconnect from the currently connected server.
+.RE
+.sp
+mumctl help
+.RS 4
+Show a help message.
+.RE
+.sp
+mumctl server add [\-\-password <password>] [\-\-port <port>] [\-\-username <username>] [<name>] <host>
+.RS 4
+Add a saved server configuration.
+.RE
+.sp
+mumctl server config <server> <name> <value>
+.RS 4
+Configure a variable in a saved server configuration.
+.RE
+.sp
+mumctl server list
+.RS 4
+List all saved servers and how many are connected to them.
+.RE
+.sp
+mumctl server remove <name>
+.RS 4
+Remove a saved server.
+.RE
+.sp
+mumctl server rename <old name> <new name>
+.RS 4
+Rename a saved server.
+.RE
+.sp
+mumctl status
+.RS 4
+Show the currently conneced channel and server.
+.RE
+.sp
+mumctl user <name> mute <true|false|toggle>
+.RS 4
+Mute someone else locally.
+.RE
+.sp
+mumctl volume set <volume>
+.RS 4
+Set the outgoing volume level.
+1.0 is the default.
+.RE
+.sp
+mumctl volume <user> set <volume>
+.RS 4
+Set the volume of another user\(cqs incoming audio.
+1.0 is the default.
+.RE
+.SH "AUTHORS"
+.sp
+Gustav Sörnäs and Eskil Queseth.
+.SH "REPORTING BUGS"
+.sp
+Please report bugs to the Github repository at \c
+.URL "https://github.com/sornas/mum/" ""
+or by e\-mail to \c
+.MTO "gustav\(atsornas.net" "" "."
+.SH "SEE ALSO"
+.sp
+mumd(1), mumdrc(5)

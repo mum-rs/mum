@@ -55,6 +55,16 @@ $ cd ../mumctl
 $ cargo build --release
 #+END_SRC
 
+*** man-pages
+
+Man-pages for mumd, mumctl and mumdrc (the configuration file) are included as
+both asciidoc txt-files and already formatted groff-files. They are generated
+with
+
+#+BEGIN_SRC
+$ asciidoctor -b manpage *.txt
+#+END_SRC
+
 ** Usage
 This describes how to connect to a server and join different channels.
 See mumctl --help or documentation/*.txt for more information.
