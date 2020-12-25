@@ -222,7 +222,7 @@ async fn listen(
                 }
                 ControlPacket::ServerSync(msg) => {
                     info!("Logged in");
-                    if let Some(mut sender) = crypt_state_sender.borrow_mut().take() {
+                    if let Some(sender) = crypt_state_sender.borrow_mut().take() {
                         let _ = sender
                             .send(
                                 crypt_state
