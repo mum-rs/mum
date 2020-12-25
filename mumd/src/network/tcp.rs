@@ -19,7 +19,6 @@ use tokio::sync::{mpsc, oneshot, watch};
 use tokio::time::{self, Duration};
 use tokio_native_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};
-// use tokio_util::codec::decoder::Decoder;
 
 type TcpSender = SplitSink<
     Framed<TlsStream<TcpStream>, ControlCodec<Serverbound, Clientbound>>,
@@ -56,15 +55,6 @@ pub async fn handle(
                 }
             }
             return;
-            // match connection_info_receiver.changed().await {
-            //     None => {
-            //         return;
-            //     }
-            //     Some(None) => {}
-            //     Some(Some(connection_info)) => {
-            //         break connection_info;
-            //     }
-            // }
         };
         let (mut sink, stream) = connect(
             connection_info.socket_addr,
@@ -171,9 +161,6 @@ async fn send_packets(
             sink.borrow_mut().send(packet).await.unwrap();
         },
         || async {
-            //clears queue of remaining packets
-            // while packet_receiver.borrow_mut().try_recv().is_ok() {}
-
             sink.borrow_mut().close().await.unwrap();
         },
         phase_watcher,
@@ -336,10 +323,6 @@ async fn run_until_disconnection<T, F, G, H>(
                 break;
             }
         }
-        // while !matches!(
-        //     phase_watcher.recv().await.unwrap(),
-        //     StatePhase::Disconnected
-        // ) {}
         tx.send(true).unwrap();
     };
 

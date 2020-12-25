@@ -36,15 +36,6 @@ pub async fn handle(
                 }
             }
             return;
-            // match connection_info_receiver.recv().await {
-            //     None => {
-            //         return;
-            //     }
-            //     Some(None) => {}
-            //     Some(Some(connection_info)) => {
-            //         break connection_info;
-            //     }
-            // }
         };
         let (mut sink, source) = connect(&mut crypt_state_receiver).await;
 
@@ -126,10 +117,6 @@ async fn listen(
                 break;
             }
         }
-        // while !matches!(
-        //     phase_watcher.recv().await.unwrap(),
-        //     StatePhase::Disconnected
-        // ) {}
         tx.send(true).unwrap();
     };
 
@@ -221,10 +208,6 @@ async fn send_voice(
                 break;
             }
         }
-        // while !matches!(
-        //     phase_watcher.recv().await.unwrap(),
-        //     StatePhase::Disconnected
-        // ) {}
         tx.send(true).unwrap();
     };
 
@@ -279,11 +262,9 @@ pub async fn handle_pings(
         Box<dyn FnOnce(PongPacket)>,
     )>,
 ) {
-    let udp_socket = Arc::new(UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
+    let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
         .await
-        .expect("Failed to bind UDP socket"));
-
-    // let (mut receiver, mut sender) = udp_socket.split();
+        .expect("Failed to bind UDP socket");
 
     let pending = Rc::new(Mutex::new(HashMap::new()));
 
