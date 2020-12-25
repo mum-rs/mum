@@ -17,8 +17,9 @@ use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio::time::{self, Duration};
-use tokio_tls::{TlsConnector, TlsStream};
+use tokio_native_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};
+// use tokio_util::codec::decoder::Decoder;
 
 type TcpSender = SplitSink<
     Framed<TlsStream<TcpStream>, ControlCodec<Serverbound, Clientbound>>,
@@ -48,16 +49,22 @@ pub async fn handle(
     mut tcp_event_register_receiver: mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
 ) {
     loop {
-        let connection_info = loop {
-            match connection_info_receiver.recv().await {
-                None => {
-                    return;
-                }
-                Some(None) => {}
-                Some(Some(connection_info)) => {
-                    break connection_info;
+        let connection_info = 'data: loop {
+            while let Ok(()) = connection_info_receiver.changed().await {
+                if let Some(data) = connection_info_receiver.borrow().clone() {
+                    break 'data data;
                 }
             }
+            return;
+            // match connection_info_receiver.changed().await {
+            //     None => {
+            //         return;
+            //     }
+            //     Some(None) => {}
+            //     Some(Some(connection_info)) => {
+            //         break connection_info;
+            //     }
+            // }
         };
         let (mut sink, stream) = connect(
             connection_info.socket_addr,
@@ -165,7 +172,7 @@ async fn send_packets(
         },
         || async {
             //clears queue of remaining packets
-            while packet_receiver.borrow_mut().try_recv().is_ok() {}
+            // while packet_receiver.borrow_mut().try_recv().is_ok() {}
 
             sink.borrow_mut().close().await.unwrap();
         },
@@ -323,10 +330,16 @@ async fn run_until_disconnection<T, F, G, H>(
 {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
-        while !matches!(
-            phase_watcher.recv().await.unwrap(),
-            StatePhase::Disconnected
-        ) {}
+        loop {
+            phase_watcher.changed().await.unwrap();
+            if matches!(*phase_watcher.borrow(), StatePhase::Disconnected) {
+                break;
+            }
+        }
+        // while !matches!(
+        //     phase_watcher.recv().await.unwrap(),
+        //     StatePhase::Disconnected
+        // ) {}
         tx.send(true).unwrap();
     };
 

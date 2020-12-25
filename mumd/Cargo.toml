@@ -17,7 +17,7 @@ notifications = ["libnotify"]
 mumlib = { path = "../mumlib" }
 
 argparse = "0.2"
-bytes = "0.5"
+bytes = "1.0"
 cpal = { git = "https://github.com/RustAudio/cpal" }
 dasp_interpolate = { version = "0.11", features = ["linear"] }
 dasp_signal = "0.11"
@@ -26,14 +26,14 @@ futures-util = "0.3"
 hound = "3.4"
 ipc-channel = "0.14"
 log = "0.4"
-mumble-protocol = "0.3.1"
+mumble-protocol = { path="../../rust-mumble-protocol" }
 native-tls = "0.2"
 openssl = { version = "0.10" }
 opus = "0.2"
 serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "0.2", features = ["blocking", "macros", "rt-core", "sync", "tcp", "time"] }
-tokio-tls = "0.3"
-tokio-util = { version = "0.3", features = ["codec", "udp"] }
+tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread", "sync", "net", "time"] }
+tokio-native-tls = "0.3"
+tokio-util = { version = "0.6", features = ["codec", "net"] }
 
 libnotify = { version = "1.0", optional = true }
 

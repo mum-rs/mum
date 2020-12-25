@@ -321,7 +321,7 @@ impl State {
                 self.server = Some(server);
                 self.phase_watcher
                     .0
-                    .broadcast(StatePhase::Connecting)
+                    .send(StatePhase::Connecting)
                     .unwrap();
 
                 let socket_addr = match (host.as_ref(), port)
@@ -335,7 +335,7 @@ impl State {
                     }
                 };
                 self.connection_info_sender
-                    .broadcast(Some(ConnectionInfo::new(
+                    .send(Some(ConnectionInfo::new(
                         socket_addr,
                         host,
                         accept_invalid_cert,
@@ -366,7 +366,7 @@ impl State {
 
                 self.phase_watcher
                     .0
-                    .broadcast(StatePhase::Disconnected)
+                    .send(StatePhase::Disconnected)
                     .unwrap();
                 self.audio.play_effect(NotificationEvents::ServerDisconnect);
                 now!(Ok(None))
@@ -581,7 +581,7 @@ impl State {
     pub fn initialized(&self) {
         self.phase_watcher
             .0
-            .broadcast(StatePhase::Connected)
+            .send(StatePhase::Connected)
             .unwrap();
         self.audio.play_effect(NotificationEvents::ServerConnect);
     }
