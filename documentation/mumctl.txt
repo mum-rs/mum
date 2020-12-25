@@ -14,7 +14,7 @@ mumctl <subcommand> [<args>]
 Description
 -----------
 
-mumd is a CLI controller for mumd(1), a client daemon for Mumble, a free and
+mumctl is a CLI controller for mumd(1), a client daemon for Mumble, a free and
 open source voice chat system.
 
 Options
