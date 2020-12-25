@@ -241,6 +241,7 @@ impl Audio {
                 let samples = signal
                     .from_hz_to_hz(interp, spec.sample_rate as f64, SAMPLE_RATE as f64)
                     .until_exhausted()
+                    // if the source audio is stereo and is being played as mono, discard the right audio
                     .flat_map(|e| if output_config.channels == 1 { vec![e[0]] } else { e.to_vec() })
                     .collect::<Vec<f32>>();
                 (*event, samples)
