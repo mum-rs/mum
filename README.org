@@ -2,7 +2,7 @@
 Mumble daemon with controller (think mpd(1)/mpc(1)) written in Rust.
 
 ** Building
-`mum` is [[https://aur.archlinux.org/packages/mum-git/][available on the AUR]].
+mum is [[https://aur.archlinux.org/packages/mum-git/][available on the AUR]].
 We aim to publish tagged versions to cargo, as well as binaries on Github.
 
 *** Requirements
@@ -10,14 +10,14 @@ These are for Arch Linux. You might need other packages on other distributions
 and operating systems, or they might be named something different.
 
 - rust (stable)
-- `alsa-lib`
-- `openssl`
-- `opus`
-- `libnotify` (optional)
+- alsa-lib
+- openssl
+- opus
+- libnotify (optional)
 
 Windows is not currently supported but could be in the future. macOS should work.
 Other operating systems haven't been tested. The limiting factor on Windows
-is IPC communication which is (currently) done via the crate `ipc-channel`.
+is IPC communication which is (currently) done via the crate ipc-channel.
 
 *** Installation
 1. Build the binaries
@@ -31,21 +31,18 @@ $ ln -s $PWD/target/release/mumd $HOME/.local/bin/
 #+END_SRC
 
 *** Optional features
-`mum` contains optional features that are enabled by default. To compile without
-them, build with `--no-default-features`. Features can then be enabled with
-`--features "FEATURES"`.
+mum contains optional features that are enabled by default. To compile without
+them, build with --no-default-features. Features can then be enabled with
+--features "FEATURES".
 
 The following features can be specified:
 
-| Name               | Needed for    | Additional crates |
-|--------------------+---------------+-------------------|
-| mumd/notifications | Notifications |                20 |
+| Name               | Needed for    |
+|--------------------+---------------+
+| mumd/notifications | Notifications |
 
-Note that the "additional crates" isn't continually updated and might change.
-Features might also have overlapping dependencies.
-
-Awaiting `-Z package-features`, changing which features are compiled requires
-you to compile `mumd/` separately by entering its directory and specifying
+Awaiting -Z package-features, changing which features are compiled requires
+you to compile mumd/ separately by entering its directory and specifying
 its features.
 
 To summarize with an example, the following compiles with only the
@@ -60,19 +57,23 @@ $ cargo build --release
 
 ** Usage
 This describes how to connect to a server and join different channels.
-See usage.org or `$ mumctl --help` for more information.
+See mumctl --help or documentation/*.txt for more information.
 
 *** mumd
-Start the daemon with `$ mumd`. Currently it attaches to the terminal, so if you
-want to run it in the background you can detach it with e.g. (zsh): `$ mumd
-&>/dev/null &|`. Somewhere down the line we're going to support `$ mumd
---daemonize`.
-
-*** mumctl
-Interfacing with the daemon is done through `mumctl`. Some examples:
+Start the daemon with mumd. Currently it attaches to the terminal, so if you
+want to run it in the background you can detach it with e.g. (zsh): 
 
 #+BEGIN_SRC sh
-$ mumctl server connect 127.0.0.1 spock # connect to 127.0.0.1 with username 'spock'
+$ mumd &>/dev/null &|
+#+END_SRC
+
+Somewhere down the line we're aiming to have a --daemonize.
+
+*** mumctl
+Interfacing with the daemon is done through mumctl. Some examples:
+
+#+BEGIN_SRC sh
+$ mumctl connect 127.0.0.1 spock # connect to 127.0.0.1 with username 'spock'
 $ mumctl channel list
 ServerRoot
   -user1
