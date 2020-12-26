@@ -3,10 +3,12 @@ name = "mumd"
 version = "0.3.0"
 authors = ["Gustav Sörnäs <gustav@sornas.net>",
            "Eskil Queseth <eskilq@kth.se>"]
-license = "MIT"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = """
+Mumble client daemon.
+"""
+repository = "https://github.com/sornas/mum"
+license = "MIT"
 
 [features]
 default = ["notifications"]
@@ -14,7 +16,7 @@ default = ["notifications"]
 notifications = ["libnotify"]
 
 [dependencies]
-mumlib = { path = "../mumlib" }
+mumlib = { version = "0.3", path = "../mumlib" }
 
 argparse = "0.2"
 bytes = "0.5"
