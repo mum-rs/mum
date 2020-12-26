@@ -15,10 +15,8 @@ a PR.
 Unreleased
 ----------
 
-Added
-~~~~~
-
-* Published to crates.io. You can now install with +cargo install {mumctl,mumd}+!
+// Added
+// ~~~~~
 
 // Changed
 // ~~~~~~~
@@ -40,6 +38,8 @@ Fixed
 
 Added
 ~~~~~
+
+ * Published to crates.io. You can now install with +cargo install {mumctl,mumd}+!
 
  * Support for macOS.
 
