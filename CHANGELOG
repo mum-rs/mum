@@ -15,8 +15,10 @@ a PR.
 Unreleased
 ----------
 
-// Added
-// ~~~~~
+Added
+~~~~~
+
+* Published to crates.io. You can now install with +cargo install {mumctl,mumd}+!
 
 // Changed
 // ~~~~~~~
