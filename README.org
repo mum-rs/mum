@@ -2,10 +2,17 @@
 Mumble daemon with controller (think mpd(1)/mpc(1)) written in Rust.
 
 ** Building
-mumd and mumctl are available on crates.io and can be installed with cargo
-install mumd and cargo install mumctl. They are also available
+
+mumd and mumctl are available on crates.io and can be installed with
+
+#+BEGIN_SRC sh
+$ cargo install mumd
+$ cargo install mumctl
+#+END_SRC
+
+They are also available
 [[https://aur.archlinux.org/packages/mum-git/][available on the AUR]]. We also
-publish compiled binaries on Github.
+publish [[https://github.com/sornas/mum/releases][compiled binaries on Github].
 
 *** Requirements
 These are for Arch Linux. You might need other packages on other distributions
