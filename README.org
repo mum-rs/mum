@@ -12,7 +12,7 @@ $ cargo install mumctl
 
 They are also available
 [[https://aur.archlinux.org/packages/mum-git/][available on the AUR]]. We also
-publish [[https://github.com/sornas/mum/releases][compiled binaries on Github].
+publish [[https://github.com/sornas/mum/releases/][compiled binaries on Github]].
 
 *** Requirements
 These are for Arch Linux. You might need other packages on other distributions
