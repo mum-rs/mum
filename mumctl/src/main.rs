@@ -202,11 +202,7 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
     if let Some(matches) = matches.subcommand_matches("connect") {
         match_server_connect(matches, &config)?;
     } else if let Some(_) = matches.subcommand_matches("disconnect") {
-        match send_command(Command::ServerDisconnect) {
-            Ok(v) => error_if_err!(v),
-            Err(e) => error!("{}", e),
-        }
-        // error_if_err!(send_command(Command::ServerDisconnect));
+        error_if_err!(send_command(Command::ServerDisconnect)?);
     } else if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("config") {
             match_server_config(matches, config);
@@ -276,13 +272,13 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
         match name {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::InputVolumeSet(volume))?.unwrap(); //TODO error_if_err
+                    error_if_err!(send_command(Command::InputVolumeSet(volume))?);
                     config.audio.input_volume = Some(volume);
                 }
             }
             "audio.output_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::OutputVolumeSet(volume))?.unwrap(); //TODO error_if_err
+                    error_if_err!(send_command(Command::OutputVolumeSet(volume))?);
                     config.audio.output_volume = Some(volume);
                 }
             }
@@ -291,7 +287,7 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
             }
         }
     } else if matches.subcommand_matches("config-reload").is_some() {
-        send_command(Command::ConfigReload)?.unwrap(); //TODO error_if_err
+        error_if_err!(send_command(Command::ConfigReload)?);
     } else if let Some(matches) = matches.subcommand_matches("completions") {
         app.gen_completions_to(
             "mumctl",
