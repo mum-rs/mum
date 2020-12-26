@@ -1,14 +1,15 @@
-use clap::{App, AppSettings, Arg, Shell, SubCommand};
+use clap::{App, AppSettings, Arg, Shell, SubCommand, ArgMatches};
 use colored::Colorize;
 use ipc_channel::ipc::{self, IpcSender};
 use log::{error, warn};
 use log::{Record, Level, Metadata, LevelFilter};
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config;
-use mumlib::config::ServerConfig;
+use mumlib::config::{ServerConfig, Config};
 use mumlib::state::Channel;
 use std::io::BufRead;
-use std::{fs, io, iter};
+use std::{fs, io, iter, fmt};
+use std::fmt::{Display, Formatter};
 
 const INDENTATION: &str = "  ";
 
@@ -192,24 +193,51 @@ fn main() {
 
     let matches = app.clone().get_matches();
 
+    if let Err(e) = process_matches(matches, &mut config, &mut app) {
+        error!("{}", e);
+    }
+
+    if !config::cfg_exists() {
+        println!(
+            "Config file not found. Create one in {}? [Y/n]",
+            config::get_creatable_cfg_path()
+        );
+        let stdin = std::io::stdin();
+        let response = stdin.lock().lines().next();
+        match response.map(|e| e.map(|e| &e == "Y")) {
+            Some(Ok(true)) => {
+                config.write_default_cfg(true).unwrap();
+            }
+            _ => {}
+        }
+    } else {
+        config.write_default_cfg(false).unwrap();
+    }
+}
+
+fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> Result<(), Error> {
     if let Some(matches) = matches.subcommand_matches("connect") {
-        match_server_connect(matches, &config);
+        match_server_connect(matches, &config)?;
     } else if let Some(_) = matches.subcommand_matches("disconnect") {
-        error_if_err!(send_command(Command::ServerDisconnect));
+        match send_command(Command::ServerDisconnect) {
+            Ok(v) => error_if_err!(v),
+            Err(e) => error!("{}", e),
+        }
+        // error_if_err!(send_command(Command::ServerDisconnect));
     } else if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("config") {
-            match_server_config(matches, &mut config);
+            match_server_config(matches, config);
         } else if let Some(matches) = matches.subcommand_matches("rename") {
-            match_server_rename(matches, &mut config);
+            match_server_rename(matches, config);
         } else if let Some(matches) = matches.subcommand_matches("remove") {
-            match_server_remove(matches, &mut config);
+            match_server_remove(matches, config);
         } else if let Some(matches) = matches.subcommand_matches("add") {
-            match_server_add(matches, &mut config);
+            match_server_add(matches, config);
         } else if let Some(_) = matches.subcommand_matches("list") {
             if config.servers.len() == 0 {
                 warn!("No servers in config");
             }
-            for (server, response) in config
+            let query = config
                 .servers
                 .iter()
                 .map(|e| {
@@ -217,11 +245,12 @@ fn main() {
                         host: e.host.clone(),
                         port: e.port.unwrap_or(mumlib::DEFAULT_PORT),
                     });
-                    (e, response)
+                    response.map(|f| (e, f))
                 })
+                .collect::<Result<Vec<_>, _>>()?;
+            for (server, response) in query.into_iter()
                 .filter(|e| e.1.is_ok())
-                .map(|e| (e.0, e.1.unwrap().unwrap()))
-            {
+                .map(|e| (e.0, e.1.unwrap().unwrap())) {
                 if let CommandResponse::ServerStatus {
                     users, max_users, ..
                 } = response
@@ -234,7 +263,7 @@ fn main() {
         }
     } else if let Some(matches) = matches.subcommand_matches("channel") {
         if let Some(_matches) = matches.subcommand_matches("list") {
-            match send_command(Command::ChannelList) {
+            match send_command(Command::ChannelList)? {
                 Ok(res) => match res {
                     Some(CommandResponse::ChannelList { channels }) => {
                         print_channel(&channels, 0);
@@ -249,7 +278,7 @@ fn main() {
             }));
         }
     } else if let Some(_) = matches.subcommand_matches("status") {
-        match send_command(Command::Status) {
+        match send_command(Command::Status)? {
             Ok(res) => match res {
                 Some(CommandResponse::Status { server_state }) => {
                     parse_status(&server_state);
@@ -264,13 +293,13 @@ fn main() {
         match name {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::InputVolumeSet(volume)).unwrap();
+                    send_command(Command::InputVolumeSet(volume))?.unwrap();
                     config.audio.input_volume = Some(volume);
                 }
             }
             "audio.output_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::OutputVolumeSet(volume)).unwrap();
+                    send_command(Command::OutputVolumeSet(volume))?.unwrap();
                     config.audio.output_volume = Some(volume);
                 }
             }
@@ -279,7 +308,7 @@ fn main() {
             }
         }
     } else if matches.subcommand_matches("config-reload").is_some() {
-        send_command(Command::ConfigReload).unwrap();
+        send_command(Command::ConfigReload)?.unwrap();
     } else if let Some(matches) = matches.subcommand_matches("completions") {
         app.gen_completions_to(
             "mumctl",
@@ -290,7 +319,6 @@ fn main() {
             },
             &mut io::stdout(),
         );
-        return;
     } else if let Some(matches) = matches.subcommand_matches("volume") {
         if let Some(matches) = matches.subcommand_matches("set") {
             let user = matches.value_of("user").unwrap();
@@ -316,7 +344,7 @@ fn main() {
             } else {
                 unreachable!()
             });
-        match send_command(command) {
+        match send_command(command)? {
             Ok(Some(CommandResponse::MuteStatus { is_muted })) => println!("{}", if is_muted {
                 "Muted"
             } else {
@@ -336,7 +364,7 @@ fn main() {
             } else {
                 unreachable!()
             });
-        match send_command(command) {
+        match send_command(command)? {
             Ok(Some(CommandResponse::DeafenStatus { is_deafened })) => println!("{}", if is_deafened {
                 "Deafened"
             } else {
@@ -363,25 +391,10 @@ fn main() {
         }
     };
 
-    if !config::cfg_exists() {
-        println!(
-            "Config file not found. Create one in {}? [Y/n]",
-            config::get_creatable_cfg_path()
-        );
-        let stdin = std::io::stdin();
-        let response = stdin.lock().lines().next();
-        match response.map(|e| e.map(|e| &e == "Y")) {
-            Some(Ok(true)) => {
-                config.write_default_cfg(true).unwrap();
-            }
-            _ => {}
-        }
-    } else {
-        config.write_default_cfg(false).unwrap();
-    }
+    Ok(())
 }
 
-fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config::Config) {
+fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config::Config) -> Result<(), Error> {
     let host = matches.value_of("host").unwrap();
     let username = matches.value_of("username");
     let port = match matches.value_of("port").map(|e| e.parse()) {
@@ -401,14 +414,14 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config:
                     .or(username);
                 if username.is_none() {
                     error!("no username specified");
-                    return;
+                    return Ok(()); //TODO? return as error
                 }
                 (host, port, username.unwrap())
             }
             None => {
                 if username.is_none() {
                     error!("no username specified");
-                    return;
+                    return Ok(()); //TODO? return as error
                 }
                 (host, port, username.unwrap())
             }
@@ -418,7 +431,7 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config:
             port,
             username: username.to_string(),
             accept_invalid_cert: true, //TODO
-        })
+        })?
         .map(|e| (e, host));
         match response {
             Ok((e, host)) => {
@@ -434,6 +447,8 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config:
             }
         };
     }
+
+    Ok(())
 }
 
 fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::config::Config) {
@@ -602,17 +617,17 @@ fn parse_status(server_state: &mumlib::state::Server) {
     }
 }
 
-fn send_command(command: Command) -> mumlib::error::Result<Option<CommandResponse>> {
+fn send_command(command: Command) -> Result<mumlib::error::Result<Option<CommandResponse>>, crate::Error> {
     let (tx_client, rx_client) =
         ipc::channel::<mumlib::error::Result<Option<CommandResponse>>>().unwrap();
 
     let server_name = fs::read_to_string(mumlib::SOCKET_PATH).unwrap(); //TODO don't panic
 
-    let tx0 = IpcSender::connect(server_name).unwrap();
+    let tx0 = IpcSender::connect(server_name).map_err(|_| Error::ConnectionError)?;
 
     tx0.send((command, tx_client)).unwrap();
 
-    rx_client.recv().unwrap()
+    Ok(rx_client.recv().unwrap())
 }
 
 fn print_channel(channel: &Channel, depth: usize) {
@@ -637,5 +652,16 @@ fn print_channel(channel: &Channel, depth: usize) {
     }
     for child in &channel.children {
         print_channel(child, depth + 1);
+    }
+}
+
+#[derive(Debug)]
+enum Error {
+    ConnectionError
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "Unable to connect to mumd. Is mumd running?")
     }
 }
