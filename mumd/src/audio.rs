@@ -102,7 +102,7 @@ impl Audio {
                     None
                 }
             })
-            .unwrap()
+            .unwrap() //TODO handle panic
             .with_sample_rate(sample_rate);
         let output_supported_sample_format = output_supported_config.sample_format();
         let output_config: StreamConfig = output_supported_config.into();
@@ -120,7 +120,7 @@ impl Audio {
                     None
                 }
             })
-            .unwrap()
+            .unwrap() //TODO handle panic
             .with_sample_rate(sample_rate);
         let input_supported_sample_format = input_supported_config.sample_format();
         let input_config: StreamConfig = input_supported_config.into();
@@ -164,7 +164,7 @@ impl Audio {
                 err_fn,
             ),
         }
-        .unwrap();
+        .unwrap(); //TODO handle panic
 
         let (sample_sender, sample_receiver) = futures_channel::mpsc::channel(1_000_000);
 
@@ -199,7 +199,7 @@ impl Audio {
                 err_fn,
             ),
         }
-        .unwrap();
+        .unwrap(); //TODO handle panic
 
         let opus_stream = OpusEncoder::new(
             4,
@@ -217,7 +217,7 @@ impl Audio {
                         position_info: None,
                     });
 
-        output_stream.play().unwrap();
+        output_stream.play().unwrap(); //TODO handle panic?
 
         let mut res = Self {
             output_config,
@@ -268,7 +268,7 @@ impl Audio {
                 let iter: Box<dyn Iterator<Item = f32>> = match spec.channels {
                     1 => Box::new(samples.into_iter().flat_map(|e| vec![e, e])),
                     2 => Box::new(samples.into_iter()),
-                    _ => unimplemented!() // TODO handle gracefully (this might not even happen)
+                    _ => unimplemented!() // TODO handle panic (if speaker is surround speaker)
                 };
                 let mut signal = signal::from_interleaved_samples_iter::<_, [f32; 2]>(iter);
                 let interp = Linear::new(Signal::next(&mut signal), Signal::next(&mut signal));
@@ -401,4 +401,3 @@ fn get_sfx(file: &str) -> Cow<'static, [u8]> {
 fn get_default_sfx() -> Cow<'static, [u8]> {
     Cow::from(include_bytes!("fallback_sfx.wav").as_ref())
 }
-

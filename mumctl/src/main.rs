@@ -191,10 +191,10 @@ fn main() {
         let stdin = std::io::stdin();
         let response = stdin.lock().lines().next();
         if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
-            config.write_default_cfg(true).unwrap();
+            config.write_default_cfg(true).unwrap(); //TODO handle panic
         }
     } else {
-        config.write_default_cfg(false).unwrap();
+        config.write_default_cfg(false).unwrap(); //TODO handle panic
     }
 }
 
@@ -276,13 +276,13 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
         match name {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::InputVolumeSet(volume))?.unwrap();
+                    send_command(Command::InputVolumeSet(volume))?.unwrap(); //TODO error_if_err
                     config.audio.input_volume = Some(volume);
                 }
             }
             "audio.output_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::OutputVolumeSet(volume))?.unwrap();
+                    send_command(Command::OutputVolumeSet(volume))?.unwrap(); //TODO error_if_err
                     config.audio.output_volume = Some(volume);
                 }
             }
@@ -291,7 +291,7 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
             }
         }
     } else if matches.subcommand_matches("config-reload").is_some() {
-        send_command(Command::ConfigReload)?.unwrap();
+        send_command(Command::ConfigReload)?.unwrap(); //TODO error_if_err
     } else if let Some(matches) = matches.subcommand_matches("completions") {
         app.gen_completions_to(
             "mumctl",

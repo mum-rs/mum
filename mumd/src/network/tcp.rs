@@ -177,7 +177,7 @@ async fn authenticate(
         msg.set_password(password);
     }
     msg.set_opus(true);
-    sink.send(msg.into()).await.unwrap();
+    sink.send(msg.into()).await.unwrap(); //TODO handle panic
 }
 
 async fn send_pings(
@@ -189,7 +189,7 @@ async fn send_pings(
         interval.tick().await;
         trace!("Sending TCP ping");
         let msg = msgs::Ping::new();
-        packet_sender.send(msg.into()).unwrap();
+        packet_sender.send(msg.into()).unwrap(); //TODO handle panic
     }
 }
 
@@ -198,8 +198,8 @@ async fn send_packets(
     packet_receiver: &mut mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
 ) {
     loop {
-        let packet = packet_receiver.recv().await.unwrap();
-        sink.send(packet).await.unwrap();
+        let packet = packet_receiver.recv().await.unwrap(); //TODO handle panic
+        sink.send(packet).await.unwrap(); //TODO handle panic
     }
 }
 

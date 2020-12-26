@@ -1,6 +1,6 @@
 pub fn init() {
     #[cfg(feature = "notifications")]
-    libnotify::init("mumd").unwrap();
+    libnotify::init("mumd").unwrap(); //TODO handle panic (don't send notifications)
 }
 
 #[cfg(feature = "notifications")]

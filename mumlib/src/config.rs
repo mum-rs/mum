@@ -41,7 +41,7 @@ impl Config {
 
         fs::write(
             path,
-            toml::to_string(&TOMLConfig::from(self.clone())).unwrap(),
+            toml::to_string(&TOMLConfig::from(self.clone())).unwrap(), //TODO handle panic
         )
     }
 }
@@ -162,7 +162,7 @@ impl From<Config> for TOMLConfig {
                 config
                     .servers
                     .into_iter()
-                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
+                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap()) //TODO handle panic
                     .collect(),
             ),
         }
@@ -175,7 +175,7 @@ pub fn read_default_cfg() -> Config {
             Ok(f) => f,
             Err(_) => return Config::default(),
         })
-        .expect("invalid TOML in config file"), //TODO
+        .expect("invalid TOML in config file"), //TODO handle panic
     )
-    .expect("invalid config in TOML") //TODO
+    .expect("invalid config in TOML") //TODO handle panic
 }
