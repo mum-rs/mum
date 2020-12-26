@@ -7,3 +7,6 @@ members = [
     "mumctl",
     "mumlib"
 ]
+
+[profile.release]
+lto = "thin"
