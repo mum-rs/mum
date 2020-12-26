@@ -49,7 +49,7 @@ pub async fn handle(
 ) {
     loop {
         let connection_info = 'data: loop {
-            while let Ok(()) = connection_info_receiver.changed().await {
+            while connection_info_receiver.changed().await.is_ok() {
                 if let Some(data) = connection_info_receiver.borrow().clone() {
                     break 'data data;
                 }
