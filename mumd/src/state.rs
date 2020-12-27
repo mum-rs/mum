@@ -90,8 +90,11 @@ impl State {
     pub fn handle_command(&mut self, command: Command) -> ExecutionContext {
         match command {
             Command::ChannelJoin { channel_identifier } => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
+                match *self.phase_receiver().borrow() {
+                    StatePhase::Disconnected | StatePhase::Connecting => {
+                        return now!(Err(Error::DisconnectedError));
+                    }
+                    _ => {}
                 }
 
                 let channels = self.server().unwrap().channels();
@@ -140,9 +143,13 @@ impl State {
                 now!(Ok(None))
             }
             Command::ChannelList => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
+                match *self.phase_receiver().borrow() {
+                    StatePhase::Disconnected | StatePhase::Connecting => {
+                        return now!(Err(Error::DisconnectedError));
+                    }
+                    _ => {}
                 }
+
                 let list = channel::into_channel(
                     self.server.as_ref().unwrap().channels(),
                     self.server.as_ref().unwrap().users(),
@@ -154,8 +161,11 @@ impl State {
                 now!(Ok(None))
             }
             Command::DeafenSelf(toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
+                match *self.phase_receiver().borrow() {
+                    StatePhase::Disconnected | StatePhase::Connecting => {
+                        return now!(Err(Error::DisconnectedError));
+                    }
+                    _ => {}
                 }
 
                 let server = self.server().unwrap();
@@ -212,8 +222,11 @@ impl State {
                 now!(Ok(None))
             }
             Command::MuteOther(string, toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
+                match *self.phase_receiver().borrow() {
+                    StatePhase::Disconnected | StatePhase::Connecting => {
+                        return now!(Err(Error::DisconnectedError));
+                    }
+                    _ => {}
                 }
 
                 let id = self
@@ -247,8 +260,11 @@ impl State {
                 return now!(Ok(None));
             }
             Command::MuteSelf(toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
+                match *self.phase_receiver().borrow() {
+                    StatePhase::Disconnected | StatePhase::Connecting => {
+                        return now!(Err(Error::DisconnectedError));
+                    }
+                    _ => {}
                 }
 
                 let server = self.server().unwrap();
@@ -359,8 +375,11 @@ impl State {
                 })
             }
             Command::ServerDisconnect => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
+                match *self.phase_receiver().borrow() {
+                    StatePhase::Disconnected | StatePhase::Connecting => {
+                        return now!(Err(Error::DisconnectedError));
+                    }
+                    _ => {}
                 }
 
                 self.server = None;
@@ -395,20 +414,24 @@ impl State {
             Command::Status => {
                 match *self.phase_receiver().borrow() {
                     StatePhase::Disconnected | StatePhase::Connecting => {
-                        now!(Err(Error::DisconnectedError))
+                        return now!(Err(Error::DisconnectedError));
                     }
-                    _ => {
-                        let state = self.server.as_ref().unwrap().into();
-                        now!(Ok(Some(CommandResponse::Status {
-                            server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
-                        })))
-                    }
+                    _ => {}
                 }
+
+                let state = self.server.as_ref().unwrap().into();
+                now!(Ok(Some(CommandResponse::Status {
+                    server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
+                })))
             }
             Command::UserVolumeSet(string, volume) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
+                match *self.phase_receiver().borrow() {
+                    StatePhase::Disconnected | StatePhase::Connecting => {
+                        return now!(Err(Error::DisconnectedError));
+                    }
+                    _ => {}
                 }
+
                 let user_id = match self
                     .server()
                     .unwrap()
