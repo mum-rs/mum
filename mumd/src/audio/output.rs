@@ -1,4 +1,4 @@
-use crate::audio::VoiceStream;
+use crate::audio::VoiceStreamType;
 
 use cpal::{OutputCallbackInfo, Sample};
 use mumble_protocol::voice::VoicePacketPayload;
@@ -75,7 +75,7 @@ impl SaturatingAdd for u16 {
 
 pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
     effect_sound: Arc<Mutex<VecDeque<f32>>>,
-    user_bufs: Arc<Mutex<HashMap<(VoiceStream, u32), ClientStream>>>,
+    user_bufs: Arc<Mutex<HashMap<(VoiceStreamType, u32), ClientStream>>>,
     output_volume_receiver: watch::Receiver<f32>,
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 ) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {

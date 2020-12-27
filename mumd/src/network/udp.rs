@@ -1,4 +1,4 @@
-use crate::audio::VoiceStream;
+use crate::audio::VoiceStreamType;
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 use log::*;
@@ -169,7 +169,7 @@ async fn listen(
                                 .unwrap()
                                 .audio()
                                 .decode_packet_payload(
-                                    VoiceStream::UDP,
+                                    VoiceStreamType::UDP,
                                     session_id,
                                     payload
                                 );

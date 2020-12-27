@@ -62,7 +62,7 @@ pub enum NotificationEvents {
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Hash)]
-pub enum VoiceStream {
+pub enum VoiceStreamType {
     TCP,
     UDP
 }
@@ -79,7 +79,7 @@ pub struct Audio {
 
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
-    client_streams: Arc<Mutex<HashMap<(VoiceStream, u32), output::ClientStream>>>,
+    client_streams: Arc<Mutex<HashMap<(VoiceStreamType, u32), output::ClientStream>>>,
 
     sounds: HashMap<NotificationEvents, Vec<f32>>,
     play_sounds: Arc<Mutex<VecDeque<f32>>>,
@@ -271,7 +271,7 @@ impl Audio {
 
     pub fn decode_packet_payload(
         &self,
-        voice_stream: VoiceStream,
+        voice_stream: VoiceStreamType,
         session_id: u32,
         payload: VoicePacketPayload
     ) {
@@ -288,7 +288,7 @@ impl Audio {
     }
 
     pub fn add_client(&self, session_id: u32) {
-        for voice_stream in [VoiceStream::TCP, VoiceStream::UDP].iter() {
+        for voice_stream in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
             match self.client_streams.lock().unwrap().entry((*voice_stream, session_id)) {
                 Entry::Occupied(_) => {
                     warn!("Session id {} already exists", session_id);
@@ -304,7 +304,7 @@ impl Audio {
     }
 
     pub fn remove_client(&self, session_id: u32) {
-        for voice_stream in [VoiceStream::TCP, VoiceStream::UDP].iter() {
+        for voice_stream in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
             match self.client_streams.lock().unwrap().entry((*voice_stream, session_id)) {
                 Entry::Occupied(entry) => {
                     entry.remove();
