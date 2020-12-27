@@ -72,7 +72,7 @@ pub struct Audio {
     _output_stream: Stream,
     _input_stream: Stream,
 
-    input_sender: broadcast::Sender<VoicePacket<Serverbound>>,
+    input_receiver: broadcast::Receiver<VoicePacket<Serverbound>>,
     input_volume_sender: watch::Sender<f32>,
 
     output_volume_sender: watch::Sender<f32>,
@@ -180,7 +180,7 @@ impl Audio {
             opus::Application::Voip,
         )
         .unwrap();
-        let (input_sender, _) = broadcast::channel(100);
+        let (input_sender, input_receiver) = broadcast::channel(100);
 
         let (input_volume_sender, input_volume_receiver) = watch::channel::<f32>(input_volume);
 
@@ -189,7 +189,7 @@ impl Audio {
                 &input_config,
                 input::callback::<f32>(
                     input_encoder,
-                    input_sender.clone(),
+                    input_sender,
                     input_config.sample_rate.0,
                     input_volume_receiver,
                     4, // 10 ms
@@ -200,7 +200,7 @@ impl Audio {
                 &input_config,
                 input::callback::<i16>(
                     input_encoder,
-                    input_sender.clone(),
+                    input_sender,
                     input_config.sample_rate.0,
                     input_volume_receiver,
                     4, // 10 ms
@@ -211,7 +211,7 @@ impl Audio {
                 &input_config,
                 input::callback::<u16>(
                     input_encoder,
-                    input_sender.clone(),
+                    input_sender,
                     input_config.sample_rate.0,
                     input_volume_receiver,
                     4, // 10 ms
@@ -260,7 +260,7 @@ impl Audio {
             _output_stream: output_stream,
             _input_stream: input_stream,
             input_volume_sender,
-            input_sender,
+            input_receiver,
             client_streams,
             sounds,
             output_volume_sender,
@@ -320,7 +320,7 @@ impl Audio {
     }
 
     pub fn input_receiver(&self) -> broadcast::Receiver<VoicePacket<Serverbound>> {
-        self.input_sender.subscribe()
+        self.input_receiver.clone()
     }
 
     pub fn clear_clients(&mut self) {
