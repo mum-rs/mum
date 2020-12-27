@@ -14,6 +14,9 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
+use dasp_frame::Frame;
+use dasp_sample::{Sample, SignedSample};
+use dasp_ring_buffer::Fixed;
 
 //TODO? move to mumlib
 pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
@@ -352,5 +355,67 @@ impl Audio {
 
         let l = play_sounds.len();
         play_sounds.extend(samples.iter().skip(l));
+    }
+}
+
+struct NoiseGate<S: Signal> {
+    open: bool,
+    signal: S,
+    buffer: dasp_ring_buffer::Fixed<Vec<S::Frame>>,
+    activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
+    deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
+}
+
+impl<S: Signal> NoiseGate<S> {
+    pub fn new(signal: S, activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float, deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float) -> NoiseGate<S> {
+        Self {
+            open: false,
+            signal,
+            buffer: Fixed::from(vec![<S::Frame as Frame>::EQUILIBRIUM; 4096]),
+            activate_threshold,
+            deactivate_threshold,
+        }
+    }
+}
+
+impl<S: Signal> Signal for NoiseGate<S> {
+    type Frame = S::Frame;
+
+    fn next(&mut self) -> Self::Frame {
+        let frame = self.signal.next();
+        self.buffer.push(frame);
+
+        if self.open && self.buffer
+            .iter()
+            .all(|f| f.to_float_frame()
+                .channels()
+                .all(|s| abs(s - <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM) <= self.deactivate_threshold)) {
+            self.open = false;
+        } else if !self.open && self.buffer
+            .iter()
+            .any(|f| f.to_float_frame()
+                .channels()
+                .any(|s| abs(s - <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM) >= self.activate_threshold)) {
+            self.open = true;
+        }
+
+        if self.open {
+            frame
+        } else {
+            S::Frame::EQUILIBRIUM
+        }
+    }
+
+    fn is_exhausted(&self) -> bool {
+        self.signal.is_exhausted()
+    }
+}
+
+fn abs<S: SignedSample>(sample: S) -> S {
+    let zero = S::EQUILIBRIUM;
+    if sample >= zero {
+        sample
+    } else {
+        -sample
     }
 }
