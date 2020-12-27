@@ -152,8 +152,7 @@ async fn listen(
                     };
                     match packet {
                         VoicePacket::Ping { .. } => {
-                            // Note: A normal application would handle these and only use UDP for voice
-                            //       once it has received one.
+                            //TODO handle tcp/udp
                             continue;
                         }
                         VoicePacket::Audio {

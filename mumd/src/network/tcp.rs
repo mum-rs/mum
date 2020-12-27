@@ -1,3 +1,4 @@
+use crate::audio::VoiceStream;
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 use log::*;
@@ -6,6 +7,7 @@ use futures::{join, pin_mut, select, FutureExt, SinkExt, StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
 use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPacket};
 use mumble_protocol::crypt::ClientCryptState;
+use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::{Clientbound, Serverbound};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -268,6 +270,26 @@ async fn listen(
                         .server_mut()
                         .unwrap()
                         .parse_channel_remove(*msg);
+                }
+                ControlPacket::UDPTunnel(msg) => {
+                    match *msg {
+                        VoicePacket::Ping { .. } => {
+                            //TODO handle tcp/udp
+                        }
+                        VoicePacket::Audio {
+                            session_id,
+                            // seq_num,
+                            payload,
+                            // position_info,
+                            ..
+                        } => {
+                            state
+                                .lock()
+                                .unwrap()
+                                .audio()
+                                .decode_packet(VoiceStream::TCP, session_id, payload);
+                        }
+                    }
                 }
                 packet => {
                     debug!("Received unhandled ControlPacket {:#?}", packet);
