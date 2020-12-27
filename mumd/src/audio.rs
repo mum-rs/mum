@@ -8,12 +8,13 @@ use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
 use dasp_interpolate::linear::Linear;
 use dasp_signal::{self as signal, Signal};
 use log::*;
-use mumble_protocol::voice::VoicePacketPayload;
+use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
+use mumble_protocol::Serverbound;
 use opus::Channels;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{broadcast, watch};
 
 //TODO? move to mumlib
 pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
@@ -71,7 +72,7 @@ pub struct Audio {
     _output_stream: Stream,
     _input_stream: Stream,
 
-    input_channel_receiver: Option<mpsc::Receiver<VoicePacketPayload>>,
+    input_sender: broadcast::Sender<VoicePacket<Serverbound>>,
     input_volume_sender: watch::Sender<f32>,
 
     output_volume_sender: watch::Sender<f32>,
@@ -179,7 +180,7 @@ impl Audio {
             opus::Application::Voip,
         )
         .unwrap();
-        let (input_sender, input_receiver) = mpsc::channel(100);
+        let (input_sender, _) = broadcast::channel(100);
 
         let (input_volume_sender, input_volume_receiver) = watch::channel::<f32>(input_volume);
 
@@ -188,7 +189,7 @@ impl Audio {
                 &input_config,
                 input::callback::<f32>(
                     input_encoder,
-                    input_sender,
+                    input_sender.clone(),
                     input_config.sample_rate.0,
                     input_volume_receiver,
                     4, // 10 ms
@@ -199,7 +200,7 @@ impl Audio {
                 &input_config,
                 input::callback::<i16>(
                     input_encoder,
-                    input_sender,
+                    input_sender.clone(),
                     input_config.sample_rate.0,
                     input_volume_receiver,
                     4, // 10 ms
@@ -210,7 +211,7 @@ impl Audio {
                 &input_config,
                 input::callback::<u16>(
                     input_encoder,
-                    input_sender,
+                    input_sender.clone(),
                     input_config.sample_rate.0,
                     input_volume_receiver,
                     4, // 10 ms
@@ -259,7 +260,7 @@ impl Audio {
             _output_stream: output_stream,
             _input_stream: input_stream,
             input_volume_sender,
-            input_channel_receiver: Some(input_receiver),
+            input_sender,
             client_streams,
             sounds,
             output_volume_sender,
@@ -268,7 +269,7 @@ impl Audio {
         }
     }
 
-    pub fn decode_packet(
+    pub fn decode_packet_payload(
         &self,
         voice_stream: VoiceStream,
         session_id: u32,
@@ -318,8 +319,8 @@ impl Audio {
         }
     }
 
-    pub fn take_receiver(&mut self) -> Option<mpsc::Receiver<VoicePacketPayload>> {
-        self.input_channel_receiver.take()
+    pub fn input_receiver(&self) -> broadcast::Receiver<VoicePacket<Serverbound>> {
+        self.input_sender.subscribe()
     }
 
     pub fn clear_clients(&mut self) {

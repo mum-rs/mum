@@ -3,12 +3,11 @@ use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 use log::*;
 
-use bytes::Bytes;
 use futures::{join, pin_mut, select, FutureExt, SinkExt, StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::ping::{PingPacket, PongPacket};
-use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
+use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::Serverbound;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -16,7 +15,7 @@ use std::net::{Ipv6Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{broadcast::{self, RecvError}, mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
 
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
@@ -27,7 +26,7 @@ pub async fn handle(
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
 ) {
-    let mut receiver = state.lock().unwrap().audio_mut().take_receiver().unwrap();
+    let mut input_receiver = state.lock().unwrap().audio().input_receiver();
 
     loop {
         let connection_info = loop {
@@ -58,7 +57,7 @@ pub async fn handle(
                 Arc::clone(&sink),
                 connection_info.socket_addr,
                 phase_watcher,
-                &mut receiver
+                &mut input_receiver,
             ),
             new_crypt_state(&mut crypt_state_receiver, sink, source)
         );
@@ -166,7 +165,11 @@ async fn listen(
                                 .lock()
                                 .unwrap()
                                 .audio()
-                                .decode_packet(VoiceStream::UDP, session_id, payload);
+                                .decode_packet_payload(
+                                    VoiceStream::UDP,
+                                    session_id,
+                                    payload
+                                );
                         }
                     }
                 }
@@ -180,26 +183,16 @@ async fn listen(
 }
 
 async fn send_ping(sink: &mut UdpSender, server_addr: SocketAddr) {
-    sink.send((
-        VoicePacket::Audio {
-            _dst: std::marker::PhantomData,
-            target: 0,
-            session_id: (),
-            seq_num: 0,
-            payload: VoicePacketPayload::Opus(Bytes::from([0u8; 128].as_ref()), true),
-            position_info: None,
-        },
-        server_addr,
-    ))
-    .await
-    .unwrap();
+    sink.send((VoicePacket::Ping {timestamp: 0}, server_addr))
+        .await
+        .unwrap();
 }
 
 async fn send_voice(
     sink: Arc<Mutex<UdpSender>>,
     server_addr: SocketAddr,
     mut phase_watcher: watch::Receiver<StatePhase>,
-    receiver: &mut mpsc::Receiver<VoicePacketPayload>,
+    receiver: &mut broadcast::Receiver<VoicePacket<Serverbound>>,
 ) {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
@@ -213,7 +206,6 @@ async fn send_voice(
     let main_block = async {
         let rx = rx.fuse();
         pin_mut!(rx);
-        let mut count = 0;
         loop {
             let packet_recv = receiver.recv().fuse();
             pin_mut!(packet_recv);
@@ -225,23 +217,21 @@ async fn send_voice(
                 None => {
                     break;
                 }
-                Some(None) => {
-                    warn!("Channel closed before disconnect command");
-                    break;
+                Some(Err(e)) => {
+                    match e {
+                        RecvError::Closed => {
+                            warn!("Channel closed before disconnect command: {:?}", e);
+                            break;
+                        }
+                        RecvError::Lagged(amount) => {
+                            warn!("Lagged by {}", amount);
+                        }
+                    }
                 }
-                Some(Some(payload)) => {
-                    let reply = VoicePacket::Audio {
-                        _dst: std::marker::PhantomData,
-                        target: 0,      // normal speech
-                        session_id: (), // unused for server-bound packets
-                        seq_num: count,
-                        payload,
-                        position_info: None,
-                    };
-                    count += 1;
+                Some(Ok(packet)) => {
                     sink.lock()
                         .unwrap()
-                        .send((reply, server_addr))
+                        .send((packet, server_addr))
                         .await
                         .unwrap();
                 }
