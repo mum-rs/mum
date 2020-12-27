@@ -17,7 +17,7 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{broadcast::{self, RecvError}, mpsc, oneshot, watch};
 use tokio::time::{self, Duration};
 use tokio_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};
@@ -49,6 +49,8 @@ pub async fn handle(
     mut packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
     mut tcp_event_register_receiver: mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
 ) {
+    let mut input_receiver = state.lock().unwrap().audio().input_receiver();
+
     loop {
         let connection_info = loop {
             match connection_info_receiver.recv().await {
@@ -79,13 +81,18 @@ pub async fn handle(
         info!("Logging in...");
 
         join!(
-            send_pings(packet_sender, 10, phase_watcher.clone()),
+            send_pings(packet_sender.clone(), 10, phase_watcher.clone()),
             listen(
                 Arc::clone(&state),
                 stream,
                 crypt_state_sender.clone(),
                 Arc::clone(&event_queue),
                 phase_watcher.clone(),
+            ),
+            send_voice(
+                packet_sender,
+                phase_watcher.clone(),
+                &mut input_receiver,
             ),
             send_packets(sink, &mut packet_receiver, phase_watcher.clone()),
             register_events(&mut tcp_event_register_receiver, event_queue, phase_watcher),
@@ -151,6 +158,40 @@ async fn send_pings(
     .await;
 
     debug!("Ping sender process killed");
+}
+
+async fn send_voice(
+    packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
+    phase_watcher: watch::Receiver<StatePhase>,
+    receiver: &mut broadcast::Receiver<VoicePacket<Serverbound>>,
+) {
+    let receiver = RefCell::new(receiver);
+    run_until_disconnection(
+        || async {
+            match receiver.borrow_mut().recv().await {
+                Ok(payload) => Some(Some(payload)),
+                Err(RecvError::Lagged(amount)) => {
+                    warn!("TCP voice sender lagged {}", amount);
+                    Some(None)
+                }
+                Err(RecvError::Closed) => None,
+            }
+        },
+        |payload| async {
+            debug!("Sending tcp voice");
+            match payload {
+                Some(packet) => {
+                    //packet_sender.send(packet.into()).unwrap();
+                }
+                None => {}
+            }
+        },
+        || async {},
+        phase_watcher,
+    )
+    .await;
+
+    debug!("Stopped sending TCP voice");
 }
 
 async fn send_packets(
@@ -287,7 +328,11 @@ async fn listen(
                                 .lock()
                                 .unwrap()
                                 .audio()
-                                .decode_packet(VoiceStream::TCP, session_id, payload);
+                                .decode_packet_payload(
+                                    VoiceStream::TCP,
+                                    session_id,
+                                    payload
+                                );
                         }
                     }
                 }
