@@ -323,9 +323,7 @@ async fn listen(
                         .unwrap()
                         .broadcast_phase(StatePhase::TCPVoice);
                     match *msg {
-                        VoicePacket::Ping { .. } => {
-                            //TODO handle tcp/udp
-                        }
+                        VoicePacket::Ping { .. } => {}
                         VoicePacket::Audio {
                             session_id,
                             // seq_num,

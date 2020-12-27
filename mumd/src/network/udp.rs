@@ -155,7 +155,6 @@ async fn listen(
                         .broadcast_phase(StatePhase::UDPVoice);
                     match packet {
                         VoicePacket::Ping { .. } => {
-                            //TODO handle tcp/udp
                             continue;
                         }
                         VoicePacket::Audio {
