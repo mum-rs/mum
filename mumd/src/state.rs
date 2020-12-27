@@ -393,13 +393,17 @@ impl State {
                 }),
             ),
             Command::Status => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
-                    return now!(Err(Error::DisconnectedError));
+                match *self.phase_receiver().borrow() {
+                    StatePhase::Disconnected | StatePhase::Connecting => {
+                        now!(Err(Error::DisconnectedError))
+                    }
+                    _ => {
+                        let state = self.server.as_ref().unwrap().into();
+                        now!(Ok(Some(CommandResponse::Status {
+                            server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
+                        })))
+                    }
                 }
-                let state = self.server.as_ref().unwrap().into();
-                now!(Ok(Some(CommandResponse::Status {
-                    server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
-                })))
             }
             Command::UserVolumeSet(string, volume) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
