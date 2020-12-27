@@ -53,8 +53,6 @@ fn main() {
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(SubCommand::with_name("tcp"))
-        .subcommand(SubCommand::with_name("udp"))
         .subcommand(
             SubCommand::with_name("connect")
                 .about("Connect to a server")
@@ -218,11 +216,7 @@ fn main() {
 }
 
 fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> Result<(), Error> {
-    if let Some(_) = matches.subcommand_matches("tcp") {
-        error_if_err!(send_command(Command::ForceTCP)?);
-    } else if let Some(_) = matches.subcommand_matches("udp") {
-        error_if_err!(send_command(Command::ForceUDP)?);
-    } else if let Some(matches) = matches.subcommand_matches("connect") {
+    if let Some(matches) = matches.subcommand_matches("connect") {
         match_server_connect(matches, &config)?;
     } else if let Some(_) = matches.subcommand_matches("disconnect") {
         match send_command(Command::ServerDisconnect) {

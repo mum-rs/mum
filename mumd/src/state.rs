@@ -424,14 +424,6 @@ impl State {
                 self.audio.set_user_volume(user_id, volume);
                 now!(Ok(None))
             }
-            Command::ForceTCP => {
-                self.broadcast_phase(StatePhase::TCPVoice);
-                now!(Ok(None))
-            }
-            Command::ForceUDP => {
-                self.broadcast_phase(StatePhase::UDPVoice);
-                now!(Ok(None))
-            }
         }
     }
 

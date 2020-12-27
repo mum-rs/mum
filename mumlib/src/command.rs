@@ -28,9 +28,6 @@ pub enum Command {
     },
     Status,
     UserVolumeSet(String, f32),
-
-    ForceTCP,
-    ForceUDP,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
