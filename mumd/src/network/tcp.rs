@@ -165,6 +165,7 @@ async fn send_voice(
     phase_watcher: watch::Receiver<StatePhase>,
     receiver: &mut broadcast::Receiver<VoicePacket<Serverbound>>,
 ) {
+    let inner_phase_watcher = phase_watcher.clone();
     let receiver = RefCell::new(receiver);
     run_until_disconnection(
         || async {
@@ -178,12 +179,17 @@ async fn send_voice(
             }
         },
         |payload| async {
-            debug!("Sending tcp voice");
-            match payload {
-                Some(packet) => {
-                    //packet_sender.send(packet.into()).unwrap();
+            match *inner_phase_watcher.borrow() {
+                StatePhase::TCPVoice => {
+                    debug!("Sending tcp voice");
+                    match payload {
+                        Some(packet) => {
+                            packet_sender.send(packet.into()).unwrap();
+                        }
+                        None => {}
+                    }
                 }
-                None => {}
+                _ => {}
             }
         },
         || async {},
@@ -313,6 +319,10 @@ async fn listen(
                         .parse_channel_remove(*msg);
                 }
                 ControlPacket::UDPTunnel(msg) => {
+                    state
+                        .lock()
+                        .unwrap()
+                        .broadcast_phase(StatePhase::TCPVoice);
                     match *msg {
                         VoicePacket::Ping { .. } => {
                             //TODO handle tcp/udp

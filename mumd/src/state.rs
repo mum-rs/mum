@@ -50,6 +50,8 @@ pub enum StatePhase {
     Disconnected,
     Connecting,
     Connected,
+    TCPVoice,
+    UDPVoice,
 }
 
 pub struct State {
@@ -594,6 +596,13 @@ impl State {
     }
     pub fn packet_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> {
         self.packet_sender.clone()
+    }
+    pub fn broadcast_phase(&mut self, phase: StatePhase) {
+        debug!("Broadcasting {:?}", phase);
+        self.phase_watcher
+            .0
+            .broadcast(phase)
+            .unwrap();
     }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
         self.phase_watcher.1.clone()

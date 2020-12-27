@@ -149,6 +149,10 @@ async fn listen(
                             continue;
                         }
                     };
+                    state
+                        .lock()
+                        .unwrap()
+                        .broadcast_phase(StatePhase::UDPVoice);
                     match packet {
                         VoicePacket::Ping { .. } => {
                             //TODO handle tcp/udp
@@ -195,6 +199,7 @@ async fn send_voice(
     receiver: &mut broadcast::Receiver<VoicePacket<Serverbound>>,
 ) {
     let (tx, rx) = oneshot::channel();
+    let inner_phase_watcher = phase_watcher.clone();
     let phase_transition_block = async {
         while !matches!(
             phase_watcher.recv().await.unwrap(),
@@ -229,11 +234,16 @@ async fn send_voice(
                     }
                 }
                 Some(Ok(packet)) => {
-                    sink.lock()
-                        .unwrap()
-                        .send((packet, server_addr))
-                        .await
-                        .unwrap();
+                    match *inner_phase_watcher.borrow() {
+                        StatePhase::UDPVoice => {
+                            sink.lock()
+                                .unwrap()
+                                .send((packet, server_addr))
+                                .await
+                                .unwrap();
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
