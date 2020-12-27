@@ -606,7 +606,9 @@ impl State {
         self.packet_sender.clone()
     }
     pub fn broadcast_phase(&mut self, phase: StatePhase) {
-        debug!("Broadcasting {:?}", phase);
+        if phase != *self.phase_watcher.1.borrow() {
+            debug!("Now in phase {:?}", phase);
+        }
         self.phase_watcher
             .0
             .broadcast(phase)

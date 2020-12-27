@@ -181,7 +181,6 @@ async fn send_voice(
         |payload| async {
             match *inner_phase_watcher.borrow() {
                 StatePhase::TCPVoice => {
-                    debug!("Sending tcp voice");
                     match payload {
                         Some(packet) => {
                             packet_sender.send(packet.into()).unwrap();
