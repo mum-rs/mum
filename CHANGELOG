@@ -15,8 +15,10 @@ a PR.
 Unreleased
 ----------
 
-// Added
-// ~~~~~
+Added
+~~~~~
+
+ * Support for tunneling voice over TCP.
 
 // Changed
 // ~~~~~~~
@@ -27,8 +29,8 @@ Unreleased
 Fixed
 ~~~~~
 
-* Informative error message instead of panic when a running mumd-process can't
-  be found.
+ * Informative error message instead of panic when a running mumd-process can't
+   be found.
 
 // Other
 // ~~~~~
