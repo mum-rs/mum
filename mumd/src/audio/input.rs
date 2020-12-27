@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, watch};
 
 pub fn callback<T: Sample>(
     mut opus_encoder: opus::Encoder,
-    mut input_sender: mpsc::Sender<VoicePacketPayload>,
+    input_sender: mpsc::Sender<VoicePacketPayload>,
     sample_rate: u32,
     input_volume_receiver: watch::Receiver<f32>,
     opus_frame_size_blocks: u32, // blocks of 2.5ms

@@ -312,11 +312,11 @@ impl Audio {
     }
 
     pub fn set_input_volume(&self, input_volume: f32) {
-        self.input_volume_sender.broadcast(input_volume).unwrap();
+        self.input_volume_sender.send(input_volume).unwrap();
     }
 
     pub fn set_output_volume(&self, output_volume: f32) {
-        self.output_volume_sender.broadcast(output_volume).unwrap();
+        self.output_volume_sender.send(output_volume).unwrap();
     }
 
     pub fn set_user_volume(&self, id: u32, volume: f32) {
