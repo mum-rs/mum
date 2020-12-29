@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
 use tokio::sync::{broadcast::{self, RecvError}, mpsc, oneshot, watch};
 use tokio::time::{self, Duration};
-use tokio_tls::{TlsConnector, TlsStream};
+use tokio_native_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};
 
 type TcpSender = SplitSink<
@@ -52,16 +52,13 @@ pub async fn handle(
     let mut input_receiver = state.lock().unwrap().audio().input_receiver();
 
     loop {
-        let connection_info = loop {
-            match connection_info_receiver.recv().await {
-                None => {
-                    return;
-                }
-                Some(None) => {}
-                Some(Some(connection_info)) => {
-                    break connection_info;
+        let connection_info = 'data: loop {
+            while connection_info_receiver.changed().await.is_ok() {
+                if let Some(data) = connection_info_receiver.borrow().clone() {
+                    break 'data data;
                 }
             }
+            return;
         };
         let (mut sink, stream) = connect(
             connection_info.socket_addr,
@@ -212,9 +209,6 @@ async fn send_packets(
             sink.borrow_mut().send(packet).await.unwrap();
         },
         || async {
-            //clears queue of remaining packets
-            while packet_receiver.borrow_mut().try_recv().is_ok() {}
-
             sink.borrow_mut().close().await.unwrap();
         },
         phase_watcher,
@@ -263,7 +257,7 @@ async fn listen(
                 }
                 ControlPacket::ServerSync(msg) => {
                     info!("Logged in");
-                    if let Some(mut sender) = crypt_state_sender.borrow_mut().take() {
+                    if let Some(sender) = crypt_state_sender.borrow_mut().take() {
                         let _ = sender
                             .send(
                                 crypt_state
@@ -397,10 +391,12 @@ async fn run_until_disconnection<T, F, G, H>(
 {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
-        while !matches!(
-            phase_watcher.recv().await.unwrap(),
-            StatePhase::Disconnected
-        ) {}
+        loop {
+            phase_watcher.changed().await.unwrap();
+            if matches!(*phase_watcher.borrow(), StatePhase::Disconnected) {
+                break;
+            }
+        }
         tx.send(true).unwrap();
     };
 
