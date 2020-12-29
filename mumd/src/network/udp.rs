@@ -15,7 +15,7 @@ use std::net::{Ipv6Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
-use tokio::sync::{broadcast::{self, RecvError}, mpsc, oneshot, watch};
+use tokio::sync::{broadcast::{self, error::RecvError}, mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
 
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;

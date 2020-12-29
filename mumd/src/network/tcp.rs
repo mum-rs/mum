@@ -17,7 +17,7 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpStream;
-use tokio::sync::{broadcast::{self, RecvError}, mpsc, oneshot, watch};
+use tokio::sync::{broadcast::{self, error::RecvError}, mpsc, oneshot, watch};
 use tokio::time::{self, Duration};
 use tokio_native_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};

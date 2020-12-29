@@ -630,7 +630,7 @@ impl State {
         }
         self.phase_watcher
             .0
-            .broadcast(phase)
+            .send(phase)
             .unwrap();
     }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
