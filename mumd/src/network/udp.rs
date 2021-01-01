@@ -13,7 +13,7 @@ use std::convert::TryFrom;
 use std::net::{Ipv6Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use tokio::net::UdpSocket;
+use tokio::{net::UdpSocket, time::{interval, Duration}};
 use tokio::sync::{broadcast::{self, error::RecvError}, mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
 
@@ -38,9 +38,6 @@ pub async fn handle(
         };
         let (mut sink, source) = connect(&mut crypt_state_receiver).await;
 
-        // Note: A normal application would also send periodic Ping packets, and its own audio
-        //       via UDP. We instead trick the server into accepting us by sending it one
-        //       dummy voice packet.
         send_ping(&mut sink, connection_info.socket_addr).await;
 
         let sink = Arc::new(Mutex::new(sink));
@@ -55,7 +52,11 @@ pub async fn handle(
                 phase_watcher,
                 &mut input_receiver,
             ),
-            new_crypt_state(&mut crypt_state_receiver, sink, source)
+            send_pings(
+                Arc::clone(&sink),
+                connection_info.socket_addr,
+            ),
+            new_crypt_state(&mut crypt_state_receiver, sink, source),
         );
 
         debug!("Fully disconnected UDP stream, waiting for new connection info");
@@ -191,6 +192,15 @@ async fn send_ping(sink: &mut UdpSender, server_addr: SocketAddr) {
     sink.send((VoicePacket::Ping {timestamp: 0}, server_addr))
         .await
         .unwrap();
+}
+
+async fn send_pings(sink: Arc<Mutex<UdpSender>>, server_addr: SocketAddr) {
+    let mut interval = interval(Duration::from_millis(1000));
+
+    loop {
+        send_ping(&mut sink.lock().unwrap(), server_addr).await;
+        interval.tick().await;
+    }
 }
 
 async fn send_voice(
