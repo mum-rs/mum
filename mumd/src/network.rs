@@ -3,6 +3,12 @@ pub mod udp;
 
 use std::net::SocketAddr;
 
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
+pub enum VoiceStreamType {
+    TCP,
+    UDP
+}
+
 #[derive(Clone, Debug)]
 pub struct ConnectionInfo {
     socket_addr: SocketAddr,

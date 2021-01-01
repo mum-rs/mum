@@ -3,11 +3,10 @@ pub mod server;
 pub mod user;
 
 use crate::audio::{Audio, NotificationEvents};
-use crate::network::ConnectionInfo;
+use crate::network::{tcp::{TcpEvent, TcpEventData}, ConnectionInfo, VoiceStreamType};
 use crate::notify;
-use crate::state::server::Server;
+use crate::state::{server::Server, user::UserDiff};
 
-use crate::network::tcp::{TcpEvent, TcpEventData};
 use log::*;
 use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
@@ -16,7 +15,6 @@ use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
 use mumlib::error::{ChannelIdentifierError, Error};
-use crate::state::user::UserDiff;
 use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::sync::{mpsc, watch};
 
@@ -45,13 +43,11 @@ pub enum ExecutionContext {
     ),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StatePhase {
     Disconnected,
     Connecting,
-    Connected,
-    TCPVoice,
-    UDPVoice,
+    Connected(VoiceStreamType),
 }
 
 pub struct State {
@@ -90,11 +86,8 @@ impl State {
     pub fn handle_command(&mut self, command: Command) -> ExecutionContext {
         match command {
             Command::ChannelJoin { channel_identifier } => {
-                match *self.phase_receiver().borrow() {
-                    StatePhase::Disconnected | StatePhase::Connecting => {
-                        return now!(Err(Error::DisconnectedError));
-                    }
-                    _ => {}
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 let channels = self.server().unwrap().channels();
@@ -143,11 +136,8 @@ impl State {
                 now!(Ok(None))
             }
             Command::ChannelList => {
-                match *self.phase_receiver().borrow() {
-                    StatePhase::Disconnected | StatePhase::Connecting => {
-                        return now!(Err(Error::DisconnectedError));
-                    }
-                    _ => {}
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 let list = channel::into_channel(
@@ -161,11 +151,8 @@ impl State {
                 now!(Ok(None))
             }
             Command::DeafenSelf(toggle) => {
-                match *self.phase_receiver().borrow() {
-                    StatePhase::Disconnected | StatePhase::Connecting => {
-                        return now!(Err(Error::DisconnectedError));
-                    }
-                    _ => {}
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 let server = self.server().unwrap();
@@ -222,11 +209,8 @@ impl State {
                 now!(Ok(None))
             }
             Command::MuteOther(string, toggle) => {
-                match *self.phase_receiver().borrow() {
-                    StatePhase::Disconnected | StatePhase::Connecting => {
-                        return now!(Err(Error::DisconnectedError));
-                    }
-                    _ => {}
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 let id = self
@@ -260,11 +244,8 @@ impl State {
                 return now!(Ok(None));
             }
             Command::MuteSelf(toggle) => {
-                match *self.phase_receiver().borrow() {
-                    StatePhase::Disconnected | StatePhase::Connecting => {
-                        return now!(Err(Error::DisconnectedError));
-                    }
-                    _ => {}
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 let server = self.server().unwrap();
@@ -375,11 +356,8 @@ impl State {
                 })
             }
             Command::ServerDisconnect => {
-                match *self.phase_receiver().borrow() {
-                    StatePhase::Disconnected | StatePhase::Connecting => {
-                        return now!(Err(Error::DisconnectedError));
-                    }
-                    _ => {}
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 self.server = None;
@@ -412,11 +390,8 @@ impl State {
                 }),
             ),
             Command::Status => {
-                match *self.phase_receiver().borrow() {
-                    StatePhase::Disconnected | StatePhase::Connecting => {
-                        return now!(Err(Error::DisconnectedError));
-                    }
-                    _ => {}
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 let state = self.server.as_ref().unwrap().into();
@@ -425,11 +400,8 @@ impl State {
                 })))
             }
             Command::UserVolumeSet(string, volume) => {
-                match *self.phase_receiver().borrow() {
-                    StatePhase::Disconnected | StatePhase::Connecting => {
-                        return now!(Err(Error::DisconnectedError));
-                    }
-                    _ => {}
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::DisconnectedError));
                 }
 
                 let user_id = match self
@@ -480,7 +452,7 @@ impl State {
             self.audio_mut().add_client(session);
 
             // send notification only if we've passed the connecting phase
-            if *self.phase_receiver().borrow() == StatePhase::Connected {
+            if matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
                 let channel_id = msg.get_channel_id();
 
                 if channel_id
@@ -608,10 +580,7 @@ impl State {
     }
 
     pub fn initialized(&self) {
-        self.phase_watcher
-            .0
-            .send(StatePhase::Connected)
-            .unwrap();
+        self.broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
         self.audio.play_effect(NotificationEvents::ServerConnect);
     }
 
@@ -624,10 +593,10 @@ impl State {
     pub fn packet_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> {
         self.packet_sender.clone()
     }
-    pub fn broadcast_phase(&mut self, phase: StatePhase) {
-        if phase != *self.phase_watcher.1.borrow() {
-            debug!("Now in phase {:?}", phase);
-        }
+    pub fn state_phase(&self) -> StatePhase {
+        *self.phase_watcher.1.borrow()
+    }
+    pub fn broadcast_phase(&self, phase: StatePhase) {
         self.phase_watcher
             .0
             .send(phase)

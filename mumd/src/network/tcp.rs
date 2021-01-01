@@ -1,5 +1,4 @@
-use crate::audio::VoiceStreamType;
-use crate::network::ConnectionInfo;
+use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::state::{State, StatePhase};
 use log::*;
 
@@ -176,16 +175,10 @@ async fn send_voice(
             }
         },
         |payload| async {
-            match *inner_phase_watcher.borrow() {
-                StatePhase::TCPVoice => {
-                    match payload {
-                        Some(packet) => {
-                            packet_sender.send(packet.into()).unwrap();
-                        }
-                        None => {}
-                    }
+            if matches!(*inner_phase_watcher.borrow(), StatePhase::Connected(VoiceStreamType::TCP)) {
+                if let Some(packet) = payload {
+                    packet_sender.send(packet.into()).unwrap();
                 }
-                _ => {}
             }
         },
         || async {},
@@ -315,7 +308,7 @@ async fn listen(
                     state
                         .lock()
                         .unwrap()
-                        .broadcast_phase(StatePhase::TCPVoice);
+                        .broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
                     match *msg {
                         VoicePacket::Ping { .. } => {}
                         VoicePacket::Audio {

@@ -2,6 +2,7 @@ pub mod input;
 pub mod output;
 
 use crate::audio::output::SaturatingAdd;
+use crate::network::VoiceStreamType;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
@@ -59,12 +60,6 @@ pub enum NotificationEvents {
     Unmute,
     Deafen,
     Undeafen,
-}
-
-#[derive(Eq, PartialEq, Clone, Copy, Hash)]
-pub enum VoiceStreamType {
-    TCP,
-    UDP
 }
 
 pub struct Audio {

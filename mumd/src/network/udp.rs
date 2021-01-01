@@ -1,5 +1,4 @@
-use crate::audio::VoiceStreamType;
-use crate::network::ConnectionInfo;
+use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::state::{State, StatePhase};
 use log::*;
 
@@ -148,13 +147,12 @@ async fn listen(
                             continue;
                         }
                     };
-                    state
-                        .lock()
-                        .unwrap()
-                        .broadcast_phase(StatePhase::UDPVoice);
                     match packet {
                         VoicePacket::Ping { .. } => {
-                            continue;
+                            state
+                                .lock()
+                                .unwrap()
+                                .broadcast_phase(StatePhase::Connected(VoiceStreamType::UDP));
                         }
                         VoicePacket::Audio {
                             session_id,
@@ -235,7 +233,7 @@ async fn send_voice(
                 }
                 Some(Ok(packet)) => {
                     match *inner_phase_watcher.borrow() {
-                        StatePhase::UDPVoice => {
+                        StatePhase::Connected(VoiceStreamType::UDP) => {
                             sink.lock()
                                 .unwrap()
                                 .send((packet, server_addr))

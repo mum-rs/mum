@@ -1,4 +1,4 @@
-use crate::audio::VoiceStreamType;
+use crate::network::VoiceStreamType;
 
 use cpal::{OutputCallbackInfo, Sample};
 use mumble_protocol::voice::VoicePacketPayload;
