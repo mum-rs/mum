@@ -20,7 +20,7 @@ use dasp_ring_buffer::Fixed;
 use futures::Stream;
 use futures::task::{Context, Poll};
 use std::pin::Pin;
-use tokio::stream::StreamExt;
+use tokio_stream::StreamExt;
 use std::convert::identity;
 use std::future::Future;
 use std::mem;
