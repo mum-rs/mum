@@ -4,6 +4,7 @@ use mumble_protocol::voice::VoicePacketPayload;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
+use log::*;
 
 pub fn callback<T: Sample>(
     mut opus_encoder: opus::Encoder,
@@ -26,6 +27,7 @@ pub fn callback<T: Sample>(
 
     let buf = Arc::new(Mutex::new(VecDeque::new()));
     move |data: &[T], _info: &InputCallbackInfo| {
+        debug!("{:?}", _info);
         let mut buf = buf.lock().unwrap();
         let input_volume = *input_volume_receiver.borrow();
         let out: Vec<f32> = data

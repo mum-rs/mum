@@ -4,7 +4,7 @@ pub mod output;
 use crate::audio::output::SaturatingAdd;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, SampleRate, Stream, StreamConfig};
+use cpal::{SampleFormat, SampleRate, StreamConfig};
 use dasp_interpolate::linear::Linear;
 use dasp_signal::{self as signal, Signal};
 use log::*;
@@ -17,6 +17,13 @@ use tokio::sync::{mpsc, watch};
 use dasp_frame::Frame;
 use dasp_sample::{Sample, SignedSample};
 use dasp_ring_buffer::Fixed;
+use futures::Stream;
+use futures::task::{Context, Poll};
+use std::pin::Pin;
+use tokio::stream::StreamExt;
+use std::convert::identity;
+use std::future::Future;
+use std::mem;
 
 //TODO? move to mumlib
 pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
@@ -65,8 +72,8 @@ pub enum NotificationEvents {
 
 pub struct Audio {
     output_config: StreamConfig,
-    _output_stream: Stream,
-    _input_stream: Stream,
+    _output_stream: cpal::Stream,
+    _input_stream: cpal::Stream,
 
     input_channel_receiver: Option<mpsc::Receiver<VoicePacketPayload>>,
     input_volume_sender: watch::Sender<f32>,
@@ -417,5 +424,125 @@ fn abs<S: SignedSample>(sample: S) -> S {
         sample
     } else {
         -sample
+    }
+}
+
+trait StreamingSignal {
+    type Frame: Frame;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame>;
+}
+
+trait StreamingSignalExt: StreamingSignal {
+    fn next(&mut self) -> Next<'_, Self> {
+        Next {
+            stream: self
+        }
+    }
+}
+
+struct Next<'a, S: ?Sized> {
+    stream: &'a mut S
+}
+
+impl<'a, S: StreamingSignal + Unpin> Future for Next<'a, S> {
+    type Output = S::Frame;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match S::poll_next(Pin::new(self.stream), cx) {
+            Poll::Ready(val) => {
+                Poll::Ready(val)
+            }
+            Poll::Pending => Poll::Pending
+        }
+    }
+}
+
+struct FromStream<S: Stream> {
+    stream: S,
+    next: Option<S::Item>,
+}
+
+async fn from_stream<S>(mut stream: S) -> FromStream<S>
+    where
+        S: Stream + Unpin,
+        S::Item: Frame {
+    let next = stream.next().await;
+    FromStream { stream, next }
+}
+
+impl<S> StreamingSignal for FromStream<S>
+    where
+        S: Stream + Unpin,
+        S::Item: Frame + Unpin {
+    type Frame = S::Item;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame> {
+        let s = self.get_mut();
+        match s.next.take() {
+            Some(v) => {
+                match S::poll_next(Pin::new(&mut s.stream), cx) {
+                    Poll::Ready(val) => {
+                        s.next = val;
+                        Poll::Ready(v)
+                    }
+                    Poll::Pending => Poll::Pending
+                }
+            }
+            None => Poll::Ready(<Self::Frame as Frame>::EQUILIBRIUM)
+        }
+    }
+}
+
+
+struct FromInterleavedSamplesStream<S, F>
+    where
+        F: Frame {
+    stream: S,
+    next: Option<Vec<F::Sample>>,
+}
+
+async fn from_interleaved_samples_stream<S, F>(mut stream: S) -> FromInterleavedSamplesStream<S, F>
+    where
+        S: Stream + Unpin,
+        S::Item: Sample,
+        F: Frame<Sample = S::Item> {
+    let mut data = Vec::with_capacity(F::CHANNELS);
+    for _ in 0..F::CHANNELS {
+        data.push(stream.next().await);
+    }
+    let data = data.into_iter().flat_map(identity).collect::<Vec<_>>();
+    FromInterleavedSamplesStream { stream, next: if data.len() == F::CHANNELS { Some(data) } else { None } }
+}
+
+impl<S, F> StreamingSignal for FromInterleavedSamplesStream<S, F>
+    where
+        S: Stream + Unpin,
+        S::Item: Sample + Unpin,
+        F: Frame<Sample = S::Item> {
+    type Frame = F;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame> {
+        let s = self.get_mut();
+        if s.next.is_some() {
+            if s.next.as_ref().unwrap().len() == F::CHANNELS {
+                let mut data_buf = mem::replace(&mut s.next, Some(Vec::new())).unwrap().into_iter();
+                Poll::Ready(F::from_samples(&mut data_buf).unwrap())
+            } else {
+                match S::poll_next(Pin::new(&mut s.stream), cx) {
+                    Poll::Ready(Some(v)) => {
+                        s.next.as_mut().unwrap().push(v);
+                        Poll::Pending
+                    }
+                    Poll::Ready(None) => {
+                        s.next = None;
+                        Poll::Ready(F::EQUILIBRIUM)
+                    }
+                    Poll::Pending => Poll::Pending,
+                }
+            }
+        } else {
+            Poll::Ready(F::EQUILIBRIUM)
+        }
     }
 }
