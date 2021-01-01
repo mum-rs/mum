@@ -161,15 +161,20 @@ async fn listen(
                             // position_info,
                             ..
                         } => {
-                            state
-                                .lock()
-                                .unwrap()
-                                .audio()
-                                .decode_packet_payload(
-                                    VoiceStreamType::UDP,
-                                    session_id,
-                                    payload
-                                );
+                            let phase = state.lock().unwrap().state_phase();
+                            if matches!(phase, StatePhase::Connected(VoiceStreamType::UDP)) {
+                                state
+                                    .lock()
+                                    .unwrap()
+                                    .audio()
+                                    .decode_packet_payload(
+                                        VoiceStreamType::UDP,
+                                        session_id,
+                                        payload
+                                    );
+                            } else {
+                                debug!("Received UDP audio package when in phase {:?}", phase);
+                            }
                         }
                     }
                 }
