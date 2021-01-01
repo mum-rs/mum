@@ -26,13 +26,14 @@ pub async fn handle(
     let (response_sender, response_receiver) =
         mpsc::unbounded_channel();
 
-    let state = State::new(packet_sender, connection_info_sender);
+    let state = State::new();
     let state = Arc::new(Mutex::new(state));
     join!(
         tcp::handle(
             Arc::clone(&state),
             connection_info_receiver.clone(),
             crypt_state_sender,
+            packet_sender.clone(),
             packet_receiver,
             response_receiver,
         ),
@@ -46,6 +47,8 @@ pub async fn handle(
             command_receiver,
             response_sender,
             ping_request_sender,
+            packet_sender,
+            connection_info_sender,
         ),
         udp::handle_pings(ping_request_receiver),
     );

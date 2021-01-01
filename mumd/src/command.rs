@@ -1,13 +1,13 @@
-use crate::state::{ExecutionContext, State};
+use crate::{network::ConnectionInfo, state::{ExecutionContext, State}};
 
 use crate::network::tcp::{TcpEvent, TcpEventCallback};
 use ipc_channel::ipc::IpcSender;
 use log::*;
-use mumble_protocol::ping::PongPacket;
+use mumble_protocol::{Serverbound, control::ControlPacket, ping::PongPacket};
 use mumlib::command::{Command, CommandResponse};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 
 pub async fn handle(
     state: Arc<Mutex<State>>,
@@ -17,12 +17,14 @@ pub async fn handle(
     )>,
     tcp_event_register_sender: mpsc::UnboundedSender<(TcpEvent, TcpEventCallback)>,
     ping_request_sender: mpsc::UnboundedSender<(u64, SocketAddr, Box<dyn FnOnce(PongPacket)>)>,
+    mut packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
+    mut connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
 ) {
     debug!("Begin listening for commands");
     while let Some((command, response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
         let mut state = state.lock().unwrap();
-        let event = state.handle_command(command);
+        let event = state.handle_command(command, &mut packet_sender, &mut connection_info_sender);
         drop(state);
         match event {
             ExecutionContext::TcpEvent(event, generator) => {
