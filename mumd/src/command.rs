@@ -1,11 +1,9 @@
 use crate::state::{ExecutionContext, State};
+use crate::network::{tcp::{TcpEvent, TcpEventCallback}, udp::PingRequest};
 
-use crate::network::tcp::{TcpEvent, TcpEventCallback};
 use ipc_channel::ipc::IpcSender;
 use log::*;
-use mumble_protocol::ping::PongPacket;
 use mumlib::command::{Command, CommandResponse};
-use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot};
 
@@ -16,7 +14,7 @@ pub async fn handle(
         IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
     tcp_event_register_sender: mpsc::UnboundedSender<(TcpEvent, TcpEventCallback)>,
-    ping_request_sender: mpsc::UnboundedSender<(u64, SocketAddr, Box<dyn FnOnce(PongPacket)>)>,
+    ping_request_sender: mpsc::UnboundedSender<PingRequest>,
 ) {
     debug!("Begin listening for commands");
     while let Some((command, response_sender)) = command_receiver.recv().await {

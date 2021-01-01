@@ -107,7 +107,7 @@ impl Server {
     }
 
     pub fn username(&self) -> Option<&str> {
-        self.username.as_ref().map(|e| e.as_str())
+        self.username.as_deref()
     }
 
     pub fn username_mut(&mut self) -> &mut Option<String> {
