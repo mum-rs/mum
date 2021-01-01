@@ -85,7 +85,10 @@ impl State {
         state
     }
 
-    pub fn handle_command(&mut self, command: Command) -> ExecutionContext {
+    pub fn handle_command(
+        &mut self,
+        command: Command,
+    ) -> ExecutionContext {
         match command {
             Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
