@@ -29,16 +29,13 @@ pub async fn handle(
     let mut receiver = state.lock().unwrap().audio_mut().take_receiver().unwrap();
 
     loop {
-        let connection_info = loop {
-            match connection_info_receiver.recv().await {
-                None => {
-                    return;
-                }
-                Some(None) => {}
-                Some(Some(connection_info)) => {
-                    break connection_info;
+        let connection_info = 'data: loop {
+            while connection_info_receiver.changed().await.is_ok() {
+                if let Some(data) = connection_info_receiver.borrow().clone() {
+                    break 'data data;
                 }
             }
+            return;
         };
         let (mut sink, source) = connect(&mut crypt_state_receiver).await;
 
@@ -114,10 +111,12 @@ async fn listen(
 ) {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
-        while !matches!(
-            phase_watcher.recv().await.unwrap(),
-            StatePhase::Disconnected
-        ) {}
+        loop {
+            phase_watcher.changed().await.unwrap();
+            if matches!(*phase_watcher.borrow(), StatePhase::Disconnected) {
+                break;
+            }
+        }
         tx.send(true).unwrap();
     };
 
@@ -203,10 +202,12 @@ async fn send_voice(
 ) {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
-        while !matches!(
-            phase_watcher.recv().await.unwrap(),
-            StatePhase::Disconnected
-        ) {}
+        loop {
+            phase_watcher.changed().await.unwrap();
+            if matches!(*phase_watcher.borrow(), StatePhase::Disconnected) {
+                break;
+            }
+        }
         tx.send(true).unwrap();
     };
 
@@ -265,22 +266,20 @@ pub async fn handle_pings(
         .await
         .expect("Failed to bind UDP socket");
 
-    let (mut receiver, mut sender) = udp_socket.split();
-
     let pending = Rc::new(Mutex::new(HashMap::new()));
 
     let sender_handle = async {
         while let Some((id, socket_addr, handle)) = ping_request_receiver.recv().await {
             let packet = PingPacket { id };
             let packet: [u8; 12] = packet.into();
-            sender.send_to(&packet, &socket_addr).await.unwrap();
+            udp_socket.send_to(&packet, &socket_addr).await.unwrap();
             pending.lock().unwrap().insert(id, handle);
         }
     };
 
     let receiver_handle = async {
         let mut buf = vec![0; 24];
-        while let Ok(read) = receiver.recv(&mut buf).await {
+        while let Ok(read) = udp_socket.recv(&mut buf).await {
             assert_eq!(read, 24);
 
             let packet = PongPacket::try_from(buf.as_slice()).unwrap();
