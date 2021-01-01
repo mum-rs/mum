@@ -88,13 +88,11 @@ pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>
 
         let mut effects_sound = effect_sound.lock().unwrap();
         let mut user_bufs = user_bufs.lock().unwrap();
-        //TODO in 1.49 we can do this:
-        // for ((voice_stream, id), client_stream) in &mut *user_bufs {
-        for (id, client_stream) in &mut *user_bufs {
+        for ((_, id), client_stream) in &mut *user_bufs {
             let (user_volume, muted) = user_volumes
                 .lock()
                 .unwrap()
-                .get(&id.1) // session id
+                .get(id)
                 .cloned()
                 .unwrap_or((1.0, false));
             for sample in data.iter_mut() {

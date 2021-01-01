@@ -32,8 +32,11 @@ Fixed
  * Informative error message instead of panic when a running mumd-process can't
    be found.
 
-// Other
-// ~~~~~
+Other
+~~~~~
+
+ * Minimum supported Rust version is now 1.49. Please open an issue if this is
+   a problem.
 
 0.3 - 2020-12-25
 ------------------
