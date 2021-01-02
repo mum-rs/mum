@@ -64,7 +64,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(
+    pub async fn new(
         packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
         connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
     ) -> Self {
@@ -72,7 +72,7 @@ impl State {
         let audio = Audio::new(
             config.audio.input_volume.unwrap_or(1.0),
             config.audio.output_volume.unwrap_or(1.0),
-        );
+        ).await;
         let mut state = Self {
             config,
             server: None,

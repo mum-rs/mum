@@ -3,7 +3,7 @@ use crate::state::{State, StatePhase};
 use log::*;
 
 use bytes::Bytes;
-use futures::{join, pin_mut, select, FutureExt, SinkExt, StreamExt};
+use futures::{join, pin_mut, select, FutureExt, SinkExt, StreamExt, Stream};
 use futures_util::stream::{SplitSink, SplitStream};
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::ping::{PingPacket, PongPacket};
@@ -54,7 +54,7 @@ pub async fn handle(
                 Arc::clone(&sink),
                 connection_info.socket_addr,
                 phase_watcher,
-                &mut receiver
+                &mut *receiver
             ),
             new_crypt_state(&mut crypt_state_receiver, sink, source)
         );
@@ -198,8 +198,9 @@ async fn send_voice(
     sink: Arc<Mutex<UdpSender>>,
     server_addr: SocketAddr,
     mut phase_watcher: watch::Receiver<StatePhase>,
-    receiver: &mut mpsc::Receiver<VoicePacketPayload>,
+    receiver: &mut (dyn Stream<Item = Vec<u8>> + Unpin),
 ) {
+    pin_mut!(receiver);
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
         loop {
@@ -216,7 +217,7 @@ async fn send_voice(
         pin_mut!(rx);
         let mut count = 0;
         loop {
-            let packet_recv = receiver.recv().fuse();
+            let packet_recv = receiver.next().fuse();
             pin_mut!(packet_recv);
             let exitor = select! {
                 data = packet_recv => Some(data),
@@ -236,7 +237,7 @@ async fn send_voice(
                         target: 0,      // normal speech
                         session_id: (), // unused for server-bound packets
                         seq_num: count,
-                        payload,
+                        payload: VoicePacketPayload::Opus(payload.into(), false),
                         position_info: None,
                     };
                     count += 1;
