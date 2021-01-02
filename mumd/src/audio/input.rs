@@ -1,11 +1,5 @@
 use cpal::{InputCallbackInfo, Sample};
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
-use futures::Stream;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use futures_util::task::Waker;
 
 pub fn callback<T: Sample>(
     mut input_sender: futures::channel::mpsc::Sender<f32>,

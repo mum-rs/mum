@@ -20,7 +20,6 @@ use dasp_ring_buffer::Fixed;
 use futures::Stream;
 use futures::task::{Context, Poll};
 use std::pin::Pin;
-use tokio_stream::StreamExt;
 use std::future::{Future};
 
 //TODO? move to mumlib
