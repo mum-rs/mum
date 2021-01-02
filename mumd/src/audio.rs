@@ -492,17 +492,15 @@ impl<S> StreamingSignal for FromStream<S>
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame> {
         let s = self.get_mut();
-        match s.next.take() {
-            Some(v) => {
-                match S::poll_next(Pin::new(&mut s.stream), cx) {
-                    Poll::Ready(val) => {
-                        s.next = val;
-                        Poll::Ready(v)
-                    }
-                    Poll::Pending => Poll::Pending
-                }
+        if s.next.is_none() {
+            return Poll::Ready(<Self::Frame as Frame>::EQUILIBRIUM);
+        }
+        match S::poll_next(Pin::new(&mut s.stream), cx) {
+            Poll::Ready(val) => {
+                let ret = mem::replace(&mut s.next, val);
+                Poll::Ready(ret.unwrap())
             }
-            None => Poll::Ready(<Self::Frame as Frame>::EQUILIBRIUM)
+            Poll::Pending => Poll::Pending,
         }
     }
 
