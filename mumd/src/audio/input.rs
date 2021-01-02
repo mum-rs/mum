@@ -23,38 +23,3 @@ pub fn callback<T: Sample>(
         }
     }
 }
-
-struct AudioStream<T> {
-    data: Arc<Mutex<(VecDeque<T>, Option<Waker>)>>,
-}
-
-impl<T> AudioStream<T> {
-    fn new() -> Self {
-        Self {
-            data: Arc::new(Mutex::new((VecDeque::new(), None)))
-        }
-    }
-    
-    fn insert_sample(&self, sample: T) {
-        let mut data = self.data.lock().unwrap();
-        data.0.push_back(sample);
-        if let Some(waker) = data.1.take() {
-            waker.wake();
-        }
-    }
-}
-
-impl<T> Stream for AudioStream<T> {
-    type Item = T;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let s = self.get_mut();
-        let mut data = s.data.lock().unwrap();
-        if data.0.len() > 0 {
-            Poll::Ready(data.0.pop_front())
-        } else {
-            data.1 = Some(cx.waker().clone());
-            Poll::Pending
-        }
-    }
-}
