@@ -21,9 +21,7 @@ use futures::Stream;
 use futures::task::{Context, Poll};
 use std::pin::Pin;
 use tokio_stream::StreamExt;
-use std::convert::identity;
 use std::future::Future;
-use std::mem;
 
 //TODO? move to mumlib
 pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
@@ -509,20 +507,20 @@ struct FromInterleavedSamplesStream<S, F>
     where
         F: Frame {
     stream: S,
-    next: Option<Vec<F::Sample>>,
+    next: Vec<F::Sample>,
+    underlying_exhausted: bool,
 }
 
-async fn from_interleaved_samples_stream<S, F>(mut stream: S) -> FromInterleavedSamplesStream<S, F>
+async fn from_interleaved_samples_stream<S, F>(stream: S) -> FromInterleavedSamplesStream<S, F>
     where
         S: Stream + Unpin,
         S::Item: Sample,
         F: Frame<Sample = S::Item> {
-    let mut data = Vec::with_capacity(F::CHANNELS);
-    for _ in 0..F::CHANNELS {
-        data.push(stream.next().await);
+    FromInterleavedSamplesStream {
+        stream,
+        next: Vec::new(),
+        underlying_exhausted: false
     }
-    let data = data.into_iter().flat_map(identity).collect::<Vec<_>>();
-    FromInterleavedSamplesStream { stream, next: if data.len() == F::CHANNELS { Some(data) } else { None } }
 }
 
 impl<S, F> StreamingSignal for FromInterleavedSamplesStream<S, F>
@@ -534,26 +532,24 @@ impl<S, F> StreamingSignal for FromInterleavedSamplesStream<S, F>
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame> {
         let s = self.get_mut();
-        if s.next.is_some() {
-            if s.next.as_ref().unwrap().len() == F::CHANNELS {
-                let mut data_buf = mem::replace(&mut s.next, Some(Vec::new())).unwrap().into_iter();
-                Poll::Ready(F::from_samples(&mut data_buf).unwrap())
-            } else {
-                match S::poll_next(Pin::new(&mut s.stream), cx) {
-                    Poll::Ready(Some(v)) => {
-                        s.next.as_mut().unwrap().push(v);
-                        Poll::Pending
-                    }
-                    Poll::Ready(None) => {
-                        s.next = None;
-                        Poll::Ready(F::EQUILIBRIUM)
-                    }
-                    Poll::Pending => Poll::Pending,
-                }
-            }
-        } else {
-            Poll::Ready(F::EQUILIBRIUM)
+        if s.underlying_exhausted {
+            return Poll::Ready(F::EQUILIBRIUM);
         }
+        while s.next.len() < F::CHANNELS {
+            match S::poll_next(Pin::new(&mut s.stream), cx) {
+                Poll::Ready(Some(v)) => {
+                    s.next.push(v);
+                }
+                Poll::Ready(None) => {
+                    s.underlying_exhausted = true;
+                    return Poll::Ready(F::EQUILIBRIUM);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+
+        let mut data = s.next.iter().cloned();
+        Poll::Ready(F::from_samples(&mut data).unwrap())
     }
 }
 
@@ -561,7 +557,6 @@ struct OpusEncoder<S> {
     encoder: opus::Encoder,
     frame_size: u32,
     sample_rate: u32,
-    channels: usize,
     stream: S,
     input_buffer: Vec<f32>,
     exhausted: bool,
@@ -588,7 +583,6 @@ impl<S, I> OpusEncoder<S>
             encoder,
             frame_size,
             sample_rate,
-            channels,
             stream,
             input_buffer: Vec::new(),
             exhausted: false,
