@@ -707,17 +707,23 @@ impl<S, I> Stream for OpusEncoder<S>
             return Poll::Ready(None);
         }
         let opus_frame_size = (s.frame_size * s.sample_rate / 400) as usize;
-        while s.input_buffer.len() < opus_frame_size {
-            match S::poll_next(Pin::new(&mut s.stream), cx) {
-                Poll::Ready(Some(v)) => {
-                    s.input_buffer.push(v.to_sample::<f32>());
+        loop {
+            while s.input_buffer.len() < opus_frame_size {
+                match S::poll_next(Pin::new(&mut s.stream), cx) {
+                    Poll::Ready(Some(v)) => {
+                        s.input_buffer.push(v.to_sample::<f32>());
+                    }
+                    Poll::Ready(None) => {
+                        s.exhausted = true;
+                        return Poll::Ready(None);
+                    }
+                    Poll::Pending => return Poll::Pending,
                 }
-                Poll::Ready(None) => {
-                    s.exhausted = true;
-                    return Poll::Ready(None);
-                }
-                Poll::Pending => return Poll::Pending,
             }
+            if s.input_buffer.iter().any(|&e| e != 0.0) {
+                break;
+            }
+            s.input_buffer.clear();
         }
 
         let encoded = s.encoder.encode_vec_float(&s.input_buffer, opus_frame_size).unwrap();
