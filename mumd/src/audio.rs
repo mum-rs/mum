@@ -433,6 +433,16 @@ trait StreamingSignal {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame>;
 }
 
+impl<S> StreamingSignal for S
+    where
+        S: Signal + Unpin {
+    type Frame = S::Frame;
+
+    fn poll_next(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Frame> {
+        Poll::Ready(self.get_mut().next())
+    }
+}
+
 trait StreamingSignalExt: StreamingSignal {
     fn next(&mut self) -> Next<'_, Self> {
         Next {
