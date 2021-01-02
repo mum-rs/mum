@@ -57,17 +57,11 @@ pub struct State {
     server: Option<Server>,
     audio: Audio,
 
-    packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
-    connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
-
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
 }
 
 impl State {
-    pub fn new(
-        packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
-        connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
-    ) -> Self {
+    pub fn new() -> Self {
         let config = mumlib::config::read_default_cfg();
         let audio = Audio::new(
             config.audio.input_volume.unwrap_or(1.0),
@@ -77,15 +71,18 @@ impl State {
             config,
             server: None,
             audio,
-            packet_sender,
-            connection_info_sender,
             phase_watcher: watch::channel(StatePhase::Disconnected),
         };
         state.reload_config();
         state
     }
 
-    pub fn handle_command(&mut self, command: Command) -> ExecutionContext {
+    pub fn handle_command(
+        &mut self,
+        command: Command,
+        packet_sender: &mut mpsc::UnboundedSender<ControlPacket<Serverbound>>,
+        connection_info_sender: &mut watch::Sender<Option<ConnectionInfo>>,
+    ) -> ExecutionContext {
         match command {
             Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected) {
@@ -134,7 +131,7 @@ impl State {
                 let mut msg = msgs::UserState::new();
                 msg.set_session(self.server.as_ref().unwrap().session_id().unwrap());
                 msg.set_channel_id(id);
-                self.packet_sender.send(msg.into()).unwrap();
+                packet_sender.send(msg.into()).unwrap();
                 now!(Ok(None))
             }
             Command::ChannelList => {
@@ -200,7 +197,7 @@ impl State {
                     let server = self.server_mut().unwrap();
                     server.set_muted(mute);
                     server.set_deafened(deafen);
-                    self.packet_sender.send(msg.into()).unwrap();
+                    packet_sender.send(msg.into()).unwrap();
                 }
 
                 now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
@@ -294,7 +291,7 @@ impl State {
                     let server = self.server_mut().unwrap();
                     server.set_muted(mute);
                     server.set_deafened(deafen);
-                    self.packet_sender.send(msg.into()).unwrap();
+                    packet_sender.send(msg.into()).unwrap();
                 }
 
                 now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
@@ -334,7 +331,7 @@ impl State {
                         return now!(Err(Error::InvalidServerAddrError(host, port)));
                     }
                 };
-                self.connection_info_sender
+                connection_info_sender
                     .send(Some(ConnectionInfo::new(
                         socket_addr,
                         host,
@@ -591,9 +588,6 @@ impl State {
     }
     pub fn audio_mut(&mut self) -> &mut Audio {
         &mut self.audio
-    }
-    pub fn packet_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> {
-        self.packet_sender.clone()
     }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
         self.phase_watcher.1.clone()
