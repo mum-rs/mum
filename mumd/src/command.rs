@@ -1,11 +1,14 @@
-use crate::{network::ConnectionInfo, state::{ExecutionContext, State}};
+use crate::network::{
+    ConnectionInfo,
+    tcp::{TcpEvent, TcpEventCallback},
+    udp::PingRequest
+};
+use crate::state::{ExecutionContext, State};
 
-use crate::network::tcp::{TcpEvent, TcpEventCallback};
 use ipc_channel::ipc::IpcSender;
 use log::*;
-use mumble_protocol::{Serverbound, control::ControlPacket, ping::PongPacket};
+use mumble_protocol::{Serverbound, control::ControlPacket};
 use mumlib::command::{Command, CommandResponse};
-use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -16,7 +19,7 @@ pub async fn handle(
         IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
     tcp_event_register_sender: mpsc::UnboundedSender<(TcpEvent, TcpEventCallback)>,
-    ping_request_sender: mpsc::UnboundedSender<(u64, SocketAddr, Box<dyn FnOnce(PongPacket)>)>,
+    ping_request_sender: mpsc::UnboundedSender<PingRequest>,
     mut packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
     mut connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
 ) {

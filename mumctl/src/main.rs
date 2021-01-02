@@ -204,11 +204,8 @@ fn main() {
         );
         let stdin = std::io::stdin();
         let response = stdin.lock().lines().next();
-        match response.map(|e| e.map(|e| &e == "Y")) {
-            Some(Ok(true)) => {
-                config.write_default_cfg(true).unwrap();
-            }
-            _ => {}
+        if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
+            config.write_default_cfg(true).unwrap();
         }
     } else {
         config.write_default_cfg(false).unwrap();
@@ -234,7 +231,7 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
         } else if let Some(matches) = matches.subcommand_matches("add") {
             match_server_add(matches, config);
         } else if let Some(_) = matches.subcommand_matches("list") {
-            if config.servers.len() == 0 {
+            if config.servers.is_empty() {
                 warn!("No servers in config");
             }
             let query = config
@@ -409,8 +406,7 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config:
                 let port = server_config.port.unwrap_or(port);
                 let username = server_config
                     .username
-                    .as_ref()
-                    .map(|e| e.as_str())
+                    .as_deref()
                     .or(username);
                 if username.is_none() {
                     error!("no username specified");
@@ -525,17 +521,17 @@ fn match_server_config(matches: &clap::ArgMatches<'_>, config: &mut mumlib::conf
                     server
                         .port
                         .map(|s| format!("port: {}\n", s))
-                        .unwrap_or("".to_string()),
+                        .unwrap_or_else(|| "".to_string()),
                     server
                         .username
                         .as_ref()
                         .map(|s| format!("username: {}\n", s))
-                        .unwrap_or("".to_string()),
+                        .unwrap_or_else(|| "".to_string()),
                     server
                         .password
                         .as_ref()
                         .map(|s| format!("password: {}\n", s))
-                        .unwrap_or("".to_string()),
+                        .unwrap_or_else(|| "".to_string()),
                 )
             }
         } else {

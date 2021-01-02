@@ -216,7 +216,7 @@ impl State {
                     .unwrap()
                     .users_mut()
                     .iter_mut()
-                    .find(|(_, user)| user.name() == &string);
+                    .find(|(_, user)| user.name() == string);
 
                 let (id, user) = match id {
                     Some(id) => (*id.0, id.1),
@@ -405,7 +405,7 @@ impl State {
                     .unwrap()
                     .users()
                     .iter()
-                    .find(|e| e.1.name() == &string)
+                    .find(|e| e.1.name() == string)
                     .map(|e| *e.0)
                 {
                     None => return now!(Err(Error::InvalidUsernameError(string))),

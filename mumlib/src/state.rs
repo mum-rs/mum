@@ -24,10 +24,10 @@ impl Channel {
     pub fn iter(&self) -> Iter<'_> {
         Iter {
             me: Some(&self),
-            channel: if self.children.len() > 0 {
-                Some(0)
-            } else {
+            channel: if self.children.is_empty() {
                 None
+            } else {
+                Some(0)
             },
             channels: self.children.iter().map(|e| e.iter()).collect(),
         }
@@ -36,12 +36,16 @@ impl Channel {
     pub fn users_iter(&self) -> UsersIter<'_> {
         UsersIter {
             channels: self.children.iter().map(|e| e.users_iter()).collect(),
-            channel: if self.children.len() > 0 {
-                Some(0)
-            } else {
+            channel: if self.children.is_empty() {
                 None
+            } else {
+                Some(0)
             },
-            user: if self.users.len() > 0 { Some(0) } else { None },
+            user: if self.users.is_empty() {
+                None
+            } else {
+                Some(0)
+            },
             users: &self.users,
         }
     }
