@@ -36,9 +36,7 @@ pub async fn handle(
             }
             return;
         };
-        let (mut sink, source) = connect(&mut crypt_state_receiver).await;
-
-        send_ping(&mut sink, connection_info.socket_addr).await;
+        let (sink, source) = connect(&mut crypt_state_receiver).await;
 
         let sink = Arc::new(Mutex::new(sink));
         let source = Arc::new(Mutex::new(source));
@@ -188,17 +186,19 @@ async fn listen(
     debug!("UDP listener process killed");
 }
 
-async fn send_ping(sink: &mut UdpSender, server_addr: SocketAddr) {
-    sink.send((VoicePacket::Ping {timestamp: 0}, server_addr))
-        .await
-        .unwrap();
-}
-
 async fn send_pings(sink: Arc<Mutex<UdpSender>>, server_addr: SocketAddr) {
     let mut interval = interval(Duration::from_millis(1000));
 
     loop {
-        send_ping(&mut sink.lock().unwrap(), server_addr).await;
+        if let Err(e) = sink
+            .lock()
+            .unwrap()
+            .send((VoicePacket::Ping {timestamp: 0}, server_addr))
+            .await
+        {
+            debug!("Error sending UDP ping: {}", e);
+        }
+
         interval.tick().await;
     }
 }
