@@ -2,7 +2,6 @@ use cpal::{InputCallbackInfo, Sample};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
-use log::*;
 use futures::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};

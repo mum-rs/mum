@@ -58,7 +58,7 @@ async fn main() {
     let (response_sender, response_receiver) = mpsc::unbounded_channel();
     let (ping_request_sender, ping_request_receiver) = mpsc::unbounded_channel();
 
-    let state = State::new(packet_sender, connection_info_sender).await;
+    let state = State::new(packet_sender, connection_info_sender);
     let state = Arc::new(Mutex::new(state));
 
     let (_, _, _, e, _) = join!(
