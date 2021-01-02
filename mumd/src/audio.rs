@@ -15,7 +15,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 use dasp_frame::Frame;
-use dasp_sample::{Sample, SignedSample};
+use dasp_sample::{Sample, SignedSample, ToSample};
 use dasp_ring_buffer::Fixed;
 use futures::Stream;
 use futures::task::{Context, Poll};
@@ -544,5 +544,75 @@ impl<S, F> StreamingSignal for FromInterleavedSamplesStream<S, F>
         } else {
             Poll::Ready(F::EQUILIBRIUM)
         }
+    }
+}
+
+struct OpusEncoder<S> {
+    encoder: opus::Encoder,
+    frame_size: u32,
+    sample_rate: u32,
+    channels: usize,
+    stream: S,
+    input_buffer: Vec<f32>,
+    exhausted: bool,
+}
+
+impl<S, I> OpusEncoder<S>
+    where
+        S: Stream<Item = I>,
+        I: ToSample<f32> {
+    fn new(frame_size: u32, sample_rate: u32, channels: usize, stream: S) -> Self {
+        let encoder = opus::Encoder::new(
+            sample_rate,
+            match channels {
+                1 => Channels::Mono,
+                2 => Channels::Stereo,
+                _ => unimplemented!(
+                    "Only 1 or 2 channels supported, got {})",
+                    channels
+                ),
+            },
+            opus::Application::Voip,
+        ).unwrap();
+        Self {
+            encoder,
+            frame_size,
+            sample_rate,
+            channels,
+            stream,
+            input_buffer: Vec::new(),
+            exhausted: false,
+        }
+    }
+}
+
+impl<S, I> Stream for OpusEncoder<S>
+    where
+        S: Stream<Item = I> + Unpin,
+        I: Sample + ToSample<f32> {
+    type Item = Vec<u8>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let s = self.get_mut();
+        if s.exhausted {
+            return Poll::Ready(None);
+        }
+        let opus_frame_size = (s.frame_size * s.sample_rate / 400) as usize;
+        while s.input_buffer.len() < opus_frame_size {
+            match S::poll_next(Pin::new(&mut s.stream), cx) {
+                Poll::Ready(Some(v)) => {
+                    s.input_buffer.push(v.to_sample::<f32>());
+                }
+                Poll::Ready(None) => {
+                    s.exhausted = true;
+                    return Poll::Ready(None);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+
+        let encoded = s.encoder.encode_vec_float(&s.input_buffer, opus_frame_size).unwrap();
+        s.input_buffer.clear();
+        Poll::Ready(Some(encoded))
     }
 }
