@@ -15,8 +15,10 @@ a PR.
 Unreleased
 ----------
 
-// Added
-// ~~~~~
+Added
+~~~~~
+
+* Added a noise gate
 
 // Changed
 // ~~~~~~~
@@ -29,6 +31,7 @@ Fixed
 
 * Informative error message instead of panic when a running mumd-process can't
   be found.
+* Client no longer sends empty audio packets
 
 // Other
 // ~~~~~
