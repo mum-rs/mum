@@ -16,11 +16,11 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
 use dasp_frame::Frame;
 use dasp_sample::{SignedSample, ToSample, Sample};
-use dasp_ring_buffer::Fixed;
 use futures::Stream;
 use futures::task::{Context, Poll};
 use std::pin::Pin;
 use std::future::{Future};
+use std::fmt::Debug;
 
 //TODO? move to mumlib
 pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
@@ -203,8 +203,11 @@ impl Audio {
             4,
             input_config.sample_rate.0,
             input_config.channels as usize,
-            StreamingSignalExt::into_interleaved_samples(from_interleaved_samples_stream::<_, f32>(sample_receiver)));  //TODO attach a noise gate
-                                                                                                                                        //TODO group frames correctly
+            StreamingSignalExt::into_interleaved_samples(
+                StreamingNoiseGate::new(
+                    from_interleaved_samples_stream::<_, f32>(sample_receiver), //TODO group frames correctly
+                    0.09,
+                    10_000)));
 
         output_stream.play().unwrap();
 
@@ -348,25 +351,23 @@ impl Audio {
 }
 
 struct NoiseGate<S: Signal> {
-    open: bool,
+    open: usize,
     signal: S,
-    buffer: dasp_ring_buffer::Fixed<Vec<S::Frame>>,
     activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
-    deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
+    deactivation_delay: usize,
 }
 
 impl<S: Signal> NoiseGate<S> {
     pub fn new(
         signal: S,
         activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
-        deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float
+        deactivation_delay: usize,
     ) -> NoiseGate<S> {
         Self {
-            open: false,
+            open: 0,
             signal,
-            buffer: Fixed::from(vec![<S::Frame as Frame>::EQUILIBRIUM; 4096]),
             activate_threshold,
-            deactivate_threshold,
+            deactivation_delay
         }
     }
 }
@@ -376,26 +377,26 @@ impl<S: Signal> Signal for NoiseGate<S> {
 
     fn next(&mut self) -> Self::Frame {
         let frame = self.signal.next();
-        self.buffer.push(frame);
 
-        if self.open && self.buffer
-            .iter()
-            .all(|f| f.to_float_frame()
-                .channels()
-                .all(|s| abs(s - <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM) <= self.deactivate_threshold)) {
-            self.open = false;
-        } else if !self.open && self.buffer
-            .iter()
-            .any(|f| f.to_float_frame()
-                .channels()
-                .any(|s| abs(s - <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM) >= self.activate_threshold)) {
-            self.open = true;
+        match self.open {
+            0 => {
+                if frame.to_float_frame().channels().any(|e| abs(e) >= self.activate_threshold) {
+                    self.open = self.deactivation_delay;
+                }
+            }
+            _ => {
+                if frame.to_float_frame().channels().any(|e| abs(e) >= self.activate_threshold) {
+                    self.open = self.deactivation_delay;
+                } else {
+                    self.open -= 1;
+                }
+            }
         }
 
-        if self.open {
+        if self.open != 0 {
             frame
         } else {
-            S::Frame::EQUILIBRIUM
+            <S::Frame as Frame>::EQUILIBRIUM
         }
     }
 
@@ -405,25 +406,23 @@ impl<S: Signal> Signal for NoiseGate<S> {
 }
 
 struct StreamingNoiseGate<S: StreamingSignal> {
-    open: bool,
+    open: usize,
     signal: S,
-    buffer: dasp_ring_buffer::Fixed<Vec<S::Frame>>,
     activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
-    deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
+    deactivation_delay: usize,
 }
 
 impl<S: StreamingSignal> StreamingNoiseGate<S> {
     pub fn new(
         signal: S,
         activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
-        deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float
+        deactivation_delay: usize,
     ) -> StreamingNoiseGate<S> {
         Self {
-            open: false,
+            open: 0,
             signal,
-            buffer: Fixed::from(vec![<S::Frame as Frame>::EQUILIBRIUM; 4096]),
             activate_threshold,
-            deactivate_threshold,
+            deactivation_delay
         }
     }
 }
@@ -442,26 +441,26 @@ impl<S> StreamingSignal for StreamingNoiseGate<S>
             Poll::Ready(v) => v,
             Poll::Pending => return Poll::Pending,
         };
-        s.buffer.push(frame);
 
-        if s.open && s.buffer
-            .iter()
-            .all(|f| f.to_float_frame()
-                .channels()
-                .all(|sample| abs(sample - <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM) <= s.deactivate_threshold)) {
-            s.open = false;
-        } else if !s.open && s.buffer
-            .iter()
-            .any(|f| f.to_float_frame()
-                .channels()
-                .any(|sample| abs(sample - <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM) >= s.activate_threshold)) {
-            s.open = true;
+        match s.open {
+            0 => {
+                if frame.to_float_frame().channels().any(|e| abs(e) >= s.activate_threshold) {
+                    s.open = s.deactivation_delay;
+                }
+            }
+            _ => {
+                if frame.to_float_frame().channels().any(|e| abs(e) >= s.activate_threshold) {
+                    s.open = s.deactivation_delay;
+                } else {
+                    s.open -= 1;
+                }
+            }
         }
 
-        if s.open {
+        if s.open != 0 {
             Poll::Ready(frame)
         } else {
-            Poll::Ready(S::Frame::EQUILIBRIUM)
+            Poll::Ready(<S::Frame as Frame>::EQUILIBRIUM)
         }
     }
 
@@ -567,7 +566,7 @@ struct FromStream<S> {
     underlying_exhausted: bool,
 }
 
-fn from_stream<S>(mut stream: S) -> FromStream<S>
+fn from_stream<S>(stream: S) -> FromStream<S>
     where
         S: Stream + Unpin,
         S::Item: Frame {

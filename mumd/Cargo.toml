@@ -18,8 +18,6 @@ notifications = ["libnotify"]
 [dependencies]
 mumlib = { version = "0.3", path = "../mumlib" }
 
-argparse = "0.2"
-async-stream = "0.3.0"
 cpal = "0.13"
 bytes = "1.0"
 dasp_interpolate = { version = "0.11", features = ["linear"] }

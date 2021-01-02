@@ -1,5 +1,6 @@
 use cpal::{InputCallbackInfo, Sample};
 use tokio::sync::watch;
+use log::*;
 
 pub fn callback<T: Sample>(
     mut input_sender: futures::channel::mpsc::Sender<f32>,
@@ -12,7 +13,7 @@ pub fn callback<T: Sample>(
             .map(|e| e.to_f32())
             .map(|e| e * input_volume) {
             if let Err(_e) = input_sender.try_send(sample) {
-                // warn!("Error sending audio: {}", e)
+                warn!("Error sending audio: {}", _e);
             }
         }
     }
