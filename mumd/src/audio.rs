@@ -21,7 +21,7 @@ use futures::Stream;
 use futures::task::{Context, Poll};
 use std::pin::Pin;
 use tokio_stream::StreamExt;
-use std::future::Future;
+use std::future::{Future};
 use std::mem;
 
 //TODO? move to mumlib
@@ -373,7 +373,11 @@ struct NoiseGate<S: Signal> {
 }
 
 impl<S: Signal> NoiseGate<S> {
-    pub fn new(signal: S, activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float, deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float) -> NoiseGate<S> {
+    pub fn new(
+        signal: S,
+        activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
+        deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float
+    ) -> NoiseGate<S> {
         Self {
             open: false,
             signal,
@@ -409,6 +413,72 @@ impl<S: Signal> Signal for NoiseGate<S> {
             frame
         } else {
             S::Frame::EQUILIBRIUM
+        }
+    }
+
+    fn is_exhausted(&self) -> bool {
+        self.signal.is_exhausted()
+    }
+}
+
+struct StreamingNoiseGate<S: StreamingSignal> {
+    open: bool,
+    signal: S,
+    buffer: dasp_ring_buffer::Fixed<Vec<S::Frame>>,
+    activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
+    deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
+}
+
+impl<S: StreamingSignal> StreamingNoiseGate<S> {
+    pub fn new(
+        signal: S,
+        activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
+        deactivate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float
+    ) -> StreamingNoiseGate<S> {
+        Self {
+            open: false,
+            signal,
+            buffer: Fixed::from(vec![<S::Frame as Frame>::EQUILIBRIUM; 4096]),
+            activate_threshold,
+            deactivate_threshold,
+        }
+    }
+}
+
+impl<S> StreamingSignal for StreamingNoiseGate<S>
+    where
+        S: StreamingSignal + Unpin,
+        <<<S as StreamingSignal>::Frame as Frame>::Sample as Sample>::Float: Unpin,
+        <S as StreamingSignal>::Frame: Unpin {
+    type Frame = S::Frame;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame> {
+        let s = self.get_mut();
+
+        let frame = match S::poll_next(Pin::new(&mut s.signal), cx) {
+            Poll::Ready(v) => v,
+            Poll::Pending => return Poll::Pending,
+        };
+        s.buffer.push(frame);
+
+        if s.open && s.buffer
+            .iter()
+            .all(|f| f.to_float_frame()
+                .channels()
+                .all(|sample| abs(sample - <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM) <= s.deactivate_threshold)) {
+            s.open = false;
+        } else if !s.open && s.buffer
+            .iter()
+            .any(|f| f.to_float_frame()
+                .channels()
+                .any(|sample| abs(sample - <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM) >= s.activate_threshold)) {
+            s.open = true;
+        }
+
+        if s.open {
+            Poll::Ready(frame)
+        } else {
+            Poll::Ready(S::Frame::EQUILIBRIUM)
         }
     }
 
