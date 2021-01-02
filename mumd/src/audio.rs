@@ -452,6 +452,12 @@ trait StreamingSignalExt: StreamingSignal {
             stream: self
         }
     }
+
+    fn into_interleaved_samples(self) -> IntoInterleavedSamples<Self>
+        where
+            Self: Sized {
+        IntoInterleavedSamples { signal: self, current_frame: None }
+    }
 }
 
 struct Next<'a, S: ?Sized> {
@@ -467,6 +473,35 @@ impl<'a, S: StreamingSignal + Unpin> Future for Next<'a, S> {
                 Poll::Ready(val)
             }
             Poll::Pending => Poll::Pending
+        }
+    }
+}
+
+struct IntoInterleavedSamples<S: StreamingSignal> {
+    signal: S,
+    current_frame: Option<<S::Frame as Frame>::Channels>,
+}
+
+impl<S> Stream for IntoInterleavedSamples<S>
+    where
+        S: StreamingSignal + Unpin,
+        <<S as StreamingSignal>::Frame as Frame>::Channels: Unpin {
+    type Item = <S::Frame as Frame>::Sample;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let s = self.get_mut();
+        loop {
+            if s.current_frame.is_none() {
+                match S::poll_next(Pin::new(&mut s.signal), cx) {
+                    Poll::Ready(val) => {
+                        s.current_frame = Some(val.channels());
+                    }
+                    Poll::Pending => return Poll::Pending,
+                }
+            }
+            if let Some(channel) = s.current_frame.as_mut().unwrap().next() {
+                return Poll::Ready(Some(channel));
+            }
         }
     }
 }
