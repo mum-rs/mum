@@ -22,6 +22,7 @@ use futures::task::{Context, Poll};
 use std::pin::Pin;
 use tokio_stream::StreamExt;
 use std::future::Future;
+use std::mem;
 
 //TODO? move to mumlib
 pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
@@ -504,6 +505,10 @@ impl<S> StreamingSignal for FromStream<S>
             None => Poll::Ready(<Self::Frame as Frame>::EQUILIBRIUM)
         }
     }
+
+    fn is_exhausted(&self) -> bool {
+        self.next.is_none()
+    }
 }
 
 
@@ -511,19 +516,37 @@ struct FromInterleavedSamplesStream<S, F>
     where
         F: Frame {
     stream: S,
-    next: Vec<F::Sample>,
+    next_frame: Option<F>,
+    next_buf: Vec<F::Sample>,
     underlying_exhausted: bool,
 }
 
-async fn from_interleaved_samples_stream<S, F>(stream: S) -> FromInterleavedSamplesStream<S, F>
+async fn from_interleaved_samples_stream<S, F>(mut stream: S) -> FromInterleavedSamplesStream<S, F>
     where
         S: Stream + Unpin,
         S::Item: Sample,
         F: Frame<Sample = S::Item> {
+    let mut i = 0;
+    let mut buf = Vec::new();
+    let next = loop {
+        if i == F::CHANNELS {
+            let mut iter = buf.into_iter();
+            break F::from_samples(&mut iter);
+        }
+        match stream.next().await {
+            Some(v) => {
+                buf.push(v);
+            }
+            None => break None,
+        }
+
+        i += 1;
+    };
     FromInterleavedSamplesStream {
         stream,
-        next: Vec::new(),
-        underlying_exhausted: false
+        next_buf: Vec::new(),
+        underlying_exhausted: false,
+        next_frame: next,
     }
 }
 
@@ -531,7 +554,7 @@ impl<S, F> StreamingSignal for FromInterleavedSamplesStream<S, F>
     where
         S: Stream + Unpin,
         S::Item: Sample + Unpin,
-        F: Frame<Sample = S::Item> {
+        F: Frame<Sample = S::Item> + Unpin {
     type Frame = F;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame> {
@@ -539,21 +562,24 @@ impl<S, F> StreamingSignal for FromInterleavedSamplesStream<S, F>
         if s.underlying_exhausted {
             return Poll::Ready(F::EQUILIBRIUM);
         }
-        while s.next.len() < F::CHANNELS {
+        while s.next_buf.len() < F::CHANNELS {
             match S::poll_next(Pin::new(&mut s.stream), cx) {
                 Poll::Ready(Some(v)) => {
-                    s.next.push(v);
+                    s.next_buf.push(v);
                 }
                 Poll::Ready(None) => {
                     s.underlying_exhausted = true;
+                    s.next_frame = None;
                     return Poll::Ready(F::EQUILIBRIUM);
                 }
                 Poll::Pending => return Poll::Pending,
             }
         }
 
-        let mut data = s.next.iter().cloned();
-        Poll::Ready(F::from_samples(&mut data).unwrap())
+        let mut data = s.next_buf.iter().cloned();
+        let n = F::from_samples(&mut data).unwrap();
+        let ret = mem::replace(&mut s.next_frame, Some(n)).unwrap();
+        Poll::Ready(ret)
     }
 }
 
