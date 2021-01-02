@@ -429,6 +429,10 @@ trait StreamingSignal {
     type Frame: Frame;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame>;
+
+    fn is_exhausted(&self) -> bool {
+        false
+    }
 }
 
 impl<S> StreamingSignal for S
