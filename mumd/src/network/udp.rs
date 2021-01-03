@@ -12,7 +12,8 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::net::{Ipv6Addr, SocketAddr};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::Ordering;
+use std::sync::{atomic::AtomicU64, Arc, Mutex};
 use tokio::{net::UdpSocket, time::{interval, Duration}};
 use tokio::sync::{broadcast::{self, error::RecvError}, mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
@@ -42,8 +43,14 @@ pub async fn handle(
         let source = Arc::new(Mutex::new(source));
 
         let phase_watcher = state.lock().unwrap().phase_receiver();
+        let last_ping_recv = AtomicU64::new(0);
         join!(
-            listen(Arc::clone(&state), Arc::clone(&source), phase_watcher.clone()),
+            listen(
+                Arc::clone(&state),
+                Arc::clone(&source),
+                phase_watcher.clone(),
+                &last_ping_recv,
+            ),
             send_voice(
                 Arc::clone(&sink),
                 connection_info.socket_addr,
@@ -51,8 +58,10 @@ pub async fn handle(
                 &mut input_receiver,
             ),
             send_pings(
+                Arc::clone(&state),
                 Arc::clone(&sink),
                 connection_info.socket_addr,
+                &last_ping_recv,
             ),
             new_crypt_state(&mut crypt_state_receiver, sink, source),
         );
@@ -106,6 +115,7 @@ async fn listen(
     state: Arc<Mutex<State>>,
     source: Arc<Mutex<UdpReceiver>>,
     mut phase_watcher: watch::Receiver<StatePhase>,
+    last_recv: &AtomicU64,
 ) {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
@@ -147,11 +157,12 @@ async fn listen(
                         }
                     };
                     match packet {
-                        VoicePacket::Ping { .. } => {
+                        VoicePacket::Ping { timestamp } => {
                             state
                                 .lock()
                                 .unwrap()
                                 .broadcast_phase(StatePhase::Connected(VoiceStreamType::UDP));
+                            last_recv.store(timestamp, Ordering::Relaxed);
                         }
                         VoicePacket::Audio {
                             session_id,
@@ -186,19 +197,36 @@ async fn listen(
     debug!("UDP listener process killed");
 }
 
-async fn send_pings(sink: Arc<Mutex<UdpSender>>, server_addr: SocketAddr) {
+async fn send_pings(
+    state: Arc<Mutex<State>>,
+    sink: Arc<Mutex<UdpSender>>,
+    server_addr: SocketAddr,
+    last_recv: &AtomicU64,
+) {
+    let mut last_send = None;
     let mut interval = interval(Duration::from_millis(1000));
 
     loop {
-        if let Err(e) = sink
+        let last_recv = last_recv.load(Ordering::Relaxed);
+        if last_send.is_some() && last_send.unwrap() != last_recv {
+            state
+                .lock()
+                .unwrap()
+                .broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
+        }
+        match sink
             .lock()
             .unwrap()
-            .send((VoicePacket::Ping {timestamp: 0}, server_addr))
+            .send((VoicePacket::Ping { timestamp: last_recv+1 }, server_addr))
             .await
         {
-            debug!("Error sending UDP ping: {}", e);
+            Ok(_) => {
+                last_send = Some(last_recv + 1);
+            }
+            Err(e) => {
+                debug!("Error sending UDP ping: {}", e);
+            }
         }
-
         interval.tick().await;
     }
 }
