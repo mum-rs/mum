@@ -11,23 +11,23 @@ use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use mumlib::config::SoundEffect;
 use opus::Channels;
-use std::{collections::hash_map::Entry, fs::File};
+use std::{collections::hash_map::Entry, fs::File, io};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 
 //TODO? move to mumlib
 pub const DEFAULT_SOUND_FILES: &[(NotificationEvents, &str)] = &[
-    (NotificationEvents::ServerConnect, "resources/connect.wav"),
-    (NotificationEvents::ServerDisconnect, "resources/disconnect.wav"),
-    (NotificationEvents::UserConnected, "resources/channel_join.wav"),
-    (NotificationEvents::UserDisconnected, "resources/channel_leave.wav"),
-    (NotificationEvents::UserJoinedChannel, "resources/channel_join.wav"),
-    (NotificationEvents::UserLeftChannel, "resources/channel_leave.wav"),
-    (NotificationEvents::Mute, "resources/mute.wav"),
-    (NotificationEvents::Unmute, "resources/unmute.wav"),
-    (NotificationEvents::Deafen, "resources/deafen.wav"),
-    (NotificationEvents::Undeafen, "resources/undeafen.wav"),
+    (NotificationEvents::ServerConnect, "connect.wav"),
+    (NotificationEvents::ServerDisconnect, "disconnect.wav"),
+    (NotificationEvents::UserConnected, "channel_join.wav"),
+    (NotificationEvents::UserDisconnected, "channel_leave.wav"),
+    (NotificationEvents::UserJoinedChannel, "channel_join.wav"),
+    (NotificationEvents::UserLeftChannel, "channel_leave.wav"),
+    (NotificationEvents::Mute, "mute.wav"),
+    (NotificationEvents::Unmute, "unmute.wav"),
+    (NotificationEvents::Deafen, "deafen.wav"),
+    (NotificationEvents::Undeafen, "undeafen.wav"),
 ];
 
 const SAMPLE_RATE: u32 = 48000;
@@ -214,15 +214,44 @@ impl Audio {
             user_volumes,
             play_sounds,
         };
-        res.load_sound_effects(&vec![]);
+        res.load_sound_effects(&vec![]).unwrap();
         res
     }
 
-    pub fn load_sound_effects(&mut self, _sound_effects: &Vec<SoundEffect>) -> Result<(), ()> {
+    pub fn load_sound_effects(&mut self, sound_effects: &Vec<SoundEffect>) -> Result<(), ()> {
+        let overrides: HashMap<_, _> = sound_effects
+            .iter()
+            .map(|sound_effect| { (&sound_effect.event, &sound_effect.file) })
+            .filter_map(|(event, file)| {
+                let event = match event.as_str() {
+                    "server_connect" => NotificationEvents::ServerConnect,
+                    "server_disconnect" => NotificationEvents::ServerDisconnect,
+                    "user_connected" => NotificationEvents::UserConnected,
+                    "user_disconnected" => NotificationEvents::UserDisconnected,
+                    "user_joined_channel" => NotificationEvents::UserJoinedChannel,
+                    "user_left_channel" => NotificationEvents::UserLeftChannel,
+                    "mute" => NotificationEvents::Mute,
+                    "unmute" => NotificationEvents::Unmute,
+                    "deafen" => NotificationEvents::Deafen,
+                    "undeafen" => NotificationEvents::Undeafen,
+                    _ => {
+                        warn!("Unknown notification event '{}' in config", event);
+                        return None;
+                    }
+                };
+                Some((event, file))
+            })
+            .collect();
+
         self.sounds = DEFAULT_SOUND_FILES
             .iter()
             .map(|(event, file)| {
-                let reader = hound::WavReader::new(File::open(file).unwrap()).unwrap();
+                let file = if let Some(file) = overrides.get(event) {
+                    *file
+                } else {
+                    *file
+                };
+                let reader = hound::WavReader::new(get_resource(file).unwrap()).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
                     hound::SampleFormat::Float => reader
@@ -351,4 +380,8 @@ impl Audio {
         let l = play_sounds.len();
         play_sounds.extend(samples.iter().skip(l));
     }
+}
+
+fn get_resource(file: &str) -> io::Result<File> {
+    File::open(file)
 }
