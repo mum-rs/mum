@@ -11,7 +11,7 @@ use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use mumlib::config::SoundEffect;
 use opus::Channels;
-use std::{collections::hash_map::Entry, fs::File, io::Read};
+use std::{borrow::Cow, collections::hash_map::Entry, fs::File, io::Read};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use strum::IntoEnumIterator;
@@ -233,11 +233,11 @@ impl Audio {
 
         self.sounds = NotificationEvents::iter()
             .map(|event| {
-                let bytes = overrides.get(&event)
+                let bytes_cow = overrides.get(&event)
                     .map(|file| get_resource(file))
                     .flatten()
-                    .map(|byte_vec| &*byte_vec.leak())
-                    .unwrap_or(include_bytes!("fallback_sfx.wav"));
+                    .unwrap_or(Cow::from(include_bytes!("fallback_sfx.wav").as_ref()));
+                let bytes = bytes_cow.as_ref();
                 let reader = hound::WavReader::new(bytes).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
@@ -369,13 +369,14 @@ impl Audio {
     }
 }
 
-fn get_resource(file: &str) -> Option<Vec<u8>> {
+// moo
+fn get_resource(file: &str) -> Option<Cow<[u8]>> {
     let mut buf: Vec<u8> = Vec::new();
     if let Ok(mut file) = File::open(file)
         .or_else(|_| File::open(format!("/home/gustav/dev/mum/mumd/src/resources/{}", file)))
     {
         file.read_to_end(&mut buf).unwrap();
-        Some(buf)
+        Some(Cow::from(buf))
     } else {
         None
     }
