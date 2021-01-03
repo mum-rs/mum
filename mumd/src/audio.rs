@@ -14,25 +14,13 @@ use opus::Channels;
 use std::{collections::hash_map::Entry, fs::File, io::Read};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tokio::sync::{mpsc, watch};
-
-//TODO? move to mumlib
-pub const DEFAULT_SOUND_FILES: &[(NotificationEvents, &str)] = &[
-    (NotificationEvents::ServerConnect, "fallback_sfx.wav"),
-    (NotificationEvents::ServerDisconnect, "fallback_sfx.wav"),
-    (NotificationEvents::UserConnected, "fallback_sfx.wav"),
-    (NotificationEvents::UserDisconnected, "fallback_sfx.wav"),
-    (NotificationEvents::UserJoinedChannel, "fallback_sfx.wav"),
-    (NotificationEvents::UserLeftChannel, "fallback_sfx.wav"),
-    (NotificationEvents::Mute, "fallback_sfx.wav"),
-    (NotificationEvents::Unmute, "fallback_sfx.wav"),
-    (NotificationEvents::Deafen, "fallback_sfx.wav"),
-    (NotificationEvents::Undeafen, "fallback_sfx.wav"),
-];
 
 const SAMPLE_RATE: u32 = 48000;
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, EnumIter)]
 pub enum NotificationEvents {
     ServerConnect,
     ServerDisconnect,
@@ -243,19 +231,13 @@ impl Audio {
             })
             .collect();
 
-        self.sounds = DEFAULT_SOUND_FILES
-            .iter()
-            .map(|(event, file)| {
-                let file = if let Some(file) = overrides.get(event) {
-                    *file
-                } else {
-                    *file
-                };
-                let bytes = if let Some(bytes_vec) = get_resource(file) {
-                    &*bytes_vec.leak() // needs immutability
-                } else {
-                    include_bytes!("fallback_sfx.wav")
-                };
+        self.sounds = NotificationEvents::iter()
+            .map(|event| {
+                let bytes = overrides.get(&event)
+                    .map(|file| get_resource(file))
+                    .flatten()
+                    .map(|byte_vec| &*byte_vec.leak())
+                    .unwrap_or(include_bytes!("fallback_sfx.wav"));
                 let reader = hound::WavReader::new(bytes).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
@@ -287,7 +269,7 @@ impl Audio {
                         }
                     )
                     .collect::<Vec<f32>>();
-                (*event, samples)
+                (event, samples)
             })
             .collect();
 
