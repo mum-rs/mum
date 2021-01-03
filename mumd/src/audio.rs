@@ -233,12 +233,11 @@ impl Audio {
 
         self.sounds = NotificationEvents::iter()
             .map(|event| {
-                let bytes_cow = overrides.get(&event)
+                let bytes = overrides.get(&event)
                     .map(|file| get_resource(file))
                     .flatten()
                     .unwrap_or(Cow::from(include_bytes!("fallback_sfx.wav").as_ref()));
-                let bytes = bytes_cow.as_ref();
-                let reader = hound::WavReader::new(bytes).unwrap();
+                let reader = hound::WavReader::new(bytes.as_ref()).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
                     hound::SampleFormat::Float => reader
