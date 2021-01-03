@@ -47,9 +47,16 @@ impl Config {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct SoundEffect {
+    pub event: String,
+    pub file: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct AudioConfig {
     pub input_volume: Option<f32>,
     pub output_volume: Option<f32>,
+    pub sound_effects: Option<Vec<SoundEffect>>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

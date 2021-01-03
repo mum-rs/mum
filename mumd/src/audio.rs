@@ -9,39 +9,25 @@ use dasp_interpolate::linear::Linear;
 use dasp_signal::{self as signal, Signal};
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
+use mumlib::config::SoundEffect;
 use opus::Channels;
-use std::collections::hash_map::Entry;
+use std::{collections::hash_map::Entry, fs::File};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 
 //TODO? move to mumlib
-pub const EVENT_SOUNDS: &[(&[u8], NotificationEvents)] = &[
-    (include_bytes!("resources/connect.wav"), NotificationEvents::ServerConnect),
-    (
-        include_bytes!("resources/disconnect.wav"),
-        NotificationEvents::ServerDisconnect,
-    ),
-    (
-        include_bytes!("resources/channel_join.wav"),
-        NotificationEvents::UserConnected,
-    ),
-    (
-        include_bytes!("resources/channel_leave.wav"),
-        NotificationEvents::UserDisconnected,
-    ),
-    (
-        include_bytes!("resources/channel_join.wav"),
-        NotificationEvents::UserJoinedChannel,
-    ),
-    (
-        include_bytes!("resources/channel_leave.wav"),
-        NotificationEvents::UserLeftChannel,
-    ),
-    (include_bytes!("resources/mute.wav"), NotificationEvents::Mute),
-    (include_bytes!("resources/unmute.wav"), NotificationEvents::Unmute),
-    (include_bytes!("resources/deafen.wav"), NotificationEvents::Deafen),
-    (include_bytes!("resources/undeafen.wav"), NotificationEvents::Undeafen),
+pub const DEFAULT_SOUND_FILES: &[(NotificationEvents, &str)] = &[
+    (NotificationEvents::ServerConnect, "resources/connect.wav"),
+    (NotificationEvents::ServerDisconnect, "resources/disconnect.wav"),
+    (NotificationEvents::UserConnected, "resources/channel_join.wav"),
+    (NotificationEvents::UserDisconnected, "resources/channel_leave.wav"),
+    (NotificationEvents::UserJoinedChannel, "resources/channel_join.wav"),
+    (NotificationEvents::UserLeftChannel, "resources/channel_leave.wav"),
+    (NotificationEvents::Mute, "resources/mute.wav"),
+    (NotificationEvents::Unmute, "resources/unmute.wav"),
+    (NotificationEvents::Deafen, "resources/deafen.wav"),
+    (NotificationEvents::Undeafen, "resources/undeafen.wav"),
 ];
 
 const SAMPLE_RATE: u32 = 48000;
@@ -216,10 +202,27 @@ impl Audio {
 
         output_stream.play().unwrap();
 
-        let sounds = EVENT_SOUNDS
+        let mut res = Self {
+            output_config,
+            _output_stream: output_stream,
+            _input_stream: input_stream,
+            input_volume_sender,
+            input_channel_receiver: Some(input_receiver),
+            client_streams,
+            sounds: HashMap::new(),
+            output_volume_sender,
+            user_volumes,
+            play_sounds,
+        };
+        res.load_sound_effects(&vec![]);
+        res
+    }
+
+    pub fn load_sound_effects(&mut self, _sound_effects: &Vec<SoundEffect>) -> Result<(), ()> {
+        self.sounds = DEFAULT_SOUND_FILES
             .iter()
-            .map(|(bytes, event)| {
-                let reader = hound::WavReader::new(*bytes).unwrap();
+            .map(|(event, file)| {
+                let reader = hound::WavReader::new(File::open(file).unwrap()).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
                     hound::SampleFormat::Float => reader
@@ -242,24 +245,19 @@ impl Audio {
                     .from_hz_to_hz(interp, spec.sample_rate as f64, SAMPLE_RATE as f64)
                     .until_exhausted()
                     // if the source audio is stereo and is being played as mono, discard the right audio
-                    .flat_map(|e| if output_config.channels == 1 { vec![e[0]] } else { e.to_vec() })
+                    .flat_map(
+                        |e| if self.output_config.channels == 1 {
+                            vec![e[0]]
+                        } else {
+                            e.to_vec()
+                        }
+                    )
                     .collect::<Vec<f32>>();
                 (*event, samples)
             })
             .collect();
 
-        Self {
-            output_config,
-            _output_stream: output_stream,
-            _input_stream: input_stream,
-            input_volume_sender,
-            input_channel_receiver: Some(input_receiver),
-            client_streams,
-            sounds,
-            output_volume_sender,
-            user_volumes,
-            play_sounds,
-        }
+        Ok(())
     }
 
     pub fn decode_packet(&self, session_id: u32, payload: VoicePacketPayload) {
