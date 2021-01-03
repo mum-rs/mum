@@ -368,7 +368,7 @@ impl Audio {
 }
 
 // moo
-fn get_resource(file: &str) -> Option<Cow<[u8]>> {
+fn get_resource(file: &str) -> Option<Cow<'static, [u8]>> {
     let mut buf: Vec<u8> = Vec::new();
     if let Ok(mut file) = File::open(file)
         .or_else(|_| File::open(format!("/home/gustav/dev/mum/mumd/src/resources/{}", file)))
