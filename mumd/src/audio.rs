@@ -209,8 +209,8 @@ impl Audio {
     pub fn load_sound_effects(&mut self, sound_effects: &Vec<SoundEffect>) {
         let overrides: HashMap<_, _> = sound_effects
             .iter()
-            .map(|sound_effect| { (&sound_effect.event, &sound_effect.file) })
-            .filter_map(|(event, file)| {
+            .filter_map(|sound_effect| {
+                let (event, file) = (&sound_effect.event, &sound_effect.file);
                 let event = match event.as_str() {
                     "server_connect" => NotificationEvents::ServerConnect,
                     "server_disconnect" => NotificationEvents::ServerDisconnect,
