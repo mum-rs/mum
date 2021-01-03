@@ -11,23 +11,23 @@ use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use mumlib::config::SoundEffect;
 use opus::Channels;
-use std::{collections::hash_map::Entry, fs::File, io};
+use std::{collections::hash_map::Entry, fs::File, io::Read};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, watch};
 
 //TODO? move to mumlib
 pub const DEFAULT_SOUND_FILES: &[(NotificationEvents, &str)] = &[
-    (NotificationEvents::ServerConnect, "connect.wav"),
-    (NotificationEvents::ServerDisconnect, "disconnect.wav"),
-    (NotificationEvents::UserConnected, "channel_join.wav"),
-    (NotificationEvents::UserDisconnected, "channel_leave.wav"),
-    (NotificationEvents::UserJoinedChannel, "channel_join.wav"),
-    (NotificationEvents::UserLeftChannel, "channel_leave.wav"),
-    (NotificationEvents::Mute, "mute.wav"),
-    (NotificationEvents::Unmute, "unmute.wav"),
-    (NotificationEvents::Deafen, "deafen.wav"),
-    (NotificationEvents::Undeafen, "undeafen.wav"),
+    (NotificationEvents::ServerConnect, "fallback_sfx.wav"),
+    (NotificationEvents::ServerDisconnect, "fallback_sfx.wav"),
+    (NotificationEvents::UserConnected, "fallback_sfx.wav"),
+    (NotificationEvents::UserDisconnected, "fallback_sfx.wav"),
+    (NotificationEvents::UserJoinedChannel, "fallback_sfx.wav"),
+    (NotificationEvents::UserLeftChannel, "fallback_sfx.wav"),
+    (NotificationEvents::Mute, "fallback_sfx.wav"),
+    (NotificationEvents::Unmute, "fallback_sfx.wav"),
+    (NotificationEvents::Deafen, "fallback_sfx.wav"),
+    (NotificationEvents::Undeafen, "fallback_sfx.wav"),
 ];
 
 const SAMPLE_RATE: u32 = 48000;
@@ -251,7 +251,12 @@ impl Audio {
                 } else {
                     *file
                 };
-                let reader = hound::WavReader::new(get_resource(file).unwrap()).unwrap();
+                let bytes = if let Some(bytes_vec) = get_resource(file) {
+                    &*bytes_vec.leak() // needs immutability
+                } else {
+                    include_bytes!("fallback_sfx.wav")
+                };
+                let reader = hound::WavReader::new(bytes).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
                     hound::SampleFormat::Float => reader
@@ -382,6 +387,14 @@ impl Audio {
     }
 }
 
-fn get_resource(file: &str) -> io::Result<File> {
-    File::open(file)
+fn get_resource(file: &str) -> Option<Vec<u8>> {
+    let mut buf: Vec<u8> = Vec::new();
+    if let Ok(mut file) = File::open(file)
+        .or_else(|_| File::open(format!("/home/gustav/dev/mum/mumd/src/resources/{}", file)))
+    {
+        file.read_to_end(&mut buf).unwrap();
+        Some(buf)
+    } else {
+        None
+    }
 }
