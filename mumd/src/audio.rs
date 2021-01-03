@@ -11,9 +11,14 @@ use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use mumlib::config::SoundEffect;
 use opus::Channels;
-use std::{borrow::Cow, collections::hash_map::Entry, fs::File, io::Read};
-use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::{
+    borrow::Cow,
+    collections::{hash_map::Entry, HashMap, VecDeque},
+    convert::TryFrom,
+    fs::File,
+    io::Read,
+    sync::{Arc, Mutex}
+};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use tokio::sync::{mpsc, watch};
@@ -32,6 +37,28 @@ pub enum NotificationEvents {
     Unmute,
     Deafen,
     Undeafen,
+}
+
+impl TryFrom<&str> for NotificationEvents {
+    type Error = ();
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "server_connect" => Ok(NotificationEvents::ServerConnect),
+            "server_disconnect" => Ok(NotificationEvents::ServerDisconnect),
+            "user_connected" => Ok(NotificationEvents::UserConnected),
+            "user_disconnected" => Ok(NotificationEvents::UserDisconnected),
+            "user_joined_channel" => Ok(NotificationEvents::UserJoinedChannel),
+            "user_left_channel" => Ok(NotificationEvents::UserLeftChannel),
+            "mute" => Ok(NotificationEvents::Mute),
+            "unmute" => Ok(NotificationEvents::Unmute),
+            "deafen" => Ok(NotificationEvents::Deafen),
+            "undeafen" => Ok(NotificationEvents::Undeafen),
+            _ => {
+                warn!("Unknown notification event '{}' in config", s);
+                Err(())
+            }
+        }
+    }
 }
 
 pub struct Audio {
@@ -202,32 +229,20 @@ impl Audio {
             user_volumes,
             play_sounds,
         };
-        res.load_sound_effects(&vec![]);
+        res.load_sound_effects(&[]);
         res
     }
 
-    pub fn load_sound_effects(&mut self, sound_effects: &Vec<SoundEffect>) {
+    pub fn load_sound_effects(&mut self, sound_effects: &[SoundEffect]) {
         let overrides: HashMap<_, _> = sound_effects
             .iter()
             .filter_map(|sound_effect| {
                 let (event, file) = (&sound_effect.event, &sound_effect.file);
-                let event = match event.as_str() {
-                    "server_connect" => NotificationEvents::ServerConnect,
-                    "server_disconnect" => NotificationEvents::ServerDisconnect,
-                    "user_connected" => NotificationEvents::UserConnected,
-                    "user_disconnected" => NotificationEvents::UserDisconnected,
-                    "user_joined_channel" => NotificationEvents::UserJoinedChannel,
-                    "user_left_channel" => NotificationEvents::UserLeftChannel,
-                    "mute" => NotificationEvents::Mute,
-                    "unmute" => NotificationEvents::Unmute,
-                    "deafen" => NotificationEvents::Deafen,
-                    "undeafen" => NotificationEvents::Undeafen,
-                    _ => {
-                        warn!("Unknown notification event '{}' in config", event);
-                        return None;
-                    }
-                };
-                Some((event, file))
+                if let Ok(event) = NotificationEvents::try_from(event.as_str()) {
+                    Some((event, file))
+                } else {
+                    None
+                }
             })
             .collect();
 
