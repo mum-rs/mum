@@ -350,61 +350,6 @@ impl Audio {
     }
 }
 
-struct NoiseGate<S: Signal> {
-    open: usize,
-    signal: S,
-    activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
-    deactivation_delay: usize,
-}
-
-impl<S: Signal> NoiseGate<S> {
-    pub fn new(
-        signal: S,
-        activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
-        deactivation_delay: usize,
-    ) -> NoiseGate<S> {
-        Self {
-            open: 0,
-            signal,
-            activate_threshold,
-            deactivation_delay
-        }
-    }
-}
-
-impl<S: Signal> Signal for NoiseGate<S> {
-    type Frame = S::Frame;
-
-    fn next(&mut self) -> Self::Frame {
-        let frame = self.signal.next();
-
-        match self.open {
-            0 => {
-                if frame.to_float_frame().channels().any(|e| abs(e) >= self.activate_threshold) {
-                    self.open = self.deactivation_delay;
-                }
-            }
-            _ => {
-                if frame.to_float_frame().channels().any(|e| abs(e) >= self.activate_threshold) {
-                    self.open = self.deactivation_delay;
-                } else {
-                    self.open -= 1;
-                }
-            }
-        }
-
-        if self.open != 0 {
-            frame
-        } else {
-            <S::Frame as Frame>::EQUILIBRIUM
-        }
-    }
-
-    fn is_exhausted(&self) -> bool {
-        self.signal.is_exhausted()
-    }
-}
-
 struct StreamingNoiseGate<S: StreamingSignal> {
     open: usize,
     signal: S,
@@ -564,13 +509,6 @@ impl<S> Stream for IntoInterleavedSamples<S>
 struct FromStream<S> {
     stream: S,
     underlying_exhausted: bool,
-}
-
-fn from_stream<S>(stream: S) -> FromStream<S>
-    where
-        S: Stream + Unpin,
-        S::Item: Frame {
-    FromStream { stream, underlying_exhausted: false }
 }
 
 impl<S> StreamingSignal for FromStream<S>
