@@ -202,11 +202,11 @@ impl Audio {
             user_volumes,
             play_sounds,
         };
-        res.load_sound_effects(&vec![]).unwrap();
+        res.load_sound_effects(&vec![]);
         res
     }
 
-    pub fn load_sound_effects(&mut self, sound_effects: &Vec<SoundEffect>) -> Result<(), ()> {
+    pub fn load_sound_effects(&mut self, sound_effects: &Vec<SoundEffect>) {
         let overrides: HashMap<_, _> = sound_effects
             .iter()
             .map(|sound_effect| { (&sound_effect.event, &sound_effect.file) })
@@ -272,8 +272,6 @@ impl Audio {
                 (event, samples)
             })
             .collect();
-
-        Ok(())
     }
 
     pub fn decode_packet(&self, session_id: u32, payload: VoicePacketPayload) {

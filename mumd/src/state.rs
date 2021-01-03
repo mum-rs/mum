@@ -574,9 +574,7 @@ impl State {
             self.audio.set_output_volume(output_volume);
         }
         if let Some(sound_effects) = &self.config.audio.sound_effects {
-            if let Err(e) = self.audio.load_sound_effects(sound_effects) {
-                warn!("Error loading sound effects: {:?}", e);
-            }
+            self.audio.load_sound_effects(sound_effects);
         }
     }
 
