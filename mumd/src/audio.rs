@@ -248,11 +248,9 @@ impl Audio {
 
         self.sounds = NotificationEvents::iter()
             .map(|event| {
-
-                let bytes = match overrides.get(&event) {
-                    Some(file) => get_sfx(file),
-                    None => get_default_sfx(),
-                };
+                let bytes = overrides.get(&event)
+                    .map(|file| get_sfx(file))
+                    .unwrap_or_else(|| get_default_sfx());
                 let reader = hound::WavReader::new(bytes.as_ref()).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
