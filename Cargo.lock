@@ -1162,9 +1162,9 @@ dependencies = [
 
 [[package]]
 name = "mumble-protocol"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a853f0a6938b65b17fbdaf6ee8a2dcd5e6d12c27f38c93ecd5a647a5c4357e8"
+checksum = "4071096f63c6e9853c32825096af49caf6667979ff67a765ba23dffcf3c77160"
 dependencies = [
  "byteorder",
  "bytes",
