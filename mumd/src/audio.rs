@@ -385,9 +385,7 @@ impl Audio {
 // moo
 fn get_sfx(file: &str) -> Cow<'static, [u8]> {
     let mut buf: Vec<u8> = Vec::new();
-    if let Ok(mut file) = File::open(file)
-        .or_else(|_| File::open(format!("/home/gustav/dev/mum/mumd/src/resources/{}", file)))
-    {
+    if let Ok(mut file) = File::open(file) {
         file.read_to_end(&mut buf).unwrap();
         Cow::from(buf)
     } else {
