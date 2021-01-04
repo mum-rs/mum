@@ -53,12 +53,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "argparse"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f8ebf5827e4ac4fd5946560e6a99776ea73b596d80898f357007317a7141e47"
-
-[[package]]
 name = "ascii"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1168,9 +1162,9 @@ dependencies = [
 
 [[package]]
 name = "mumble-protocol"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a853f0a6938b65b17fbdaf6ee8a2dcd5e6d12c27f38c93ecd5a647a5c4357e8"
+checksum = "4071096f63c6e9853c32825096af49caf6667979ff67a765ba23dffcf3c77160"
 dependencies = [
  "byteorder",
  "bytes",
@@ -1195,10 +1189,12 @@ dependencies = [
 name = "mumd"
 version = "0.3.0"
 dependencies = [
- "argparse",
  "bytes",
  "cpal",
+ "dasp_frame",
  "dasp_interpolate",
+ "dasp_ring_buffer",
+ "dasp_sample",
  "dasp_signal",
  "futures",
  "futures-util",
@@ -1214,6 +1210,7 @@ dependencies = [
  "serde",
  "tokio",
  "tokio-native-tls",
+ "tokio-stream",
  "tokio-util",
 ]
 
