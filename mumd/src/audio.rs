@@ -250,7 +250,7 @@ impl Audio {
             .map(|event| {
                 let bytes = overrides.get(&event)
                     .map(|file| get_sfx(file))
-                    .unwrap_or_else(|| get_default_sfx());
+                    .unwrap_or_else(get_default_sfx);
                 let reader = hound::WavReader::new(bytes.as_ref()).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
