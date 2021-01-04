@@ -248,10 +248,11 @@ impl Audio {
 
         self.sounds = NotificationEvents::iter()
             .map(|event| {
-                let bytes = overrides.get(&event)
-                    .map(|file| get_resource(file))
-                    .flatten()
-                    .unwrap_or(Cow::from(include_bytes!("fallback_sfx.wav").as_ref()));
+
+                let bytes = match overrides.get(&event) {
+                    Some(file) => get_sfx(file),
+                    None => get_default_sfx(),
+                };
                 let reader = hound::WavReader::new(bytes.as_ref()).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
@@ -382,14 +383,19 @@ impl Audio {
 }
 
 // moo
-fn get_resource(file: &str) -> Option<Cow<'static, [u8]>> {
+fn get_sfx(file: &str) -> Cow<'static, [u8]> {
     let mut buf: Vec<u8> = Vec::new();
     if let Ok(mut file) = File::open(file)
         .or_else(|_| File::open(format!("/home/gustav/dev/mum/mumd/src/resources/{}", file)))
     {
         file.read_to_end(&mut buf).unwrap();
-        Some(Cow::from(buf))
+        Cow::from(buf)
     } else {
-        None
+        warn!("File not found: '{}'", file);
+        get_default_sfx()
     }
+}
+
+fn get_default_sfx() -> Cow<'static, [u8]> {
+    Cow::from(include_bytes!("fallback_sfx.wav").as_ref())
 }
