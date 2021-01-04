@@ -1,10 +1,10 @@
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
-use log::*;
 
 use bytes::Bytes;
 use futures::{join, pin_mut, select, FutureExt, SinkExt, StreamExt, Stream};
 use futures_util::stream::{SplitSink, SplitStream};
+use log::*;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::ping::{PingPacket, PongPacket};
 use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
@@ -17,6 +17,8 @@ use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
+
+pub type PingRequest = (u64, SocketAddr, Box<dyn FnOnce(PongPacket)>);
 
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
 type UdpReceiver = SplitStream<UdpFramed<ClientCryptState>>;
@@ -90,17 +92,14 @@ async fn new_crypt_state(
     source: Arc<Mutex<UdpReceiver>>,
 ) {
     loop {
-        match crypt_state.recv().await {
-            Some(crypt_state) => {
-                info!("Received new crypt state");
-                let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
-                    .await
-                    .expect("Failed to bind UDP socket");
-                let (new_sink, new_source) = UdpFramed::new(udp_socket, crypt_state).split();
-                *sink.lock().unwrap() = new_sink;
-                *source.lock().unwrap() = new_source;
-            },
-            None => {},
+        if let Some(crypt_state) = crypt_state.recv().await {
+            info!("Received new crypt state");
+            let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
+                .await
+                .expect("Failed to bind UDP socket");
+            let (new_sink, new_source) = UdpFramed::new(udp_socket, crypt_state).split();
+            *sink.lock().unwrap() = new_sink;
+            *source.lock().unwrap() = new_source;
         }
     }
 }
@@ -248,11 +247,7 @@ async fn send_voice(
 }
 
 pub async fn handle_pings(
-    mut ping_request_receiver: mpsc::UnboundedReceiver<(
-        u64,
-        SocketAddr,
-        Box<dyn FnOnce(PongPacket)>,
-    )>,
+    mut ping_request_receiver: mpsc::UnboundedReceiver<PingRequest>,
 ) {
     let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
         .await

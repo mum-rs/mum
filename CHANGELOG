@@ -29,12 +29,14 @@ Added
 Fixed
 ~~~~~
 
-* Informative error message instead of panic when a running mumd-process can't
-  be found.
-* Client no longer sends empty audio packets
+ * Client no longer sends empty audio packets
+ * Informative error message instead of panic when a running mumd-process can't
+   be found.
 
-// Other
-// ~~~~~
+Other
+~~~~~
+
+ * Updated to tokio 1.0.
 
 0.3 - 2020-12-25
 ------------------

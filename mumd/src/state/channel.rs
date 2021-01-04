@@ -88,7 +88,7 @@ impl<'a> ProtoTree<'a> {
                     users: Vec::new(),
                 });
                 pt.channel = Some(channel);
-                pt.users = users.get(&node).map(|e| e.clone()).unwrap_or(Vec::new());
+                pt.users = users.get(&node).cloned().unwrap_or_default();
             }
             longer => {
                 self.children
@@ -135,7 +135,7 @@ pub fn into_channel(
     for user in users.values() {
         channel_lookup
             .entry(user.channel())
-            .or_insert(Vec::new())
+            .or_insert_with(Vec::new)
             .push(user);
     }
 
@@ -148,7 +148,7 @@ pub fn into_channel(
         }
         walk.reverse();
 
-        if walk.len() > 0 {
+        if !walk.is_empty() {
             walks.push((walk, channel));
         }
     }
@@ -159,8 +159,8 @@ pub fn into_channel(
         children: HashMap::new(),
         users: channel_lookup
             .get(&0)
-            .map(|e| e.clone())
-            .unwrap_or(Vec::new()),
+            .cloned()
+            .unwrap_or_default(),
     };
 
     for (walk, channel) in walks {

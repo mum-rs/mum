@@ -138,7 +138,7 @@ impl TryFrom<TOMLConfig> for Config {
                         .collect()
                 })
                 .transpose()?
-                .unwrap_or(Vec::new()),
+                .unwrap_or_default(),
         })
     }
 }

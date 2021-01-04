@@ -25,7 +25,7 @@ use tokio::sync::watch;
 use mumble_protocol::Serverbound;
 
 //TODO? move to mumlib
-pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
+pub const EVENT_SOUNDS: &[(&[u8], NotificationEvents)] = &[
     (include_bytes!("resources/connect.wav"), NotificationEvents::ServerConnect),
     (
         include_bytes!("resources/disconnect.wav"),

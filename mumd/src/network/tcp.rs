@@ -44,6 +44,7 @@ pub async fn handle(
     state: Arc<Mutex<State>>,
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     crypt_state_sender: mpsc::Sender<ClientCryptState>,
+    packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
     mut packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
     mut tcp_event_register_receiver: mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
 ) {
@@ -67,14 +68,13 @@ pub async fn handle(
         let state_lock = state.lock().unwrap();
         authenticate(&mut sink, state_lock.username().unwrap().to_string()).await;
         let phase_watcher = state_lock.phase_receiver();
-        let packet_sender = state_lock.packet_sender();
         drop(state_lock);
         let event_queue = Arc::new(Mutex::new(HashMap::new()));
 
         info!("Logging in...");
 
         join!(
-            send_pings(packet_sender, 10, phase_watcher.clone()),
+            send_pings(packet_sender.clone(), 10, phase_watcher.clone()),
             listen(
                 Arc::clone(&state),
                 stream,
