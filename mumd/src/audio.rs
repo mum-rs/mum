@@ -5,22 +5,24 @@ use crate::audio::output::SaturatingAdd;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, StreamConfig};
+use dasp_frame::Frame;
 use dasp_interpolate::linear::Linear;
+use dasp_sample::{SignedSample, ToSample, Sample};
 use dasp_signal::{self as signal, Signal};
+use futures::Stream;
+use futures::stream::StreamExt;
+use futures::task::{Context, Poll};
 use log::*;
-use mumble_protocol::voice::VoicePacketPayload;
+use mumble_protocol::voice::{VoicePacketPayload, VoicePacket};
 use opus::Channels;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
+use std::fmt::Debug;
+use std::future::{Future};
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
-use dasp_frame::Frame;
-use dasp_sample::{SignedSample, ToSample, Sample};
-use futures::Stream;
-use futures::task::{Context, Poll};
-use std::pin::Pin;
-use std::future::{Future};
-use std::fmt::Debug;
+use mumble_protocol::Serverbound;
 
 //TODO? move to mumlib
 pub const EVENT_SOUNDS: &[(&'static [u8], NotificationEvents)] = &[
@@ -72,7 +74,7 @@ pub struct Audio {
     _output_stream: cpal::Stream,
     _input_stream: cpal::Stream,
 
-    input_channel_receiver: Option<Box<dyn Stream<Item = Vec<u8>> + Unpin>>,
+    input_channel_receiver: Arc<Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
     input_volume_sender: watch::Sender<f32>,
 
     output_volume_sender: watch::Sender<f32>,
@@ -207,7 +209,14 @@ impl Audio {
                 StreamingNoiseGate::new(
                     from_interleaved_samples_stream::<_, f32>(sample_receiver), //TODO group frames correctly
                     0.09,
-                    10_000)));
+                    10_000))).enumerate().map(|(i, e)| VoicePacket::Audio {
+                        _dst: std::marker::PhantomData,
+                        target: 0,      // normal speech
+                        session_id: (), // unused for server-bound packets
+                        seq_num: i as u64,
+                        payload: VoicePacketPayload::Opus(e.into(), false),
+                        position_info: None,
+                    });
 
         output_stream.play().unwrap();
 
@@ -248,7 +257,7 @@ impl Audio {
             _output_stream: output_stream,
             _input_stream: input_stream,
             input_volume_sender,
-            input_channel_receiver: Some(Box::new(opus_stream)),
+            input_channel_receiver: Arc::new(Mutex::new(Box::new(opus_stream))),
             client_streams,
             sounds,
             output_volume_sender,
@@ -298,8 +307,8 @@ impl Audio {
         }
     }
 
-    pub fn take_receiver(&mut self) -> Option<Box<dyn Stream<Item = Vec<u8>> + Unpin>> {
-        self.input_channel_receiver.take()
+    pub fn take_receiver(&mut self) -> Arc<Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
+        Arc::clone(&self.input_channel_receiver)
     }
 
     pub fn clear_clients(&mut self) {

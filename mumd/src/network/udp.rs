@@ -26,7 +26,7 @@ pub async fn handle(
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
 ) {
-    let mut receiver = state.lock().unwrap().audio_mut().take_receiver().unwrap();
+    let receiver = state.lock().unwrap().audio_mut().take_receiver();
 
     loop {
         let connection_info = 'data: loop {
@@ -48,13 +48,14 @@ pub async fn handle(
         let source = Arc::new(Mutex::new(source));
 
         let phase_watcher = state.lock().unwrap().phase_receiver();
+        let mut audio_receiver_lock = receiver.lock().unwrap();
         join!(
             listen(Arc::clone(&state), Arc::clone(&source), phase_watcher.clone()),
             send_voice(
                 Arc::clone(&sink),
                 connection_info.socket_addr,
                 phase_watcher,
-                &mut *receiver
+                &mut *audio_receiver_lock
             ),
             new_crypt_state(&mut crypt_state_receiver, sink, source)
         );
@@ -198,7 +199,7 @@ async fn send_voice(
     sink: Arc<Mutex<UdpSender>>,
     server_addr: SocketAddr,
     mut phase_watcher: watch::Receiver<StatePhase>,
-    receiver: &mut (dyn Stream<Item = Vec<u8>> + Unpin),
+    receiver: &mut (dyn Stream<Item = VoicePacket<Serverbound>> + Unpin),
 ) {
     pin_mut!(receiver);
     let (tx, rx) = oneshot::channel();
@@ -215,7 +216,6 @@ async fn send_voice(
     let main_block = async {
         let rx = rx.fuse();
         pin_mut!(rx);
-        let mut count = 0;
         loop {
             let packet_recv = receiver.next().fuse();
             pin_mut!(packet_recv);
@@ -231,16 +231,7 @@ async fn send_voice(
                     warn!("Channel closed before disconnect command");
                     break;
                 }
-                Some(Some(payload)) => {
-                    let reply = VoicePacket::Audio {
-                        _dst: std::marker::PhantomData,
-                        target: 0,      // normal speech
-                        session_id: (), // unused for server-bound packets
-                        seq_num: count,
-                        payload: VoicePacketPayload::Opus(payload.into(), false),
-                        position_info: None,
-                    };
-                    count += 1;
+                Some(Some(reply)) => {
                     sink.lock()
                         .unwrap()
                         .send((reply, server_addr))
