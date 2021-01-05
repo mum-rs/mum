@@ -228,7 +228,7 @@ async fn send_voice(
     sink: Arc<Mutex<UdpSender>>,
     server_addr: SocketAddr,
     phase_watcher: watch::Receiver<StatePhase>,
-    receiver: Arc<Mutex<Box<(dyn Stream<Item = VoicePacket<Serverbound>> + Unpin)>>>,
+    receiver: Arc<tokio::sync::Mutex<Box<(dyn Stream<Item = VoicePacket<Serverbound>> + Unpin)>>>,
 ) {
     let inner_phase_watcher = phase_watcher.clone();
     run_until(
@@ -237,7 +237,9 @@ async fn send_voice(
             run_until(
                 |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::UDP)),
                 || async {
-                    sink.lock().unwrap().send((receiver.lock().unwrap().next().await.unwrap(), server_addr)).await.unwrap();
+                    debug!("Sending UDP audio");
+                    sink.lock().unwrap().send((receiver.lock().await.next().await.unwrap(), server_addr)).await.unwrap();
+                    debug!("Sent UDP audio");
                     Some(Some(()))
                 },
                 |_| async {},

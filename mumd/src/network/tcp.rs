@@ -184,7 +184,7 @@ async fn send_packets(
 
 async fn send_voice(
     packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
-    receiver: Arc<Mutex<Box<(dyn Stream<Item = VoicePacket<Serverbound>> + Unpin)>>>,
+    receiver: Arc<tokio::sync::Mutex<Box<(dyn Stream<Item = VoicePacket<Serverbound>> + Unpin)>>>,
     phase_watcher: watch::Receiver<StatePhase>,
 ) {
     let inner_phase_watcher = phase_watcher.clone();
@@ -196,7 +196,7 @@ async fn send_voice(
                 || async {
                     packet_sender.send(receiver
                                        .lock()
-                                       .unwrap()
+                                       .await
                                        .next()
                                        .await
                                        .unwrap()
@@ -208,6 +208,7 @@ async fn send_voice(
                 || async {},
                 inner_phase_watcher.clone(),
             ).await;
+            debug!("Stopped sending TCP voice");
             Some(Some(()))
         },
         |_| async {},

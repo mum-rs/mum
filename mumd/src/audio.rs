@@ -76,7 +76,7 @@ pub struct Audio {
     _output_stream: cpal::Stream,
     _input_stream: cpal::Stream,
 
-    input_channel_receiver: Arc<Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
+    input_channel_receiver: Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
     input_volume_sender: watch::Sender<f32>,
 
     output_volume_sender: watch::Sender<f32>,
@@ -227,7 +227,7 @@ impl Audio {
             _output_stream: output_stream,
             _input_stream: input_stream,
             input_volume_sender,
-            input_channel_receiver: Arc::new(Mutex::new(Box::new(opus_stream))),
+            input_channel_receiver: Arc::new(tokio::sync::Mutex::new(Box::new(opus_stream))),
             client_streams,
             sounds: HashMap::new(),
             output_volume_sender,
@@ -337,7 +337,7 @@ impl Audio {
         }
     }
 
-    pub fn input_receiver(&self) -> Arc<Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
+    pub fn input_receiver(&self) -> Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
         Arc::clone(&self.input_channel_receiver)
     }
 
