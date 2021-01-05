@@ -1,13 +1,12 @@
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 
-use bytes::Bytes;
 use futures::{join, pin_mut, select, FutureExt, SinkExt, StreamExt, Stream};
 use futures_util::stream::{SplitSink, SplitStream};
 use log::*;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::ping::{PingPacket, PongPacket};
-use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
+use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::Serverbound;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -16,6 +15,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, oneshot, watch};
+use tokio::time::{interval, Duration};
 use tokio_util::udp::UdpFramed;
 
 pub type PingRequest = (u64, SocketAddr, Box<dyn FnOnce(PongPacket)>);
@@ -39,12 +39,7 @@ pub async fn handle(
             }
             return;
         };
-        let (mut sink, source) = connect(&mut crypt_state_receiver).await;
-
-        // Note: A normal application would also send periodic Ping packets, and its own audio
-        //       via UDP. We instead trick the server into accepting us by sending it one
-        //       dummy voice packet.
-        send_ping(&mut sink, connection_info.socket_addr).await;
+        let (sink, source) = connect(&mut crypt_state_receiver).await;
 
         let sink = Arc::new(Mutex::new(sink));
         let source = Arc::new(Mutex::new(source));
@@ -52,14 +47,22 @@ pub async fn handle(
         let phase_watcher = state.lock().unwrap().phase_receiver();
         let mut audio_receiver_lock = receiver.lock().unwrap();
         join!(
-            listen(Arc::clone(&state), Arc::clone(&source), phase_watcher.clone()),
+            listen(
+                Arc::clone(&state),
+                Arc::clone(&source),
+                phase_watcher.clone()
+            ),
             send_voice(
                 Arc::clone(&sink),
                 connection_info.socket_addr,
                 phase_watcher,
                 &mut *audio_receiver_lock
             ),
-            new_crypt_state(&mut crypt_state_receiver, sink, source)
+            send_pings(
+                Arc::clone(&sink),
+                connection_info.socket_addr,
+            ),
+            new_crypt_state(&mut crypt_state_receiver, sink, source),
         );
 
         debug!("Fully disconnected UDP stream, waiting for new connection info");
@@ -178,20 +181,23 @@ async fn listen(
     debug!("UDP listener process killed");
 }
 
-async fn send_ping(sink: &mut UdpSender, server_addr: SocketAddr) {
-    sink.send((
-        VoicePacket::Audio {
-            _dst: std::marker::PhantomData,
-            target: 0,
-            session_id: (),
-            seq_num: 0,
-            payload: VoicePacketPayload::Opus(Bytes::from([0u8; 128].as_ref()), true),
-            position_info: None,
-        },
-        server_addr,
-    ))
-    .await
-    .unwrap();
+async fn send_pings(sink: Arc<Mutex<UdpSender>>, server_addr: SocketAddr) {
+    let mut interval = interval(Duration::from_millis(1000));
+
+    loop {
+        match sink
+            .lock()
+            .unwrap()
+            .send((VoicePacket::Ping { timestamp: 0 }, server_addr))
+            .await
+        {
+            Ok(_) => { /* TODO */ },
+            Err(e) => {
+                debug!("Error sending UDP ping: {}", e);
+            }
+        }
+        interval.tick().await;
+    }
 }
 
 async fn send_voice(
