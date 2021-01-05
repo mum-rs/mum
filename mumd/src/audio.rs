@@ -13,49 +13,28 @@ use futures::Stream;
 use futures::stream::StreamExt;
 use futures::task::{Context, Poll};
 use log::*;
-use mumble_protocol::voice::{VoicePacketPayload, VoicePacket};
-use opus::Channels;
-use std::collections::hash_map::Entry;
-use std::collections::{HashMap, VecDeque};
-use std::fmt::Debug;
-use std::future::{Future};
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-use tokio::sync::watch;
 use mumble_protocol::Serverbound;
-
-//TODO? move to mumlib
-pub const EVENT_SOUNDS: &[(&[u8], NotificationEvents)] = &[
-    (include_bytes!("resources/connect.wav"), NotificationEvents::ServerConnect),
-    (
-        include_bytes!("resources/disconnect.wav"),
-        NotificationEvents::ServerDisconnect,
-    ),
-    (
-        include_bytes!("resources/channel_join.wav"),
-        NotificationEvents::UserConnected,
-    ),
-    (
-        include_bytes!("resources/channel_leave.wav"),
-        NotificationEvents::UserDisconnected,
-    ),
-    (
-        include_bytes!("resources/channel_join.wav"),
-        NotificationEvents::UserJoinedChannel,
-    ),
-    (
-        include_bytes!("resources/channel_leave.wav"),
-        NotificationEvents::UserLeftChannel,
-    ),
-    (include_bytes!("resources/mute.wav"), NotificationEvents::Mute),
-    (include_bytes!("resources/unmute.wav"), NotificationEvents::Unmute),
-    (include_bytes!("resources/deafen.wav"), NotificationEvents::Deafen),
-    (include_bytes!("resources/undeafen.wav"), NotificationEvents::Undeafen),
-];
+use mumble_protocol::voice::{VoicePacketPayload, VoicePacket};
+use mumlib::config::SoundEffect;
+use opus::Channels;
+use std::{
+    borrow::Cow,
+    collections::{hash_map::Entry, HashMap, VecDeque},
+    convert::TryFrom,
+    fmt::Debug,
+    fs::File,
+    future::Future,
+    io::Read,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+use tokio::sync::watch;
 
 const SAMPLE_RATE: u32 = 48000;
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, EnumIter)]
 pub enum NotificationEvents {
     ServerConnect,
     ServerDisconnect,
@@ -67,6 +46,28 @@ pub enum NotificationEvents {
     Unmute,
     Deafen,
     Undeafen,
+}
+
+impl TryFrom<&str> for NotificationEvents {
+    type Error = ();
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "server_connect" => Ok(NotificationEvents::ServerConnect),
+            "server_disconnect" => Ok(NotificationEvents::ServerDisconnect),
+            "user_connected" => Ok(NotificationEvents::UserConnected),
+            "user_disconnected" => Ok(NotificationEvents::UserDisconnected),
+            "user_joined_channel" => Ok(NotificationEvents::UserJoinedChannel),
+            "user_left_channel" => Ok(NotificationEvents::UserLeftChannel),
+            "mute" => Ok(NotificationEvents::Mute),
+            "unmute" => Ok(NotificationEvents::Unmute),
+            "deafen" => Ok(NotificationEvents::Deafen),
+            "undeafen" => Ok(NotificationEvents::Undeafen),
+            _ => {
+                warn!("Unknown notification event '{}' in config", s);
+                Err(())
+            }
+        }
+    }
 }
 
 pub struct Audio {
@@ -220,10 +221,41 @@ impl Audio {
 
         output_stream.play().unwrap();
 
-        let sounds = EVENT_SOUNDS
+        let mut res = Self {
+            output_config,
+            _output_stream: output_stream,
+            _input_stream: input_stream,
+            input_volume_sender,
+            input_channel_receiver: Arc::new(Mutex::new(Box::new(opus_stream))),
+            client_streams,
+            sounds: HashMap::new(),
+            output_volume_sender,
+            user_volumes,
+            play_sounds,
+        };
+        res.load_sound_effects(&[]);
+        res
+    }
+
+    pub fn load_sound_effects(&mut self, sound_effects: &[SoundEffect]) {
+        let overrides: HashMap<_, _> = sound_effects
             .iter()
-            .map(|(bytes, event)| {
-                let reader = hound::WavReader::new(*bytes).unwrap();
+            .filter_map(|sound_effect| {
+                let (event, file) = (&sound_effect.event, &sound_effect.file);
+                if let Ok(event) = NotificationEvents::try_from(event.as_str()) {
+                    Some((event, file))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        self.sounds = NotificationEvents::iter()
+            .map(|event| {
+                let bytes = overrides.get(&event)
+                    .map(|file| get_sfx(file))
+                    .unwrap_or_else(get_default_sfx);
+                let reader = hound::WavReader::new(bytes.as_ref()).unwrap();
                 let spec = reader.spec();
                 let samples = match spec.sample_format {
                     hound::SampleFormat::Float => reader
@@ -246,24 +278,17 @@ impl Audio {
                     .from_hz_to_hz(interp, spec.sample_rate as f64, SAMPLE_RATE as f64)
                     .until_exhausted()
                     // if the source audio is stereo and is being played as mono, discard the right audio
-                    .flat_map(|e| if output_config.channels == 1 { vec![e[0]] } else { e.to_vec() })
+                    .flat_map(
+                        |e| if self.output_config.channels == 1 {
+                            vec![e[0]]
+                        } else {
+                            e.to_vec()
+                        }
+                    )
                     .collect::<Vec<f32>>();
-                (*event, samples)
+                (event, samples)
             })
             .collect();
-
-        Self {
-            output_config,
-            _output_stream: output_stream,
-            _input_stream: input_stream,
-            input_volume_sender,
-            input_channel_receiver: Arc::new(Mutex::new(Box::new(opus_stream))),
-            client_streams,
-            sounds,
-            output_volume_sender,
-            user_volumes,
-            play_sounds,
-        }
     }
 
     pub fn decode_packet(&self, session_id: u32, payload: VoicePacketPayload) {
@@ -357,6 +382,22 @@ impl Audio {
         let l = play_sounds.len();
         play_sounds.extend(samples.iter().skip(l));
     }
+}
+
+// moo
+fn get_sfx(file: &str) -> Cow<'static, [u8]> {
+    let mut buf: Vec<u8> = Vec::new();
+    if let Ok(mut file) = File::open(file) {
+        file.read_to_end(&mut buf).unwrap();
+        Cow::from(buf)
+    } else {
+        warn!("File not found: '{}'", file);
+        get_default_sfx()
+    }
+}
+
+fn get_default_sfx() -> Cow<'static, [u8]> {
+    Cow::from(include_bytes!("fallback_sfx.wav").as_ref())
 }
 
 struct StreamingNoiseGate<S: StreamingSignal> {

@@ -573,6 +573,9 @@ impl State {
         if let Some(output_volume) = self.config.audio.output_volume {
             self.audio.set_output_volume(output_volume);
         }
+        if let Some(sound_effects) = &self.config.audio.sound_effects {
+            self.audio.load_sound_effects(sound_effects);
+        }
     }
 
     pub fn initialized(&self) {
