@@ -578,11 +578,15 @@ impl State {
         }
     }
 
-    pub fn initialized(&self) {
+    pub fn broadcast_phase(&self, phase: StatePhase) {
         self.phase_watcher
             .0
-            .send(StatePhase::Connected)
+            .send(phase)
             .unwrap();
+    }
+
+    pub fn initialized(&self) {
+        self.broadcast_phase(StatePhase::Connected);
         self.audio.play_effect(NotificationEvents::ServerConnect);
     }
 
