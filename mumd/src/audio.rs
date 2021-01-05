@@ -337,7 +337,7 @@ impl Audio {
         }
     }
 
-    pub fn take_receiver(&mut self) -> Arc<Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
+    pub fn input_receiver(&self) -> Arc<Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
         Arc::clone(&self.input_channel_receiver)
     }
 
