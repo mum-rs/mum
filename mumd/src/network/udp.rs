@@ -18,6 +18,8 @@ use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio_util::udp::UdpFramed;
 
+use super::VoiceStreamType;
+
 pub type PingRequest = (u64, SocketAddr, Box<dyn FnOnce(PongPacket)>);
 
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
@@ -165,7 +167,7 @@ async fn listen(
                                 .lock()
                                 .unwrap()
                                 .audio()
-                                .decode_packet(session_id, payload);
+                                .decode_packet(VoiceStreamType::UDP, session_id, payload);
                         }
                     }
                 }

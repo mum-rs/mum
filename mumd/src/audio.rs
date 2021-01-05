@@ -2,6 +2,7 @@ pub mod input;
 pub mod output;
 
 use crate::audio::output::SaturatingAdd;
+use crate::network::VoiceStreamType;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, StreamConfig};
@@ -82,7 +83,7 @@ pub struct Audio {
 
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
-    client_streams: Arc<Mutex<HashMap<u32, output::ClientStream>>>,
+    client_streams: Arc<Mutex<HashMap<(VoiceStreamType, u32), output::ClientStream>>>,
 
     sounds: HashMap<NotificationEvents, Vec<f32>>,
     play_sounds: Arc<Mutex<VecDeque<f32>>>,
@@ -291,8 +292,8 @@ impl Audio {
             .collect();
     }
 
-    pub fn decode_packet(&self, session_id: u32, payload: VoicePacketPayload) {
-        match self.client_streams.lock().unwrap().entry(session_id) {
+    pub fn decode_packet(&self, stream_type: VoiceStreamType, session_id: u32, payload: VoicePacketPayload) {
+        match self.client_streams.lock().unwrap().entry((stream_type, session_id)) {
             Entry::Occupied(mut entry) => {
                 entry
                     .get_mut()
@@ -305,29 +306,33 @@ impl Audio {
     }
 
     pub fn add_client(&self, session_id: u32) {
-        match self.client_streams.lock().unwrap().entry(session_id) {
-            Entry::Occupied(_) => {
-                warn!("Session id {} already exists", session_id);
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(output::ClientStream::new(
-                    self.output_config.sample_rate.0,
-                    self.output_config.channels,
-                ));
+        for stream_type in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
+            match self.client_streams.lock().unwrap().entry((*stream_type, session_id)) {
+                Entry::Occupied(_) => {
+                    warn!("Session id {} already exists", session_id);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(output::ClientStream::new(
+                        self.output_config.sample_rate.0,
+                        self.output_config.channels,
+                    ));
+                }
             }
         }
     }
 
     pub fn remove_client(&self, session_id: u32) {
-        match self.client_streams.lock().unwrap().entry(session_id) {
-            Entry::Occupied(entry) => {
-                entry.remove();
-            }
-            Entry::Vacant(_) => {
-                warn!(
-                    "Tried to remove session id {} that doesn't exist",
-                    session_id
-                );
+        for stream_type in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
+            match self.client_streams.lock().unwrap().entry((*stream_type, session_id)) {
+                Entry::Occupied(entry) => {
+                    entry.remove();
+                }
+                Entry::Vacant(_) => {
+                    warn!(
+                        "Tried to remove session id {} that doesn't exist",
+                        session_id
+                    );
+                }
             }
         }
     }

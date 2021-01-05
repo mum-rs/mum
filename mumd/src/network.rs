@@ -19,3 +19,9 @@ impl ConnectionInfo {
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum VoiceStreamType {
+    TCP,
+    UDP,
+}
