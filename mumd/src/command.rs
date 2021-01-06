@@ -26,11 +26,9 @@ pub async fn handle(
     debug!("Begin listening for commands");
     while let Some((command, response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
-        debug!("locking state");
         let mut state = state.lock().await;
         let event = state.handle_command(command, &mut packet_sender, &mut connection_info_sender);
         drop(state);
-        debug!("unlocking state");
         match event {
             ExecutionContext::TcpEvent(event, generator) => {
                 let (tx, rx) = oneshot::channel();
