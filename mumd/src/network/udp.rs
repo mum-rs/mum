@@ -233,22 +233,18 @@ async fn send_voice(
     let inner_phase_watcher = phase_watcher.clone();
     run_until(
         |phase| matches!(phase, StatePhase::Disconnected),
-        || async {
+        async {
             run_until(
                 |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::UDP)),
-                || async {
+                async {
                     debug!("Sending UDP audio");
                     sink.lock().unwrap().send((receiver.lock().await.next().await.unwrap(), server_addr)).await.unwrap();
                     debug!("Sent UDP audio");
-                    Some(Some(()))
                 },
-                |_| async {},
                 || async {},
                 inner_phase_watcher.clone(),
             ).await;
-            Some(Some(()))
         },
-        |_| async {},
         || async {},
         phase_watcher,
     ).await;

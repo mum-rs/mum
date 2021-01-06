@@ -10,6 +10,7 @@ use futures::join;
 use futures::pin_mut;
 use futures::select;
 use tokio::sync::watch;
+use log::*;
 
 use crate::state::StatePhase;
 
@@ -36,16 +37,14 @@ pub enum VoiceStreamType {
     UDP,
 }
 
-async fn run_until<T, F, G, H>(
+async fn run_until<F, G>(
     phase_checker: impl Fn(StatePhase) -> bool,
-    mut generator: impl FnMut() -> F,
-    mut handler: impl FnMut(T) -> G,
-    mut shutdown: impl FnMut() -> H,
+    fut: F,
+    mut shutdown: impl FnMut() -> G,
     mut phase_watcher: watch::Receiver<StatePhase>,
 ) where
-    F: Future<Output = Option<T>>,
+    F: Future<Output = ()>,
     G: Future<Output = ()>,
-    H: Future<Output = ()>,
 {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
@@ -55,32 +54,20 @@ async fn run_until<T, F, G, H>(
                 break;
             }
         }
-        tx.send(true).unwrap();
+        if tx.send(true).is_err() {
+            warn!("future resolved before it could be cancelled");
+        }
     };
 
     let main_block = async {
         let rx = rx.fuse();
         pin_mut!(rx);
-        loop {
-            let packet_recv = generator().fuse();
-            pin_mut!(packet_recv);
-            let exitor = select! {
-                data = packet_recv => Some(data),
-                _ = rx => None
-            };
-            match exitor {
-                None => {
-                    break;
-                }
-                Some(None) => {
-                    //warn!("Channel closed before disconnect command"); //TODO make me informative
-                    break;
-                }
-                Some(Some(data)) => {
-                    handler(data).await;
-                }
-            }
-        }
+        let fut = fut.fuse();
+        pin_mut!(fut);
+        select! {
+            _ = fut => (),
+            _ = rx => (),
+        };
 
         shutdown().await;
     };
