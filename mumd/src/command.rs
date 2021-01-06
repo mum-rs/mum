@@ -9,8 +9,8 @@ use ipc_channel::ipc::IpcSender;
 use log::*;
 use mumble_protocol::{Serverbound, control::ControlPacket};
 use mumlib::command::{Command, CommandResponse};
-use std::sync::{Arc, Mutex};
-use tokio::sync::{mpsc, oneshot, watch};
+use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot, watch, Mutex};
 
 pub async fn handle(
     state: Arc<Mutex<State>>,
@@ -26,9 +26,11 @@ pub async fn handle(
     debug!("Begin listening for commands");
     while let Some((command, response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
-        let mut state = state.lock().unwrap();
+        debug!("locking state");
+        let mut state = state.lock().await;
         let event = state.handle_command(command, &mut packet_sender, &mut connection_info_sender);
         drop(state);
+        debug!("unlocking state");
         match event {
             ExecutionContext::TcpEvent(event, generator) => {
                 let (tx, rx) = oneshot::channel();

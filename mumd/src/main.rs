@@ -14,7 +14,7 @@ use std::fs;
 use tokio::sync::mpsc;
 use tokio::task::spawn_blocking;
 
-#[tokio::main]
+#[tokio::main(worker_threads = 4)]
 async fn main() {
     setup_logger(std::io::stderr(), true);
     notify::init();

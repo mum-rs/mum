@@ -31,7 +31,7 @@ use std::{
 };
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use tokio::sync::watch;
+use tokio::sync::{watch};
 
 const SAMPLE_RATE: u32 = 48000;
 
@@ -132,11 +132,11 @@ impl Audio {
 
         let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
 
-        let user_volumes = Arc::new(Mutex::new(HashMap::new()));
+        let user_volumes = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
-        let play_sounds = Arc::new(Mutex::new(VecDeque::new()));
+        let play_sounds = Arc::new(std::sync::Mutex::new(VecDeque::new()));
 
-        let client_streams = Arc::new(Mutex::new(HashMap::new()));
+        let client_streams = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let output_stream = match output_supported_sample_format {
             SampleFormat::F32 => output_device.build_output_stream(
                 &output_config,
@@ -292,7 +292,7 @@ impl Audio {
             .collect();
     }
 
-    pub fn decode_packet(&self, stream_type: VoiceStreamType, session_id: u32, payload: VoicePacketPayload) {
+    pub fn decode_packet_payload(&self, stream_type: VoiceStreamType, session_id: u32, payload: VoicePacketPayload) {
         match self.client_streams.lock().unwrap().entry((stream_type, session_id)) {
             Entry::Occupied(mut entry) => {
                 entry
