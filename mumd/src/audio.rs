@@ -2,6 +2,7 @@ pub mod input;
 pub mod output;
 
 use crate::audio::output::SaturatingAdd;
+use crate::network::VoiceStreamType;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, SampleRate, StreamConfig};
@@ -75,14 +76,14 @@ pub struct Audio {
     _output_stream: cpal::Stream,
     _input_stream: cpal::Stream,
 
-    input_channel_receiver: Arc<Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
+    input_channel_receiver: Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
     input_volume_sender: watch::Sender<f32>,
 
     output_volume_sender: watch::Sender<f32>,
 
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
-    client_streams: Arc<Mutex<HashMap<u32, output::ClientStream>>>,
+    client_streams: Arc<Mutex<HashMap<(VoiceStreamType, u32), output::ClientStream>>>,
 
     sounds: HashMap<NotificationEvents, Vec<f32>>,
     play_sounds: Arc<Mutex<VecDeque<f32>>>,
@@ -131,11 +132,11 @@ impl Audio {
 
         let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
 
-        let user_volumes = Arc::new(Mutex::new(HashMap::new()));
+        let user_volumes = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
-        let play_sounds = Arc::new(Mutex::new(VecDeque::new()));
+        let play_sounds = Arc::new(std::sync::Mutex::new(VecDeque::new()));
 
-        let client_streams = Arc::new(Mutex::new(HashMap::new()));
+        let client_streams = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let output_stream = match output_supported_sample_format {
             SampleFormat::F32 => output_device.build_output_stream(
                 &output_config,
@@ -226,7 +227,7 @@ impl Audio {
             _output_stream: output_stream,
             _input_stream: input_stream,
             input_volume_sender,
-            input_channel_receiver: Arc::new(Mutex::new(Box::new(opus_stream))),
+            input_channel_receiver: Arc::new(tokio::sync::Mutex::new(Box::new(opus_stream))),
             client_streams,
             sounds: HashMap::new(),
             output_volume_sender,
@@ -291,8 +292,8 @@ impl Audio {
             .collect();
     }
 
-    pub fn decode_packet(&self, session_id: u32, payload: VoicePacketPayload) {
-        match self.client_streams.lock().unwrap().entry(session_id) {
+    pub fn decode_packet_payload(&self, stream_type: VoiceStreamType, session_id: u32, payload: VoicePacketPayload) {
+        match self.client_streams.lock().unwrap().entry((stream_type, session_id)) {
             Entry::Occupied(mut entry) => {
                 entry
                     .get_mut()
@@ -305,34 +306,38 @@ impl Audio {
     }
 
     pub fn add_client(&self, session_id: u32) {
-        match self.client_streams.lock().unwrap().entry(session_id) {
-            Entry::Occupied(_) => {
-                warn!("Session id {} already exists", session_id);
-            }
-            Entry::Vacant(entry) => {
-                entry.insert(output::ClientStream::new(
-                    self.output_config.sample_rate.0,
-                    self.output_config.channels,
-                ));
+        for stream_type in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
+            match self.client_streams.lock().unwrap().entry((*stream_type, session_id)) {
+                Entry::Occupied(_) => {
+                    warn!("Session id {} already exists", session_id);
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(output::ClientStream::new(
+                        self.output_config.sample_rate.0,
+                        self.output_config.channels,
+                    ));
+                }
             }
         }
     }
 
     pub fn remove_client(&self, session_id: u32) {
-        match self.client_streams.lock().unwrap().entry(session_id) {
-            Entry::Occupied(entry) => {
-                entry.remove();
-            }
-            Entry::Vacant(_) => {
-                warn!(
-                    "Tried to remove session id {} that doesn't exist",
-                    session_id
-                );
+        for stream_type in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
+            match self.client_streams.lock().unwrap().entry((*stream_type, session_id)) {
+                Entry::Occupied(entry) => {
+                    entry.remove();
+                }
+                Entry::Vacant(_) => {
+                    warn!(
+                        "Tried to remove session id {} that doesn't exist",
+                        session_id
+                    );
+                }
             }
         }
     }
 
-    pub fn take_receiver(&mut self) -> Arc<Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
+    pub fn input_receiver(&self) -> Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
         Arc::clone(&self.input_channel_receiver)
     }
 

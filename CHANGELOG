@@ -19,6 +19,7 @@ Added
 ~~~~~
 
 * Added a noise gate
+* Added tunneling audio through TCP if UDP connection goes down
 
 // Changed
 // ~~~~~~~

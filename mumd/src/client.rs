@@ -6,8 +6,8 @@ use futures_util::join;
 use ipc_channel::ipc::IpcSender;
 use mumble_protocol::{Serverbound, control::ControlPacket, crypt::ClientCryptState};
 use mumlib::command::{Command, CommandResponse};
-use std::sync::{Arc, Mutex};
-use tokio::sync::{mpsc, watch};
+use std::sync::Arc;
+use tokio::sync::{mpsc, watch, Mutex};
 
 pub async fn handle(
     command_receiver: mpsc::UnboundedReceiver<(
