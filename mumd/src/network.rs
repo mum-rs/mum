@@ -36,14 +36,12 @@ pub enum VoiceStreamType {
     UDP,
 }
 
-async fn run_until<F, G>(
+async fn run_until<F>(
     phase_checker: impl Fn(StatePhase) -> bool,
     fut: F,
-    mut shutdown: impl FnMut() -> G,
     mut phase_watcher: watch::Receiver<StatePhase>,
 ) where
     F: Future<Output = ()>,
-    G: Future<Output = ()>,
 {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
@@ -67,8 +65,6 @@ async fn run_until<F, G>(
             _ = fut => (),
             _ = rx => (),
         };
-
-        shutdown().await;
     };
 
     join!(main_block, phase_transition_block);

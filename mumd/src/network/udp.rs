@@ -73,7 +73,6 @@ pub async fn handle(
                 ),
                 new_crypt_state(&mut crypt_state_receiver, sink, source),
             ).map(|_| ()),
-            || async {},
             phase_watcher,
         ).await;
 
@@ -217,7 +216,6 @@ async fn send_voice(
                     sink.lock().await.send(sending).await.unwrap();
                 }
             },
-            || async {},
             phase_watcher.clone(),
         ).await;
     }

@@ -93,7 +93,6 @@ pub async fn handle(
                 send_packets(sink, &mut packet_receiver),
                 register_events(&mut tcp_event_register_receiver, Arc::clone(&event_queue)),
             ).map(|_| ()),
-            || async {},
             phase_watcher,
         ).await;
 
@@ -192,7 +191,6 @@ async fn send_voice(
                         .unwrap();
                 }
             },
-            || async {},
             inner_phase_watcher.clone(),
         ).await;
     }
