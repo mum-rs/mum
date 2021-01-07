@@ -1,9 +1,8 @@
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
-use futures::Stream;
 use log::*;
 
-use futures::{join, SinkExt, StreamExt};
+use futures::{join, SinkExt, Stream, StreamExt};
 use futures_util::stream::{SplitSink, SplitStream};
 use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPacket};
 use mumble_protocol::crypt::ClientCryptState;
@@ -145,7 +144,7 @@ async fn send_pings(
         async {
             loop {
                 interval.tick().await;
-                trace!("Sending ping");
+                trace!("Sending TCP ping");
                 let msg = msgs::Ping::new();
                 packet_sender.send(msg.into()).unwrap();
             }

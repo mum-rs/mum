@@ -1,16 +1,15 @@
 pub mod tcp;
 pub mod udp;
 
-use std::net::SocketAddr;
-
 use futures::Future;
 use futures::FutureExt;
 use futures::channel::oneshot;
 use futures::join;
 use futures::pin_mut;
 use futures::select;
-use tokio::sync::watch;
 use log::*;
+use std::net::SocketAddr;
+use tokio::sync::watch;
 
 use crate::state::StatePhase;
 

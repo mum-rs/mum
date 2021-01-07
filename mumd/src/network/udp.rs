@@ -13,7 +13,7 @@ use std::convert::TryFrom;
 use std::net::{Ipv6Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc};
+use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::{interval, Duration};
@@ -134,7 +134,6 @@ async fn listen(
                 };
                 match packet {
                     VoicePacket::Ping { timestamp } => {
-                        // debug!("Sending UDP voice");
                         state
                             .lock() //TODO clean up unnecessary lock by only updating phase if it should change
                             .await
@@ -149,7 +148,7 @@ async fn listen(
                         ..
                     } => {
                         state
-                            .lock()
+                            .lock() //TODO change so that we only have to lock audio and not the whole state
                             .await
                             .audio()
                             .decode_packet_payload(VoiceStreamType::UDP, session_id, payload);
@@ -172,9 +171,9 @@ async fn send_pings(
 ) {
     let mut last_send = None;
     let mut interval = interval(Duration::from_millis(1000));
-    interval.tick().await; //this is so we get rid of the first instant resolve
 
     loop {
+        interval.tick().await;
         let last_recv = last_ping_recv.load(Ordering::Relaxed);
         if last_send.is_some() && last_send.unwrap() != last_recv {
             debug!("Sending TCP voice");
@@ -196,7 +195,6 @@ async fn send_pings(
                 debug!("Error sending UDP ping: {}", e);
             }
         }
-        interval.tick().await;
     }
 }
 

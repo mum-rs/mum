@@ -31,7 +31,7 @@ use std::{
 };
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
-use tokio::sync::{watch};
+use tokio::sync::watch;
 
 const SAMPLE_RATE: u32 = 48000;
 
