@@ -12,14 +12,30 @@ pub struct Server {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Channel {
     pub description: Option<String>,
-    pub links: Vec<Vec<usize>>, //to represent several walks through the tree to find channels its linked to
     pub max_users: u32,
     pub name: String,
     pub children: Vec<Channel>,
     pub users: Vec<User>,
+
+    links: Vec<Vec<usize>>, //to represent several walks through the tree to find channels its linked to
 }
 
 impl Channel {
+    pub fn new(
+        name: String,
+        description: Option<String>,
+        max_users: u32,
+    ) -> Self {
+        Self {
+            description,
+            max_users,
+            name,
+            children: Vec::new(),
+            users: Vec::new(),
+
+            links: Vec::new(),
+        }
+    }
     pub fn iter(&self) -> Iter<'_> {
         Iter {
             me: Some(&self),

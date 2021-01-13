@@ -169,13 +169,10 @@ pub fn into_channel(
 
 impl From<&Channel> for mumlib::state::Channel {
     fn from(channel: &Channel) -> Self {
-        mumlib::state::Channel {
-            description: channel.description.clone(),
-            links: Vec::new(),
-            max_users: channel.max_users,
-            name: channel.name.clone(),
-            children: Vec::new(),
-            users: Vec::new(),
-        }
+        mumlib::state::Channel::new(
+            channel.name.clone(),
+            channel.description.clone(),
+            channel.max_users,
+        )
     }
 }
