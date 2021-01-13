@@ -9,6 +9,8 @@ use colored::*;
 use log::*;
 
 pub const SOCKET_PATH: &str = "/tmp/mumd";
+
+/// The default mumble port.
 pub const DEFAULT_PORT: u16 = 64738;
 
 pub fn setup_logger<T: Into<fern::Output>>(target: T, color: bool) {

@@ -23,6 +23,8 @@ struct TOMLConfig {
     servers: Option<Array>,
 }
 
+/// Our representation of the mumdrc config file.
+// Deserialized via [TOMLConfig].
 #[derive(Clone, Debug, Default)]
 pub struct Config {
     pub audio: AudioConfig,
@@ -34,6 +36,15 @@ pub struct Config {
 }
 
 impl Config {
+    /// Writes this config to the specified path.
+    ///
+    /// Pass create = true if you want the file to be created if it doesn't already exist.
+    ///
+    /// # Errors
+    ///
+    /// - [ConfigError::WontCreateFile] if the file doesn't exist and create = false was passed.
+    /// - Any [ConfigError::TOMLErrorSer] encountered when serializing the config.
+    /// - Any [ConfigError::IOError] encountered when writing the file.
     pub fn write(&self, path: &Path, create: bool) -> Result<(), ConfigError> {
         // Possible race here. It's fine since it shows when:
         //   1) the file doesn't exist when checked and is then created
@@ -90,6 +101,10 @@ impl ServerConfig {
     }
 }
 
+/// Finds the default path of the configuration file.
+/// 
+/// The user config dir is looked for first (cross-platform friendly) and
+/// `/etc/mumdrc` is used as a fallback.
 pub fn default_cfg_path() -> PathBuf {
     match dirs::config_dir() {
         Some(mut p) => {
@@ -143,6 +158,14 @@ impl From<Config> for TOMLConfig {
     }
 }
 
+/// Reads the config at the specified path.
+///
+/// If the file isn't found, returns a default config.
+///
+/// # Errors
+///
+/// - Any [ConfigError::TOMLErrorDe] encountered when deserializing the config.
+/// - Any [ConfigError::IOError] encountered when reading the file.
 pub fn read_cfg(path: &Path) -> Result<Config, ConfigError> {
     match fs::read_to_string(path) {
         Ok(s) => {
