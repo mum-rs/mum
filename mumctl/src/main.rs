@@ -47,6 +47,11 @@ impl log::Log for SimpleLogger {
 static LOGGER: SimpleLogger = SimpleLogger;
 
 fn main() {
+    if std::env::args().find(|s| s.as_str() == "--version").is_some() {
+        println!(env!("VERSION"));
+        return;
+    }
+
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
     let mut config = config::read_default_cfg();
