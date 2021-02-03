@@ -5,13 +5,12 @@ mod network;
 mod notify;
 mod state;
 
-use futures::join;
 use ipc_channel::ipc::{self, IpcOneShotServer, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
 use std::fs;
-use tokio::sync::mpsc;
+use tokio::{join, sync::mpsc};
 use tokio::task::spawn_blocking;
 
 #[tokio::main]

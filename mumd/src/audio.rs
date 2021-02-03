@@ -10,25 +10,13 @@ use dasp_frame::Frame;
 use dasp_interpolate::linear::Linear;
 use dasp_sample::{SignedSample, ToSample, Sample};
 use dasp_signal::{self as signal, Signal};
-use futures::Stream;
-use futures::stream::StreamExt;
-use futures::task::{Context, Poll};
+use futures_util::{StreamExt, stream::Stream};
 use log::*;
 use mumble_protocol::Serverbound;
 use mumble_protocol::voice::{VoicePacketPayload, VoicePacket};
 use mumlib::config::SoundEffect;
 use opus::Channels;
-use std::{
-    borrow::Cow,
-    collections::{hash_map::Entry, HashMap, VecDeque},
-    convert::TryFrom,
-    fmt::Debug,
-    fs::File,
-    future::Future,
-    io::Read,
-    pin::Pin,
-    sync::{Arc, Mutex},
-};
+use std::{borrow::Cow, collections::{hash_map::Entry, HashMap, VecDeque}, convert::TryFrom, fmt::Debug, fs::File, future::Future, io::Read, pin::Pin, sync::{Arc, Mutex}, task::{Context, Poll}};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use tokio::sync::watch;
@@ -171,7 +159,7 @@ impl Audio {
         }
         .unwrap();
 
-        let (sample_sender, sample_receiver) = futures::channel::mpsc::channel(1_000_000);
+        let (sample_sender, sample_receiver) = futures_channel::mpsc::channel(1_000_000);
 
         let (input_volume_sender, input_volume_receiver) = watch::channel::<f32>(input_volume);
 
