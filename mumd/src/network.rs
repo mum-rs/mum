@@ -53,9 +53,7 @@ async fn run_until<F>(
 
     let main_block = async {
         let rx = rx.fuse();
-        //pin_mut!(rx);
         let fut = fut.fuse();
-        //pin_mut!(fut);
         select! {
             _ = fut => (),
             _ = rx => (),
