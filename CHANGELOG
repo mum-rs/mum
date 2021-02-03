@@ -38,6 +38,7 @@ Other
 ~~~~~
 
  * Updated to tokio 1.0.
+ * Cleaned up dependencies
 
 0.3 - 2020-12-25
 ------------------
