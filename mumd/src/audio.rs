@@ -1,7 +1,7 @@
 pub mod input;
 pub mod output;
 
-use crate::audio::output::SaturatingAdd;
+use crate::{audio::output::SaturatingAdd, state::StatePhase};
 use crate::network::VoiceStreamType;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -90,7 +90,7 @@ pub struct Audio {
 }
 
 impl Audio {
-    pub fn new(input_volume: f32, output_volume: f32) -> Self {
+    pub fn new(input_volume: f32, output_volume: f32, phase_watcher: watch::Receiver<StatePhase>) -> Self {
         let sample_rate = SampleRate(SAMPLE_RATE);
 
         let host = cpal::default_host();
@@ -181,6 +181,7 @@ impl Audio {
                 input::callback::<f32>(
                     sample_sender,
                     input_volume_receiver,
+                    phase_watcher,
                 ),
                 err_fn,
             ),
@@ -189,6 +190,7 @@ impl Audio {
                 input::callback::<i16>(
                     sample_sender,
                     input_volume_receiver,
+                    phase_watcher,
                 ),
                 err_fn,
             ),
@@ -197,6 +199,7 @@ impl Audio {
                 input::callback::<u16>(
                     sample_sender,
                     input_volume_receiver,
+                    phase_watcher,
                 ),
                 err_fn,
             ),
