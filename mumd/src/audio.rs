@@ -201,7 +201,6 @@ impl Audio {
             StreamingSignalExt::into_interleaved_samples(
                 StreamingNoiseGate::new(
                     from_interleaved_samples_stream::<_, f32>(sample_receiver), //TODO group frames correctly
-                    0.09,
                     10_000))).enumerate().map(|(i, e)| VoicePacket::Audio {
                         _dst: std::marker::PhantomData,
                         target: 0,      // normal speech
@@ -399,21 +398,20 @@ fn get_default_sfx() -> Cow<'static, [u8]> {
 struct StreamingNoiseGate<S: StreamingSignal> {
     open: usize,
     signal: S,
-    activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
     deactivation_delay: usize,
+    alltime_high: <<S::Frame as Frame>::Sample as Sample>::Float,
 }
 
 impl<S: StreamingSignal> StreamingNoiseGate<S> {
     pub fn new(
         signal: S,
-        activate_threshold: <<S::Frame as Frame>::Sample as Sample>::Float,
         deactivation_delay: usize,
     ) -> StreamingNoiseGate<S> {
         Self {
             open: 0,
             signal,
-            activate_threshold,
-            deactivation_delay
+            deactivation_delay,
+            alltime_high: <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM,
         }
     }
 }
@@ -426,6 +424,8 @@ impl<S> StreamingSignal for StreamingNoiseGate<S>
     type Frame = S::Frame;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Frame> {
+        const MUTE_PERCENTAGE: f32 = 0.1;
+
         let s = self.get_mut();
 
         let frame = match S::poll_next(Pin::new(&mut s.signal), cx) {
@@ -433,14 +433,18 @@ impl<S> StreamingSignal for StreamingNoiseGate<S>
             Poll::Pending => return Poll::Pending,
         };
 
+        if let Some(highest) = frame.to_float_frame().channels().find(|e| abs(e.clone()) > s.alltime_high) {
+            s.alltime_high = highest;
+        }
+
         match s.open {
             0 => {
-                if frame.to_float_frame().channels().any(|e| abs(e) >= s.activate_threshold) {
+                if frame.to_float_frame().channels().any(|e| abs(e) >= s.alltime_high.mul_amp(MUTE_PERCENTAGE.to_sample())) {
                     s.open = s.deactivation_delay;
                 }
             }
             _ => {
-                if frame.to_float_frame().channels().any(|e| abs(e) >= s.activate_threshold) {
+                if frame.to_float_frame().channels().any(|e| abs(e) >= s.alltime_high.mul_amp(MUTE_PERCENTAGE.to_sample())) {
                     s.open = s.deactivation_delay;
                 } else {
                     s.open -= 1;
