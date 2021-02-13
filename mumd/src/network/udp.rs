@@ -1,8 +1,8 @@
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 
-use futures::{join, FutureExt, SinkExt, StreamExt, Stream};
-use futures_util::stream::{SplitSink, SplitStream};
+use futures_util::{FutureExt, SinkExt, StreamExt};
+use futures_util::stream::{SplitSink, SplitStream, Stream};
 use log::*;
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::ping::{PingPacket, PongPacket};
@@ -14,7 +14,7 @@ use std::net::{Ipv6Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tokio::net::UdpSocket;
+use tokio::{join, net::UdpSocket};
 use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::{interval, Duration};
 use tokio_util::udp::UdpFramed;

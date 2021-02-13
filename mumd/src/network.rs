@@ -1,15 +1,10 @@
 pub mod tcp;
 pub mod udp;
 
-use futures::Future;
-use futures::FutureExt;
-use futures::channel::oneshot;
-use futures::join;
-use futures::pin_mut;
-use futures::select;
+use futures_util::FutureExt;
 use log::*;
-use std::net::SocketAddr;
-use tokio::sync::watch;
+use std::{future::Future, net::SocketAddr};
+use tokio::{join, select, sync::{oneshot, watch}};
 
 use crate::state::StatePhase;
 
@@ -58,9 +53,7 @@ async fn run_until<F>(
 
     let main_block = async {
         let rx = rx.fuse();
-        pin_mut!(rx);
         let fut = fut.fuse();
-        pin_mut!(fut);
         select! {
             _ = fut => (),
             _ = rx => (),

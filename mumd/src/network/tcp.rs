@@ -2,8 +2,8 @@ use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 use log::*;
 
-use futures::{FutureExt, SinkExt, Stream, StreamExt};
-use futures_util::stream::{SplitSink, SplitStream};
+use futures_util::{FutureExt, SinkExt, StreamExt};
+use futures_util::stream::{SplitSink, SplitStream, Stream};
 use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPacket};
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;

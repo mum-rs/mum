@@ -2,12 +2,11 @@ use crate::command;
 use crate::network::{tcp, udp, ConnectionInfo};
 use crate::state::State;
 
-use futures_util::join;
 use ipc_channel::ipc::IpcSender;
 use mumble_protocol::{Serverbound, control::ControlPacket, crypt::ClientCryptState};
 use mumlib::command::{Command, CommandResponse};
 use std::sync::Arc;
-use tokio::sync::{mpsc, watch, Mutex};
+use tokio::{join, sync::{mpsc, watch, Mutex}};
 
 pub async fn handle(
     command_receiver: mpsc::UnboundedReceiver<(
