@@ -395,11 +395,13 @@ fn get_default_sfx() -> Cow<'static, [u8]> {
     Cow::from(include_bytes!("fallback_sfx.wav").as_ref())
 }
 
+type FloatSample<S> = <<S as Frame>::Sample as Sample>::Float;
+
 struct StreamingNoiseGate<S: StreamingSignal> {
     open: usize,
     signal: S,
     deactivation_delay: usize,
-    alltime_high: <<S::Frame as Frame>::Sample as Sample>::Float,
+    alltime_high: FloatSample<S::Frame>,
 }
 
 impl<S: StreamingSignal> StreamingNoiseGate<S> {
@@ -411,7 +413,7 @@ impl<S: StreamingSignal> StreamingNoiseGate<S> {
             open: 0,
             signal,
             deactivation_delay,
-            alltime_high: <<<S::Frame as Frame>::Sample as Sample>::Float as Sample>::EQUILIBRIUM,
+            alltime_high: FloatSample::<S::Frame>::EQUILIBRIUM,
         }
     }
 }
@@ -419,7 +421,7 @@ impl<S: StreamingSignal> StreamingNoiseGate<S> {
 impl<S> StreamingSignal for StreamingNoiseGate<S>
     where
         S: StreamingSignal + Unpin,
-        <<<S as StreamingSignal>::Frame as Frame>::Sample as Sample>::Float: Unpin,
+        FloatSample<S::Frame>: Unpin,
         <S as StreamingSignal>::Frame: Unpin {
     type Frame = S::Frame;
 
