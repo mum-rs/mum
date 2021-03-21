@@ -53,6 +53,7 @@ fn main() {
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
+        .version(env!("VERSION"))
         .subcommand(
             SubCommand::with_name("connect")
                 .about("Connect to a server")
