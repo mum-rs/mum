@@ -2,8 +2,7 @@ use std::process::Command;
 
 fn main() {
     let version = format!(
-        "{} {}-{}",
-        env!("CARGO_PKG_NAME"),
+        "{}-{}",
         env!("CARGO_PKG_VERSION"),
         commit_hash().unwrap_or_else(|| "???".to_string()),
     );
