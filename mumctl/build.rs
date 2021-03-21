@@ -1,8 +1,7 @@
 use std::process::Command;
 
 fn main() {
-    let maybe_hash = commit_hash();
-    let version = match maybe_hash.as_deref() {
+    let version = match commit_hash().as_deref() {
         None | Some("") => format!("v{}", env!("CARGO_PKG_VERSION")),
         Some(version) => version.to_string(),
     };
