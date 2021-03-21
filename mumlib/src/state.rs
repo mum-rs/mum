@@ -1,6 +1,5 @@
-use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use std::fmt;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Server {
@@ -143,8 +142,8 @@ macro_rules! true_to_str {
     };
 }
 
-impl Display for User {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for User {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{} {}{}{}{}{}",
