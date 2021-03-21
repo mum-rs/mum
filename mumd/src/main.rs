@@ -16,7 +16,7 @@ use tokio::task::spawn_blocking;
 #[tokio::main]
 async fn main() {
     if std::env::args().find(|s| s.as_str() == "--version").is_some() {
-        println!(env!("VERSION"));
+        println!("mumd {}", env!("VERSION"));
         return;
     }
 
