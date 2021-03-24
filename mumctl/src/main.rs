@@ -1,15 +1,15 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand, ArgMatches};
 use colored::Colorize;
-use ipc_channel::ipc::{self, IpcSender};
 use log::{error, warn};
 use log::{Record, Level, Metadata, LevelFilter};
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config;
 use mumlib::config::{ServerConfig, Config};
 use mumlib::state::Channel;
-use std::io::BufRead;
-use std::{fs, io, iter, fmt};
+use std::io::{BufRead, Write};
+use std::{io::{self, Read}, iter, fmt};
 use std::fmt::{Display, Formatter};
+use std::os::unix::net::UnixStream;
 
 const INDENTATION: &str = "  ";
 
@@ -615,16 +615,17 @@ fn parse_status(server_state: &mumlib::state::Server) {
 }
 
 fn send_command(command: Command) -> Result<mumlib::error::Result<Option<CommandResponse>>, crate::Error> {
-    let (tx_client, rx_client) =
-        ipc::channel::<mumlib::error::Result<Option<CommandResponse>>>().unwrap();
+    let mut connection = UnixStream::connect("/tmp/mumd").unwrap();
 
-    let server_name = fs::read_to_string(mumlib::SOCKET_PATH).unwrap(); //TODO don't panic
+    let serialized = bincode::serialize(&command).unwrap();
 
-    let tx0 = IpcSender::connect(server_name).map_err(|_| Error::ConnectionError)?;
+    connection.write(&(serialized.len() as u32).to_be_bytes()).unwrap();
+    connection.write(&serialized).unwrap();
 
-    tx0.send((command, tx_client)).unwrap();
+    connection.read_exact(&mut [0; 4]).unwrap();
+    let response = bincode::deserialize_from(&mut connection).unwrap();
 
-    Ok(rx_client.recv().unwrap())
+    Ok(response)
 }
 
 fn print_channel(channel: &Channel, depth: usize) {

@@ -5,13 +5,14 @@ mod network;
 mod notify;
 mod state;
 
-use ipc_channel::ipc::{self, IpcOneShotServer, IpcSender};
+use futures_util::StreamExt;
+//use ipc_channel::ipc::{self, IpcOneShotServer, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
-use std::fs;
-use tokio::{join, sync::mpsc};
-use tokio::task::spawn_blocking;
+use tokio::{join, net::UnixListener, sync::{mpsc, oneshot}};
+use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
+use bytes::{BufMut, BytesMut};
 
 #[tokio::main]
 async fn main() {
@@ -24,7 +25,7 @@ async fn main() {
     notify::init();
 
     // check if another instance is live
-    let (tx_client, rx_client) =
+    /*let (tx_client, rx_client) =
         ipc::channel::<mumlib::error::Result<Option<CommandResponse>>>().unwrap();
     if let Ok(server_name) = fs::read_to_string(mumlib::SOCKET_PATH) {
         if let Ok(tx0) = IpcSender::connect(server_name) {
@@ -41,50 +42,44 @@ async fn main() {
                 }
             }
         }
-    }
+    }*/
 
-    let (command_sender, command_receiver) = mpsc::unbounded_channel::<(
-        Command,
-        IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
-    )>();
+    let (command_sender, command_receiver) = mpsc::unbounded_channel();
 
-    let (_, e) = join!(
+    join!(
         client::handle(command_receiver),
-        spawn_blocking(move || {
-            // IpcSender is blocking
-            receive_oneshot_commands(command_sender);
-        }),
+        receive_commands(command_sender),
     );
-    e.unwrap();
 }
 
-fn receive_oneshot_commands(
+async fn receive_commands(
     command_sender: mpsc::UnboundedSender<(
         Command,
-        IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
+        oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
 ) {
-    loop {
-        // create listener
-        let (server, server_name): (
-            IpcOneShotServer<(
-                Command,
-                IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
-            )>,
-            String,
-        ) = IpcOneShotServer::new().unwrap();
-        fs::write(mumlib::SOCKET_PATH, &server_name).unwrap();
-        debug!("Listening to {}", server_name);
+    let socket = UnixListener::bind("/tmp/mumd").unwrap();
 
-        // receive command and response channel
-        let (_, conn): (
-            _,
-            (
-                Command,
-                IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
-            ),
-        ) = server.accept().unwrap();
-        debug!("Sending command {:?} to command handler", conn.0);
-        command_sender.send(conn).unwrap();
+    loop {
+        if let Ok((incoming, _)) = socket.accept().await {
+            let (reader, writer) = incoming.into_split();
+            let reader = FramedRead::new(reader, LengthDelimitedCodec::new());
+            let writer = FramedWrite::new(writer, LengthDelimitedCodec::new());
+
+            reader.filter_map(|buf| async {
+                buf.ok()
+            })
+            .map(|buf| bincode::deserialize::<Command>(&buf).unwrap())
+            .filter_map(|command| async {
+                let (tx, rx) = oneshot::channel();
+
+                command_sender.send((command, tx)).unwrap();
+
+                let response = rx.await.unwrap();
+                let mut serialized = BytesMut::new();
+                bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
+                Some(Ok(serialized.freeze()))
+            }).forward(writer).await.unwrap();
+        }
     }
 }
