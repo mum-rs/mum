@@ -12,8 +12,8 @@ $ cargo install mumctl
 ```
 
 They are also
-[https://aur.archlinux.org/packages/mum-git/](available on the AUR). Thirdly, we
-publish [https://github.com/sornas/mum/releases/](compiled binaries on Github).
+[available on the AUR](https://aur.archlinux.org/packages/mum-git/). Thirdly, we
+publish [compiled binaries on Github](https://github.com/sornas/mum/releases/).
 
 ### Requirements
 
@@ -127,4 +127,4 @@ Mostly because it's a fun way of learning a new language. Also:
 
 ## Other projects
 
-- [https://github.com/bmmcginty/barnard.git](Barnard (go)) - TUI mumble client
+- [Barnard (go)](https://github.com/bmmcginty/barnard.git) - TUI mumble client
