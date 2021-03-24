@@ -63,17 +63,17 @@ pub struct State {
 impl State {
     pub fn new() -> Self {
         let config = mumlib::config::read_default_cfg();
-        let watcher = watch::channel(StatePhase::Disconnected);
+        let phase_watcher = watch::channel(StatePhase::Disconnected);
         let audio = Audio::new(
             config.audio.input_volume.unwrap_or(1.0),
             config.audio.output_volume.unwrap_or(1.0),
-            watcher.1.clone(),
+            phase_watcher.1.clone(),
         );
         let mut state = Self {
             config,
             server: None,
             audio,
-            phase_watcher: watch::channel(StatePhase::Disconnected),
+            phase_watcher,
         };
         state.reload_config();
         state
