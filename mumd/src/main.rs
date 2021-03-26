@@ -69,25 +69,34 @@ async fn receive_commands(
 
     loop {
         if let Ok((incoming, _)) = socket.accept().await {
-            let (reader, writer) = incoming.into_split();
-            let reader = FramedRead::new(reader, LengthDelimitedCodec::new());
-            let writer = FramedWrite::new(writer, LengthDelimitedCodec::new());
+            let sender = command_sender.clone();
+            tokio::spawn(async move {
+                let (reader, writer) = incoming.into_split();
+                let mut reader = FramedRead::new(reader, LengthDelimitedCodec::new());
+                let mut writer = FramedWrite::new(writer, LengthDelimitedCodec::new());
+                
+                while let Some(next) = reader.next().await {
+                    let buf = match next {
+                        Ok(buf) => buf,
+                        Err(_) => continue,
+                    };
 
-            reader.filter_map(|buf| async {
-                buf.ok()
-            })
-            .map(|buf| bincode::deserialize::<Command>(&buf))
-            .filter_map(|e| async { e.ok() })
-            .filter_map(|command| async {
-                let (tx, rx) = oneshot::channel();
+                    let command = match bincode::deserialize::<Command>(&buf) {
+                        Ok(e) => e,
+                        Err(_) => continue,
+                    };
 
-                command_sender.send((command, tx)).unwrap();
+                    let (tx, rx) = oneshot::channel();
 
-                let response = rx.await.unwrap();
-                let mut serialized = BytesMut::new();
-                bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
-                Some(Ok(serialized.freeze()))
-            }).forward(writer).await.unwrap();
+                    sender.send((command, tx)).unwrap();
+
+                    let response = rx.await.unwrap();
+                    let mut serialized = BytesMut::new();
+                    bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
+
+                    let _ = writer.send(serialized.freeze()).await;
+                }
+            });
         }
     }
 }
