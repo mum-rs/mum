@@ -1,15 +1,10 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand, ArgMatches};
 use colored::Colorize;
-use log::{error, warn};
-use log::{Record, Level, Metadata, LevelFilter};
+use log::{Record, Level, Metadata, LevelFilter, error, warn};
 use mumlib::command::{Command, CommandResponse};
-use mumlib::config;
-use mumlib::config::{ServerConfig, Config};
+use mumlib::config::{self, ServerConfig, Config};
 use mumlib::state::Channel;
-use std::io::{BufRead, Write};
-use std::{io::{self, Read}, iter, fmt};
-use std::fmt::{Display, Formatter};
-use std::os::unix::net::UnixStream;
+use std::{io::{self, Read, BufRead, Write}, iter, fmt::{Display, Formatter}, os::unix::net::UnixStream};
 
 const INDENTATION: &str = "  ";
 
