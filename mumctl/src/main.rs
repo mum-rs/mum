@@ -615,15 +615,15 @@ fn parse_status(server_state: &mumlib::state::Server) {
 }
 
 fn send_command(command: Command) -> Result<mumlib::error::Result<Option<CommandResponse>>, crate::Error> {
-    let mut connection = UnixStream::connect("/tmp/mumd").unwrap();
+    let mut connection = UnixStream::connect("/tmp/mumd").map_err(|_| Error::ConnectionError)?;
 
     let serialized = bincode::serialize(&command).unwrap();
 
-    connection.write(&(serialized.len() as u32).to_be_bytes()).unwrap();
-    connection.write(&serialized).unwrap();
+    connection.write(&(serialized.len() as u32).to_be_bytes()).map_err(|_| Error::ConnectionError)?;
+    connection.write(&serialized).map_err(|_| Error::ConnectionError)?;
 
-    connection.read_exact(&mut [0; 4]).unwrap();
-    let response = bincode::deserialize_from(&mut connection).unwrap();
+    connection.read_exact(&mut [0; 4]).map_err(|_| Error::ConnectionError)?;
+    let response = bincode::deserialize_from(&mut connection).map_err(|_| Error::ConnectionError)?;
 
     Ok(response)
 }

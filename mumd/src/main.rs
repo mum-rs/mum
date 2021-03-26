@@ -77,7 +77,8 @@ async fn receive_commands(
             reader.filter_map(|buf| async {
                 buf.ok()
             })
-            .map(|buf| bincode::deserialize::<Command>(&buf).unwrap())
+            .map(|buf| bincode::deserialize::<Command>(&buf))
+            .filter_map(|e| async { e.ok() })
             .filter_map(|command| async {
                 let (tx, rx) = oneshot::channel();
 
