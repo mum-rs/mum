@@ -24,7 +24,7 @@ async fn main() {
     notify::init();
 
     // check if another instance is live
-    let connection = UnixStream::connect("/tmp/mumd").await;
+    let connection = UnixStream::connect(mumlib::SOCKET_PATH).await;
     match connection {
         Ok(stream) => {
             let (reader, writer) = stream.into_split();
@@ -41,12 +41,12 @@ async fn main() {
                 }
             }
             debug!("a dead socket was found, removing");
-            tokio::fs::remove_file("/tmp/mumd").await.unwrap();
+            tokio::fs::remove_file(mumlib::SOCKET_PATH).await.unwrap();
         }
         Err(e) => {
             if matches!(e.kind(), std::io::ErrorKind::ConnectionRefused) {
                 debug!("a dead socket was found, removing");
-                tokio::fs::remove_file("/tmp/mumd").await.unwrap();
+                tokio::fs::remove_file(mumlib::SOCKET_PATH).await.unwrap();
             }
         }
     }
@@ -65,7 +65,7 @@ async fn receive_commands(
         oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
 ) {
-    let socket = UnixListener::bind("/tmp/mumd").unwrap();
+    let socket = UnixListener::bind(mumlib::SOCKET_PATH).unwrap();
 
     loop {
         if let Ok((incoming, _)) = socket.accept().await {
