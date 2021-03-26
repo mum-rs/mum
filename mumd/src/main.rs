@@ -6,7 +6,6 @@ mod notify;
 mod state;
 
 use futures_util::{SinkExt, StreamExt};
-//use ipc_channel::ipc::{self, IpcOneShotServer, IpcSender};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
