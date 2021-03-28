@@ -610,7 +610,7 @@ fn parse_status(server_state: &mumlib::state::Server) {
 }
 
 fn send_command(command: Command) -> Result<mumlib::error::Result<Option<CommandResponse>>, crate::Error> {
-    let mut connection = UnixStream::connect("/tmp/mumd").map_err(|_| Error::ConnectionError)?;
+    let mut connection = UnixStream::connect(mumlib::SOCKET_PATH).map_err(|_| Error::ConnectionError)?;
 
     let serialized = bincode::serialize(&command).unwrap();
 
@@ -618,9 +618,7 @@ fn send_command(command: Command) -> Result<mumlib::error::Result<Option<Command
     connection.write(&serialized).map_err(|_| Error::ConnectionError)?;
 
     connection.read_exact(&mut [0; 4]).map_err(|_| Error::ConnectionError)?;
-    let response = bincode::deserialize_from(&mut connection).map_err(|_| Error::ConnectionError)?;
-
-    Ok(response)
+    bincode::deserialize_from(&mut connection).map_err(|_| Error::ConnectionError)
 }
 
 fn print_channel(channel: &Channel, depth: usize) {
