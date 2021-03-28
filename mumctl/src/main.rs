@@ -656,4 +656,3 @@ impl Display for Error {
         write!(f, "Unable to connect to mumd. Is mumd running?")
     }
 }
-
