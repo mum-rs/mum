@@ -59,6 +59,7 @@ fn main() {
                 .about("Connect to a server")
                 .arg(Arg::with_name("host").required(true))
                 .arg(Arg::with_name("username"))
+                .arg(Arg::with_name("password"))
                 .arg(
                     Arg::with_name("port")
                         .long("port")
@@ -395,13 +396,14 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
 fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config::Config) -> Result<(), Error> {
     let host = matches.value_of("host").unwrap();
     let username = matches.value_of("username");
+    let password = matches.value_of("password");
     let port = match matches.value_of("port").map(|e| e.parse()) {
         None => Some(mumlib::DEFAULT_PORT),
         Some(Err(_)) => None,
         Some(Ok(v)) => Some(v),
     };
     if let Some(port) = port {
-        let (host, port, username) = match config.servers.iter().find(|e| e.name == host) {
+        let (host, port, username, password) = match config.servers.iter().find(|e| e.name == host) {
             Some(server_config) => {
                 let host = server_config.host.as_str();
                 let port = server_config.port.unwrap_or(port);
@@ -413,20 +415,25 @@ fn match_server_connect(matches: &clap::ArgMatches<'_>, config: &mumlib::config:
                     error!("no username specified");
                     return Ok(()); //TODO? return as error
                 }
-                (host, port, username.unwrap())
+                let password = server_config
+                    .password
+                    .as_deref()
+                    .or(password);
+                (host, port, username.unwrap(), password)
             }
             None => {
                 if username.is_none() {
                     error!("no username specified");
                     return Ok(()); //TODO? return as error
                 }
-                (host, port, username.unwrap())
+                (host, port, username.unwrap(), password)
             }
         };
         let response = send_command(Command::ServerConnect {
             host: host.to_string(),
             port,
             username: username.to_string(),
+            password: password.map(|x| x.to_string()),
             accept_invalid_cert: true, //TODO
         })?
         .map(|e| (e, host));

@@ -14,6 +14,7 @@ pub struct Server {
     pub welcome_text: Option<String>,
 
     username: Option<String>,
+    password: Option<String>,
     session_id: Option<u32>,
     muted: bool,
     deafened: bool,
@@ -28,6 +29,7 @@ impl Server {
             users: HashMap::new(),
             welcome_text: None,
             username: None,
+            password: None,
             session_id: None,
             muted: false,
             deafened: false,
@@ -112,6 +114,14 @@ impl Server {
 
     pub fn username_mut(&mut self) -> &mut Option<String> {
         &mut self.username
+    }
+
+    pub fn password(&self) -> Option<&str> {
+        self.password.as_deref()
+    }
+
+    pub fn password_mut(&mut self) -> &mut Option<String> {
+        &mut self.password
     }
 
     pub fn muted(&self) -> bool {

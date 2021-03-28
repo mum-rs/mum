@@ -19,6 +19,7 @@ pub enum Command {
         host: String,
         port: u16,
         username: String,
+        password: Option<String>,
         accept_invalid_cert: bool,
     },
     ServerDisconnect,
