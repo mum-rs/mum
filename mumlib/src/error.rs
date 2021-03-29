@@ -10,6 +10,7 @@ pub enum Error {
     ChannelIdentifierError(String, ChannelIdentifierError),
     InvalidServerAddrError(String, u16),
     InvalidUsernameError(String),
+    InvalidServerPassword,
 }
 
 impl fmt::Display for Error {
@@ -22,6 +23,7 @@ impl fmt::Display for Error {
                 write!(f, "Invalid server address: {}: {}", addr, port)
             }
             Error::InvalidUsernameError(username) => write!(f, "Invalid username: {}", username),
+            Error::InvalidServerPassword => write!(f, "Invalid server password")
         }
     }
 }

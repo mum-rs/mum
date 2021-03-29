@@ -8,6 +8,7 @@ use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPa
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::{Clientbound, Serverbound};
+use mumlib::error::Error;
 use std::collections::HashMap;
 use std::convert::{Into, TryInto};
 use std::net::SocketAddr;
@@ -38,7 +39,7 @@ pub enum TcpEvent {
 
 #[derive(Clone)]
 pub enum TcpEventData<'a> {
-    Connected(Result<&'a msgs::ServerSync, mumlib::error::Error>),
+    Connected(Result<&'a msgs::ServerSync, Error>),
     _Disconnected,
 }
 
@@ -300,7 +301,14 @@ async fn listen(
                 state.initialized();
             }
             ControlPacket::Reject(msg) => {
-                warn!("Login rejected: {:?}", msg);
+                match msg.get_field_type() {
+                    msgs::Reject_RejectType::WrongServerPW => {
+                        event_queue.send(TcpEventData::Connected(Err(Error::InvalidServerPassword))).await;
+                    }
+                    _ => {
+                        warn!("Login rejected: {:?}", msg);
+                    }
+                }
             }
             ControlPacket::UserState(msg) => {
                 state.lock().await.parse_user_state(*msg);
