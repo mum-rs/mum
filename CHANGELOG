@@ -9,8 +9,7 @@ we're in 0.x it's a lawless land anyway.
 0.x, which we will revisit following 1.0.
 
 Points under "unreleased" currently exist on main and will be part of the next
-release. Generally, if it's relevant, you should add a line here when creating
-a PR.
+release.
 
 Unreleased
 ----------
@@ -18,9 +17,10 @@ Unreleased
 Added
 ~~~~~
 
-* Added a noise gate
-* Added tunneling audio through TCP if UDP connection goes down
-* --version now includes the current commit hash.
+ * Added a noise gate.
+ * Added tunneling audio through TCP if UDP connection goes down.
+ * --version now includes the current commit hash.
+ * Server passwords. Thanks @rbran!
 
 // Changed
 // ~~~~~~~
@@ -31,7 +31,7 @@ Added
 Fixed
 ~~~~~
 
- * Client no longer sends empty audio packets
+ * Client no longer sends empty audio packets.
  * Informative error message instead of panic when a running mumd-process can't
    be found.
 
