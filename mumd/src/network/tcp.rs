@@ -67,7 +67,9 @@ pub async fn handle(
 
         // Handshake (omitting `Version` message for brevity)
         let state_lock = state.lock().await;
-        authenticate(&mut sink, state_lock.username().unwrap().to_string()).await;
+        let username = state_lock.username().unwrap().to_string();
+        let password = state_lock.password().map(|x| x.to_string());
+        authenticate(&mut sink, username, password).await;
         let phase_watcher = state_lock.phase_receiver();
         let input_receiver = state_lock.audio().input_receiver();
         drop(state_lock);
@@ -133,9 +135,16 @@ async fn connect(
     ClientControlCodec::new().framed(tls_stream).split()
 }
 
-async fn authenticate(sink: &mut TcpSender, username: String) {
+async fn authenticate(
+    sink: &mut TcpSender,
+    username: String,
+    password: Option<String>
+) {
     let mut msg = msgs::Authenticate::new();
     msg.set_username(username);
+    if let Some(password) = password {
+        msg.set_password(password);
+    }
     msg.set_opus(true);
     sink.send(msg.into()).await.unwrap();
 }

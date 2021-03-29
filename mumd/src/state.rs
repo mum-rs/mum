@@ -309,6 +309,7 @@ impl State {
                 host,
                 port,
                 username,
+                password,
                 accept_invalid_cert,
             } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
@@ -316,6 +317,7 @@ impl State {
                 }
                 let mut server = Server::new();
                 *server.username_mut() = Some(username);
+                *server.password_mut() = password;
                 *server.host_mut() = Some(format!("{}:{}", host, port));
                 self.server = Some(server);
                 self.phase_watcher
@@ -609,6 +611,9 @@ impl State {
     }
     pub fn username(&self) -> Option<&str> {
         self.server.as_ref().map(|e| e.username()).flatten()
+    }
+    pub fn password(&self) -> Option<&str> {
+        self.server.as_ref().map(|e| e.password()).flatten()
     }
     fn get_users_channel(&self, user_id: u32) -> u32 {
         self.server()
