@@ -1,15 +1,10 @@
 use clap::{App, AppSettings, Arg, Shell, SubCommand, ArgMatches};
 use colored::Colorize;
-use ipc_channel::ipc::{self, IpcSender};
-use log::{error, warn};
-use log::{Record, Level, Metadata, LevelFilter};
+use log::{Record, Level, Metadata, LevelFilter, error, warn};
 use mumlib::command::{Command, CommandResponse};
-use mumlib::config;
-use mumlib::config::{ServerConfig, Config};
+use mumlib::config::{self, ServerConfig, Config};
 use mumlib::state::Channel;
-use std::io::BufRead;
-use std::{fs, io, iter, fmt};
-use std::fmt::{Display, Formatter};
+use std::{io::{self, Read, BufRead, Write}, iter, fmt::{Display, Formatter}, os::unix::net::UnixStream};
 
 const INDENTATION: &str = "  ";
 
@@ -615,16 +610,15 @@ fn parse_status(server_state: &mumlib::state::Server) {
 }
 
 fn send_command(command: Command) -> Result<mumlib::error::Result<Option<CommandResponse>>, crate::Error> {
-    let (tx_client, rx_client) =
-        ipc::channel::<mumlib::error::Result<Option<CommandResponse>>>().unwrap();
+    let mut connection = UnixStream::connect(mumlib::SOCKET_PATH).map_err(|_| Error::ConnectionError)?;
 
-    let server_name = fs::read_to_string(mumlib::SOCKET_PATH).unwrap(); //TODO don't panic
+    let serialized = bincode::serialize(&command).unwrap();
 
-    let tx0 = IpcSender::connect(server_name).map_err(|_| Error::ConnectionError)?;
+    connection.write(&(serialized.len() as u32).to_be_bytes()).map_err(|_| Error::ConnectionError)?;
+    connection.write(&serialized).map_err(|_| Error::ConnectionError)?;
 
-    tx0.send((command, tx_client)).unwrap();
-
-    Ok(rx_client.recv().unwrap())
+    connection.read_exact(&mut [0; 4]).map_err(|_| Error::ConnectionError)?;
+    bincode::deserialize_from(&mut connection).map_err(|_| Error::ConnectionError)
 }
 
 fn print_channel(channel: &Channel, depth: usize) {
@@ -658,7 +652,7 @@ enum Error {
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "Unable to connect to mumd. Is mumd running?")
     }
 }

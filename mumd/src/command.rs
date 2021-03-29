@@ -5,7 +5,6 @@ use crate::network::{
 };
 use crate::state::{ExecutionContext, State};
 
-use ipc_channel::ipc::IpcSender;
 use log::*;
 use mumble_protocol::{Serverbound, control::ControlPacket};
 use mumlib::command::{Command, CommandResponse};
@@ -16,7 +15,7 @@ pub async fn handle(
     state: Arc<Mutex<State>>,
     mut command_receiver: mpsc::UnboundedReceiver<(
         Command,
-        IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
+        oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
     tcp_event_register_sender: mpsc::UnboundedSender<(TcpEvent, TcpEventCallback)>,
     ping_request_sender: mpsc::UnboundedSender<PingRequest>,

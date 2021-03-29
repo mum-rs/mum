@@ -2,16 +2,15 @@ use crate::command;
 use crate::network::{tcp, udp, ConnectionInfo};
 use crate::state::State;
 
-use ipc_channel::ipc::IpcSender;
 use mumble_protocol::{Serverbound, control::ControlPacket, crypt::ClientCryptState};
 use mumlib::command::{Command, CommandResponse};
 use std::sync::Arc;
-use tokio::{join, sync::{mpsc, watch, Mutex}};
+use tokio::{join, sync::{Mutex, mpsc, oneshot, watch}};
 
 pub async fn handle(
     command_receiver: mpsc::UnboundedReceiver<(
         Command,
-        IpcSender<mumlib::error::Result<Option<CommandResponse>>>,
+        oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
 ) {
     let (connection_info_sender, connection_info_receiver) =
