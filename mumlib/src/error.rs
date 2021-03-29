@@ -3,7 +3,7 @@ use std::fmt;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Error {
     DisconnectedError,
     AlreadyConnectedError,
@@ -26,7 +26,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum ChannelIdentifierError {
     Invalid,
     Ambiguous,

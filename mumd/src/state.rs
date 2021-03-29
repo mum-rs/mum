@@ -342,16 +342,18 @@ impl State {
                         accept_invalid_cert,
                     )))
                     .unwrap();
-                at!(TcpEvent::Connected, |e| {
+                at!(TcpEvent::Connected, |res| {
                     //runs the closure when the client is connected
-                    if let TcpEventData::Connected(msg) = e {
-                        Ok(Some(CommandResponse::ServerConnect {
-                            welcome_message: if msg.has_welcome_text() {
-                                Some(msg.get_welcome_text().to_string())
-                            } else {
-                                None
-                            },
-                        }))
+                    if let TcpEventData::Connected(res) = res {
+                        res.map(|msg| {
+                            Some(CommandResponse::ServerConnect {
+                                welcome_message: if msg.has_welcome_text() {
+                                    Some(msg.get_welcome_text().to_string())
+                                } else {
+                                    None
+                                },
+                            })
+                        })
                     } else {
                         unreachable!("callback should be provided with a TcpEventData::Connected");
                     }

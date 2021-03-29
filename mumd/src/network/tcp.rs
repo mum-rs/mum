@@ -38,7 +38,7 @@ pub enum TcpEvent {
 
 #[derive(Clone)]
 pub enum TcpEventData<'a> {
-    Connected(&'a msgs::ServerSync),
+    Connected(Result<&'a msgs::ServerSync, mumlib::error::Error>),
     _Disconnected,
 }
 
@@ -286,7 +286,7 @@ async fn listen(
                         )
                         .await;
                 }
-                event_queue.send(TcpEventData::Connected(&msg)).await;
+                event_queue.send(TcpEventData::Connected(Ok(&msg))).await;
                 let mut state = state.lock().await;
                 let server = state.server_mut().unwrap();
                 server.parse_server_sync(*msg);
