@@ -5,24 +5,24 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Error {
-    DisconnectedError,
-    AlreadyConnectedError,
+    Disconnected,
+    AlreadyConnected,
     ChannelIdentifierError(String, ChannelIdentifierError),
-    InvalidServerAddrError(String, u16),
-    InvalidUsernameError(String),
+    InvalidServerAddr(String, u16),
+    InvalidUsername(String),
     InvalidServerPassword,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::DisconnectedError => write!(f, "Not connected to a server"),
-            Error::AlreadyConnectedError => write!(f, "Already connected to a server"),
+            Error::Disconnected=> write!(f, "Not connected to a server"),
+            Error::AlreadyConnected=> write!(f, "Already connected to a server"),
             Error::ChannelIdentifierError(id, kind) => write!(f, "{}: {}", kind, id),
-            Error::InvalidServerAddrError(addr, port) => {
+            Error::InvalidServerAddr(addr, port) => {
                 write!(f, "Invalid server address: {}: {}", addr, port)
             }
-            Error::InvalidUsernameError(username) => write!(f, "Invalid username: {}", username),
+            Error::InvalidUsername(username) => write!(f, "Invalid username: {}", username),
             Error::InvalidServerPassword => write!(f, "Invalid server password")
         }
     }
