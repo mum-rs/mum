@@ -22,8 +22,10 @@ Added
 * Added tunneling audio through TCP if UDP connection goes down
 * --version now includes the current commit hash.
 
-// Changed
-// ~~~~~~~
+Changed
+~~~~~~~
+
+* Changed how you mute yourself/others. See man pages for details on the new options.
 
 // Removed
 // ~~~~~~~
