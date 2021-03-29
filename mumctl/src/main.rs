@@ -159,32 +159,21 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("mute")
-                .about("Mute/unmute yourself")
-                .subcommand(SubCommand::with_name("true").alias("1"))
-                .subcommand(SubCommand::with_name("false").alias("0"))
-                .subcommand(SubCommand::with_name("toggle"))
-                .setting(AppSettings::SubcommandRequiredElseHelp),
+                .about("Mute someone/yourself")
+                .arg(Arg::with_name("user"))
+        )
+        .subcommand(
+            SubCommand::with_name("unmute")
+                .about("Unmute someone/yourself")
+                .arg(Arg::with_name("user"))
         )
         .subcommand(
             SubCommand::with_name("deafen")
-                .about("Deafen/undeafen yourself")
-                .subcommand(SubCommand::with_name("true").alias("1"))
-                .subcommand(SubCommand::with_name("false").alias("0"))
-                .subcommand(SubCommand::with_name("toggle"))
-                .setting(AppSettings::SubcommandRequiredElseHelp),
+                .about("Deafen yourself")
         )
         .subcommand(
-            SubCommand::with_name("user")
-                .about("Configure someone else")
-                .arg(Arg::with_name("user").required(true))
-                .subcommand(
-                    SubCommand::with_name("mute")
-                        .subcommand(SubCommand::with_name("true").alias("1"))
-                        .subcommand(SubCommand::with_name("false").alias("0"))
-                        .subcommand(SubCommand::with_name("toggle"))
-                        .setting(AppSettings::SubcommandRequiredElseHelp),
-                )
-                .setting(AppSettings::SubcommandRequiredElseHelp),
+            SubCommand::with_name("undeafen")
+                .about("Undeafen yourself")
         );
 
     let matches = app.clone().get_matches();
@@ -327,62 +316,34 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
             //needs work on mumd to implement
         }
     } else if let Some(matches) = matches.subcommand_matches("mute") {
-        let command =
-            Command::MuteSelf(if let Some(_matches) = matches.subcommand_matches("true") {
-                Some(true)
-            } else if let Some(_matches) = matches.subcommand_matches("false") {
-                Some(false)
-            } else if let Some(_matches) = matches.subcommand_matches("toggle") {
-                None
-            } else {
-                unreachable!()
-            });
-        match send_command(command)? {
-            Ok(Some(CommandResponse::MuteStatus { is_muted })) => println!("{}", if is_muted {
-                "Muted"
-            } else {
-                "Unmuted"
-            }),
-            Ok(_) => {},
-            Err(e) => error!("{}", e),
-        }
-    } else if let Some(matches) = matches.subcommand_matches("deafen") {
-        let command =
-            Command::DeafenSelf(if let Some(_matches) = matches.subcommand_matches("true") {
-                Some(true)
-            } else if let Some(_matches) = matches.subcommand_matches("false") {
-                Some(false)
-            } else if let Some(_matches) = matches.subcommand_matches("toggle") {
-                None
-            } else {
-                unreachable!()
-            });
-        match send_command(command)? {
-            Ok(Some(CommandResponse::DeafenStatus { is_deafened })) => println!("{}", if is_deafened {
-                "Deafened"
-            } else {
-                "Undeafened"
-            }),
-            Ok(_) => {},
-            Err(e) => error!("{}", e),
-        }
-    } else if let Some(matches) = matches.subcommand_matches("user") {
-        let name = matches.value_of("user").unwrap();
-        if let Some(matches) = matches.subcommand_matches("mute") {
-            let toggle = if let Some(_matches) = matches.subcommand_matches("true") {
-                Some(true)
-            } else if let Some(_matches) = matches.subcommand_matches("false") {
-                Some(false)
-            } else if let Some(_matches) = matches.subcommand_matches("toggle") {
-                None
-            } else {
-                unreachable!()
-            };
-            error_if_err!(send_command(Command::MuteOther(name.to_string(), toggle)));
+        let command = if let Some(user) = matches.value_of("user") {
+            Command::MuteOther(user.to_string(), Some(true))
         } else {
-            unreachable!();
+            Command::MuteSelf(Some(true))
+        };
+        if let Err(e) = send_command(command)? {
+            error!("{}", e);
         }
-    };
+    } else if let Some(matches) = matches.subcommand_matches("unmute") {
+        let command = if let Some(user) = matches.value_of("user") {
+            Command::MuteOther(user.to_string(), Some(false))
+        } else {
+            Command::MuteSelf(Some(false))
+        };
+        if let Err(e) = send_command(command)? {
+            error!("{}", e);
+        }
+    } else if let Some(_) = matches.subcommand_matches("deafen") {
+        if let Err(e) = send_command(Command::DeafenSelf(Some(true)))? {
+            error!("{}", e);
+        }
+    } else if let Some(_) = matches.subcommand_matches("undeafen") {
+        if let Err(e) = send_command(Command::DeafenSelf(Some(false)))? {
+            error!("{}", e);
+        }
+    } else {
+        unreachable!();
+    }
 
     Ok(())
 }
