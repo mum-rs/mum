@@ -2,12 +2,12 @@
 .\"     Title: mumd
 .\"    Author: [see the "AUTHOR(S)" section]
 .\" Generator: Asciidoctor 2.0.12
-.\"      Date: 2020-12-25
+.\"      Date: 2021-03-29
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MUMCTL" "1" "2020-12-25" "\ \&" "\ \&"
+.TH "MUMCTL" "1" "2021-03-29" "\ \&" "\ \&"
 .ie \n(.g .ds Aq \(aq
 .el       .ds Aq '
 .ss \n[.ss] 0
@@ -84,9 +84,9 @@ as well).
 If omitted, the port defaults to 64738.
 .RE
 .sp
-mumctl deafen <true|false|toggle>
+mumctl deafen
 .RS 4
-Deafen/undeafen yourself.
+Deafen yourself.
 .RE
 .sp
 mumctl disconnect
@@ -97,6 +97,12 @@ Disconnect from the currently connected server.
 mumctl help
 .RS 4
 Show a help message.
+.RE
+.sp
+mumctl mute [user]
+.RS 4
+Mute yourself or someone else.
+If user is omitted, you mute yourself. Otherwise, the user with the username [user] is muted.
 .RE
 .sp
 mumctl server add [\-\-password <password>] [\-\-port <port>] [\-\-username <username>] [<name>] <host>
@@ -129,9 +135,15 @@ mumctl status
 Show the currently conneced channel and server.
 .RE
 .sp
-mumctl user <name> mute <true|false|toggle>
+mumctl undeafen
 .RS 4
-Mute someone else locally.
+Undeafen yourself.
+.RE
+.sp
+mumctl unmute [user]
+.RS 4
+Unmute yourself or someone else.
+If user is omitted, unmute. Otherwise, the user with the username [user] is unmuted.
 .RE
 .sp
 mumctl volume set <volume>
