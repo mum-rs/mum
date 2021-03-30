@@ -88,7 +88,7 @@ mumctl undeafen ::
 
 mumctl unmute [user] ::
     Unmute yourself or someone else.
-    If user is omitted, unmute. Otherwise, the user with the username [user] is unmuted.
+    If user is omitted, unmute yourself. Otherwise, the user with the username [user] is unmuted.
 
 mumctl volume set <volume> ::
     Set the outgoing volume level.
