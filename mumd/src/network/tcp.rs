@@ -39,18 +39,19 @@ pub enum TcpEvent {
 #[derive(Clone)]
 pub enum TcpEventData<'a> {
     Connected(Result<&'a msgs::ServerSync, mumlib::Error>),
-    _Disconnected,
+    Disconnected,
 }
 
 impl<'a> From<&TcpEventData<'a>> for TcpEvent {
     fn from(t: &TcpEventData) -> Self {
         match t {
             TcpEventData::Connected(_) => TcpEvent::Connected,
-            TcpEventData::_Disconnected => TcpEvent::Disconnected,
+            TcpEventData::Disconnected => TcpEvent::Disconnected,
         }
     }
 }
 
+#[derive(Clone)]
 struct TcpEventQueue {
     handlers: Arc<Mutex<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
 }
@@ -62,24 +63,16 @@ impl TcpEventQueue {
         }
     }
 
-    async fn register(&mut self, at: TcpEvent, callback: TcpEventCallback) {
+    async fn register(&self, at: TcpEvent, callback: TcpEventCallback) {
         self.handlers.lock().await.entry(at).or_default().push(callback);
     }
 
-    async fn send<'a>(&mut self, data: TcpEventData<'a>) {
+    async fn resolve<'a>(&self, data: TcpEventData<'a>) {
         if let Some(vec) = self.handlers.lock().await.get_mut(&TcpEvent::from(&data)) {
             let old = std::mem::take(vec);
             for handler in old {
                 handler(data.clone());
             }
-        }
-    }
-}
-
-impl Clone for TcpEventQueue {
-    fn clone(&self) -> Self {
-        Self {
-            handlers: Arc::clone(&self.handlers),
         }
     }
 }
@@ -140,6 +133,8 @@ pub async fn handle(
             ).map(|_| ()),
             phase_watcher,
         ).await;
+
+        event_queue.resolve(TcpEventData::Disconnected).await;
 
         debug!("Fully disconnected TCP stream, waiting for new connection info");
     }
@@ -245,7 +240,7 @@ async fn listen(
     state: Arc<Mutex<State>>,
     mut stream: TcpReceiver,
     crypt_state_sender: mpsc::Sender<ClientCryptState>,
-    mut event_queue: TcpEventQueue,
+    event_queue: TcpEventQueue,
 ) {
     let mut crypt_state = None;
     let mut crypt_state_sender = Some(crypt_state_sender);
@@ -299,7 +294,7 @@ async fn listen(
                         )
                         .await;
                 }
-                event_queue.send(TcpEventData::Connected(Ok(&msg))).await;
+                event_queue.resolve(TcpEventData::Connected(Ok(&msg))).await;
                 let mut state = state.lock().await;
                 let server = state.server_mut().unwrap();
                 server.parse_server_sync(*msg);
@@ -316,7 +311,7 @@ async fn listen(
                 debug!("Login rejected: {:?}", msg);
                 match msg.get_field_type() {
                     msgs::Reject_RejectType::WrongServerPW => {
-                        event_queue.send(TcpEventData::Connected(Err(mumlib::Error::InvalidServerPassword))).await;
+                        event_queue.resolve(TcpEventData::Connected(Err(mumlib::Error::InvalidServerPassword))).await;
                     }
                     ty => {
                         warn!("Unhandled reject type: {:?}", ty);
@@ -376,7 +371,7 @@ async fn listen(
 
 async fn register_events(
     tcp_event_register_receiver: &mut mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
-    mut event_queue: TcpEventQueue,
+    event_queue: TcpEventQueue,
 ) {
     loop {
         let (event, handler) = tcp_event_register_receiver.recv().await.unwrap();
