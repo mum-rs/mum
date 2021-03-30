@@ -34,7 +34,7 @@ async fn main() {
             bincode::serialize_into((&mut command).writer(), &Command::Ping).unwrap();
             if let Ok(()) = writer.send(command.freeze()).await {
                 if let Some(Ok(buf)) = reader.next().await {
-                    if let Ok(Ok::<Option<CommandResponse>, mumlib::error::Error>(Some(CommandResponse::Pong))) = bincode::deserialize(&buf) {
+                    if let Ok(Ok::<Option<CommandResponse>, mumlib::Error>(Some(CommandResponse::Pong))) = bincode::deserialize(&buf) {
                         error!("Another instance of mumd is already running");
                         return;
                     }

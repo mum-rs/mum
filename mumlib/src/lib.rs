@@ -3,6 +3,8 @@ pub mod config;
 pub mod error;
 pub mod state;
 
+pub use error::Error;
+
 use colored::*;
 use log::*;
 

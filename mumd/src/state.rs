@@ -15,7 +15,8 @@ use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
-use mumlib::error::{ChannelIdentifierError, Error};
+use mumlib::error::ChannelIdentifierError;
+use mumlib::Error;
 use crate::state::user::UserDiff;
 use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::sync::{mpsc, watch};
@@ -381,7 +382,7 @@ impl State {
                         .map(|mut e| e.next())
                     {
                         Ok(Some(v)) => Ok(v),
-                        _ => Err(mumlib::error::Error::InvalidServerAddr(host, port)),
+                        _ => Err(Error::InvalidServerAddr(host, port)),
                     }
                 }),
                 Box::new(move |pong| {
