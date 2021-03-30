@@ -36,6 +36,7 @@ Fixed
  * Client no longer sends empty audio packets.
  * Informative error message instead of panic when a running mumd-process can't
    be found.
+ * Lots of other minor informative error messages instead of panics.
 
 Other
 ~~~~~
