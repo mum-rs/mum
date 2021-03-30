@@ -15,7 +15,8 @@ use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
-use mumlib::error::{ChannelIdentifierError, Error};
+use mumlib::error::ChannelIdentifierError;
+use mumlib::Error;
 use crate::state::user::UserDiff;
 use std::net::{SocketAddr, ToSocketAddrs};
 use tokio::sync::{mpsc, watch};
@@ -88,7 +89,7 @@ impl State {
         match command {
             Command::ChannelJoin { channel_identifier } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::DisconnectedError));
+                    return now!(Err(Error::Disconnected));
                 }
 
                 let channels = self.server().unwrap().channels();
@@ -138,7 +139,7 @@ impl State {
             }
             Command::ChannelList => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::DisconnectedError));
+                    return now!(Err(Error::Disconnected));
                 }
                 let list = channel::into_channel(
                     self.server.as_ref().unwrap().channels(),
@@ -152,7 +153,7 @@ impl State {
             }
             Command::DeafenSelf(toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::DisconnectedError));
+                    return now!(Err(Error::Disconnected));
                 }
 
                 let server = self.server().unwrap();
@@ -210,7 +211,7 @@ impl State {
             }
             Command::MuteOther(string, toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::DisconnectedError));
+                    return now!(Err(Error::Disconnected));
                 }
 
                 let id = self
@@ -222,7 +223,7 @@ impl State {
 
                 let (id, user) = match id {
                     Some(id) => (*id.0, id.1),
-                    None => return now!(Err(Error::InvalidUsernameError(string))),
+                    None => return now!(Err(Error::InvalidUsername(string))),
                 };
 
                 let action = match toggle {
@@ -245,7 +246,7 @@ impl State {
             }
             Command::MuteSelf(toggle) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::DisconnectedError));
+                    return now!(Err(Error::Disconnected));
                 }
 
                 let server = self.server().unwrap();
@@ -313,7 +314,7 @@ impl State {
                 accept_invalid_cert,
             } => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
-                    return now!(Err(Error::AlreadyConnectedError));
+                    return now!(Err(Error::AlreadyConnected));
                 }
                 let mut server = Server::new();
                 *server.username_mut() = Some(username);
@@ -332,7 +333,7 @@ impl State {
                     Ok(Some(v)) => v,
                     _ => {
                         warn!("Error parsing server addr");
-                        return now!(Err(Error::InvalidServerAddrError(host, port)));
+                        return now!(Err(Error::InvalidServerAddr(host, port)));
                     }
                 };
                 connection_info_sender
@@ -342,16 +343,18 @@ impl State {
                         accept_invalid_cert,
                     )))
                     .unwrap();
-                at!(TcpEvent::Connected, |e| {
+                at!(TcpEvent::Connected, |res| {
                     //runs the closure when the client is connected
-                    if let TcpEventData::Connected(msg) = e {
-                        Ok(Some(CommandResponse::ServerConnect {
-                            welcome_message: if msg.has_welcome_text() {
-                                Some(msg.get_welcome_text().to_string())
-                            } else {
-                                None
-                            },
-                        }))
+                    if let TcpEventData::Connected(res) = res {
+                        res.map(|msg| {
+                            Some(CommandResponse::ServerConnect {
+                                welcome_message: if msg.has_welcome_text() {
+                                    Some(msg.get_welcome_text().to_string())
+                                } else {
+                                    None
+                                },
+                            })
+                        })
                     } else {
                         unreachable!("callback should be provided with a TcpEventData::Connected");
                     }
@@ -359,7 +362,7 @@ impl State {
             }
             Command::ServerDisconnect => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::DisconnectedError));
+                    return now!(Err(Error::Disconnected));
                 }
 
                 self.server = None;
@@ -379,7 +382,7 @@ impl State {
                         .map(|mut e| e.next())
                     {
                         Ok(Some(v)) => Ok(v),
-                        _ => Err(mumlib::error::Error::InvalidServerAddrError(host, port)),
+                        _ => Err(Error::InvalidServerAddr(host, port)),
                     }
                 }),
                 Box::new(move |pong| {
@@ -393,7 +396,7 @@ impl State {
             ),
             Command::Status => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::DisconnectedError));
+                    return now!(Err(Error::Disconnected));
                 }
                 let state = self.server.as_ref().unwrap().into();
                 now!(Ok(Some(CommandResponse::Status {
@@ -402,7 +405,7 @@ impl State {
             }
             Command::UserVolumeSet(string, volume) => {
                 if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::DisconnectedError));
+                    return now!(Err(Error::Disconnected));
                 }
                 let user_id = match self
                     .server()
@@ -412,7 +415,7 @@ impl State {
                     .find(|e| e.1.name() == string)
                     .map(|e| *e.0)
                 {
-                    None => return now!(Err(Error::InvalidUsernameError(string))),
+                    None => return now!(Err(Error::InvalidUsername(string))),
                     Some(v) => v,
                 };
 
