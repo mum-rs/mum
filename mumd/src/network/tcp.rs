@@ -190,12 +190,12 @@ async fn send_pings(
     delay_seconds: u64,
 ) {
     let mut interval = time::interval(Duration::from_secs(delay_seconds));
-        loop {
-            interval.tick().await;
-            trace!("Sending TCP ping");
-            let msg = msgs::Ping::new();
-            packet_sender.send(msg.into()).unwrap();
-        }
+    loop {
+        interval.tick().await;
+        trace!("Sending TCP ping");
+        let msg = msgs::Ping::new();
+        packet_sender.send(msg.into()).unwrap();
+    }
 }
 
 async fn send_packets(
