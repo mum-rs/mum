@@ -22,8 +22,10 @@ Added
  * --version now includes the current commit hash.
  * Server passwords. Thanks @rbran!
 
-// Changed
-// ~~~~~~~
+Changed
+~~~~~~~
+
+* Changed how you mute yourself/others. See man pages for details on the new options.
 
 // Removed
 // ~~~~~~~

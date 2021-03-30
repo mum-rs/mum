@@ -52,14 +52,18 @@ mumctl connect [-p|--port <port>] <host> [username] ::
     as well).
     If omitted, the port defaults to 64738.
 
-mumctl deafen <true|false|toggle> ::
-    Deafen/undeafen yourself.
+mumctl deafen ::
+    Deafen yourself.
 
 mumctl disconnect ::
     Disconnect from the currently connected server.
 
 mumctl help ::
     Show a help message.
+
+mumctl mute [user] ::
+    Mute yourself or someone else.
+    If user is omitted, you mute yourself. Otherwise, the user with the username [user] is muted.
 
 mumctl server add [--password <password>] [--port <port>] [--username <username>] [<name>] <host> ::
     Add a saved server configuration.
@@ -79,8 +83,12 @@ mumctl server rename <old name> <new name> ::
 mumctl status ::
     Show the currently conneced channel and server.
 
-mumctl user <name> mute <true|false|toggle> ::
-    Mute someone else locally.
+mumctl undeafen ::
+    Undeafen yourself.
+
+mumctl unmute [user] ::
+    Unmute yourself or someone else.
+    If user is omitted, unmute yourself. Otherwise, the user with the username [user] is unmuted.
 
 mumctl volume set <volume> ::
     Set the outgoing volume level.
