@@ -6,7 +6,7 @@ use crate::audio::{Audio, NotificationEvents};
 use crate::error::StateError;
 use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::network::tcp::{TcpEvent, TcpEventData};
-use crate::notify;
+use crate::notifications;
 use crate::state::server::Server;
 
 use log::*;
@@ -463,7 +463,7 @@ impl State {
                     == self.get_users_channel(self.server().unwrap().session_id().unwrap())
                 {
                     if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                        notify::send(format!(
+                        notifications::send(format!(
                             "{} connected and joined {}",
                             &msg.get_name(),
                             channel.name()
@@ -516,7 +516,7 @@ impl State {
                     self.get_users_channel(self.server().unwrap().session_id().unwrap());
                 if from_channel == this_channel || to_channel == this_channel {
                     if let Some(channel) = self.server().unwrap().channels().get(&to_channel) {
-                        notify::send(format!(
+                        notifications::send(format!(
                             "{} moved to channel {}",
                             user.name(),
                             channel.name()
@@ -545,7 +545,7 @@ impl State {
                     s += if deaf { " deafened" } else { " undeafened" };
                 }
                 s += " themselves";
-                notify::send(s);
+                notifications::send(s);
             }
         }
     }
@@ -561,7 +561,7 @@ impl State {
         if this_channel == other_channel {
             self.audio.play_effect(NotificationEvents::UserDisconnected);
             if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
-                notify::send(format!("{} disconnected", &user.name()));
+                notifications::send(format!("{} disconnected", &user.name()));
             }
         }
 

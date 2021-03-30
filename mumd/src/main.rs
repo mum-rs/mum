@@ -3,7 +3,7 @@ mod client;
 mod command;
 mod error;
 mod network;
-mod notify;
+mod notifications;
 mod state;
 
 use crate::state::State;
@@ -24,7 +24,7 @@ async fn main() {
     }
 
     setup_logger(std::io::stderr(), true);
-    notify::init();
+    notifications::init();
 
     // check if another instance is live
     let connection = UnixStream::connect(mumlib::SOCKET_PATH).await;
