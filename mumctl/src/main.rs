@@ -191,10 +191,10 @@ fn main() {
         let stdin = std::io::stdin();
         let response = stdin.lock().lines().next();
         if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
-            config.write_default_cfg(true).unwrap(); //TODO handle panic
+            error_if_err!(config.write_default_cfg(true));
         }
     } else {
-        config.write_default_cfg(false).unwrap(); //TODO handle panic
+        error_if_err!(config.write_default_cfg(false));
     }
 }
 
