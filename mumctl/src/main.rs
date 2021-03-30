@@ -44,7 +44,13 @@ static LOGGER: SimpleLogger = SimpleLogger;
 fn main() {
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
-    let mut config = config::read_default_cfg();
+    let mut config = match config::read_default_cfg() {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Couldn't read config: {}", e);
+            return;
+        }
+    };
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)

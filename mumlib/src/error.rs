@@ -42,3 +42,42 @@ impl fmt::Display for ChannelIdentifierError {
         }
     }
 }
+
+pub enum ConfigError {
+    InvalidConfig,
+    TOMLErrorSer(toml::ser::Error),
+    TOMLErrorDe(toml::de::Error),
+
+    WontCreateFile,
+    IOError(std::io::Error),
+}
+
+impl fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConfigError::InvalidConfig => write!(f, "Invalid configuration"),
+            ConfigError::TOMLErrorSer(e) => write!(f, "Invalid TOML when serializing: {}", e),
+            ConfigError::TOMLErrorDe(e) => write!(f, "Invalid TOML when deserializing: {}", e),
+            ConfigError::WontCreateFile => write!(f, "File does not exist but caller didn't allow creation"),
+            ConfigError::IOError(e) => write!(f, "IO error: {}", e),
+        }
+    }
+}
+
+impl From<std::io::Error> for ConfigError {
+    fn from(e: std::io::Error) -> Self {
+        ConfigError::IOError(e)
+    }
+}
+
+impl From<toml::ser::Error> for ConfigError {
+    fn from(e: toml::ser::Error) -> Self {
+        ConfigError::TOMLErrorSer(e)
+    }
+}
+
+impl From<toml::de::Error> for ConfigError {
+    fn from(e: toml::de::Error) -> Self {
+        ConfigError::TOMLErrorDe(e)
+    }
+}

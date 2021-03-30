@@ -1,4 +1,6 @@
+use crate::error::ConfigError;
 use crate::DEFAULT_PORT;
+
 use log::*;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -21,7 +23,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn write_default_cfg(&self, create: bool) -> Result<(), std::io::Error> {
+    pub fn write_default_cfg(&self, create: bool) -> Result<(), ConfigError> {
         let path = default_cfg_path();
 
         // Possible race here. It's fine since it shows when:
@@ -34,13 +36,13 @@ impl Config {
         // do anything anyways.
 
         if !create && !path.exists() {
-            return Ok(());
+            return Err(ConfigError::WontCreateFile);
         }
 
-        fs::write(
+        Ok(fs::write(
             &path,
-            toml::to_string(&TOMLConfig::from(self.clone())).unwrap(), //TODO handle panic
-        )
+            toml::to_string(&TOMLConfig::from(self.clone()))?,
+        )?)
     }
 }
 
@@ -139,19 +141,20 @@ impl From<Config> for TOMLConfig {
                 config
                     .servers
                     .into_iter()
-                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap()) //TODO handle panic
+                    // Safe since all ServerConfigs are valid TOML
+                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
                     .collect(),
             ),
         }
     }
 }
 
-pub fn read_default_cfg() -> Config {
+pub fn read_default_cfg() -> Result<Config, ConfigError> {
     let path = default_cfg_path();
     match fs::read_to_string(&path) {
         Ok(s) => {
-            let toml_config: TOMLConfig = toml::from_str(&s).expect("Invalid TOML in config file"); //TODO handle panic
-            return Config::try_from(toml_config).expect("Invalid config in TOML"); //TODO handle panic
+            let toml_config: TOMLConfig = toml::from_str(&s)?;
+            Ok(Config::try_from(toml_config)?)
         },
         Err(e) => {
             if matches!(e.kind(), std::io::ErrorKind::NotFound) && !path.exists() {
@@ -159,7 +162,7 @@ pub fn read_default_cfg() -> Config {
             } else {
                 error!("Error reading config file: {}", e);
             }
-            return Config::default();
+            return Ok(Config::default());
         }
     }
 }

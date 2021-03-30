@@ -1,3 +1,4 @@
+use mumlib::error::ConfigError;
 use std::fmt;
 
 pub enum AudioStream {
@@ -36,6 +37,7 @@ impl fmt::Display for AudioError {
 
 pub enum StateError {
     AudioError(AudioError),
+    ConfigError(ConfigError),
 }
 
 impl From<AudioError> for StateError {
@@ -44,10 +46,17 @@ impl From<AudioError> for StateError {
     }
 }
 
+impl From<ConfigError> for StateError {
+    fn from(e: ConfigError) -> Self {
+        StateError::ConfigError(e)
+    }
+}
+
 impl fmt::Display for StateError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StateError::AudioError(e) => write!(f, "Audio error: {}", e),
+            StateError::ConfigError(e) => write!(f, "Config error: {}", e),
         }
     }
 }
