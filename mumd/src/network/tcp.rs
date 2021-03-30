@@ -252,8 +252,21 @@ async fn listen(
     let mut crypt_state_sender = Some(crypt_state_sender);
 
     loop {
-        let packet = stream.next().await.unwrap();
-        match packet.unwrap() {
+        let packet = match stream.next().await {
+            Some(Ok(packet)) => packet,
+            Some(Err(e)) => {
+                error!("TCP error: {:?}", e);
+                continue; //TODO Break here? Maybe look at the error and handle it
+            }
+            None => {
+                // We end up here if the login was rejected. We probably want
+                // to exit before that.
+                warn!("TCP stream gone");
+                state.lock().await.broadcast_phase(StatePhase::Disconnected);
+                break;
+            }
+        };
+        match packet {
             ControlPacket::TextMessage(msg) => {
                 info!(
                     "Got message from user with session ID {}: {}",
