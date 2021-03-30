@@ -1,9 +1,12 @@
 mod audio;
 mod client;
 mod command;
+mod error;
 mod network;
 mod notify;
 mod state;
+
+use crate::state::State;
 
 use futures_util::{SinkExt, StreamExt};
 use log::*;
@@ -53,8 +56,16 @@ async fn main() {
 
     let (command_sender, command_receiver) = mpsc::unbounded_channel();
 
+    let state = match State::new() {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Error instantiating mumd: {}", e);
+            return;
+        }
+    };
+
     join!(
-        client::handle(command_receiver),
+        client::handle(state, command_receiver),
         receive_commands(command_sender),
     );
 }

@@ -3,6 +3,7 @@ pub mod server;
 pub mod user;
 
 use crate::audio::{Audio, NotificationEvents};
+use crate::error::StateError;
 use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::network::tcp::{TcpEvent, TcpEventData};
 use crate::notify;
@@ -62,14 +63,14 @@ pub struct State {
 }
 
 impl State {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, StateError> {
         let config = mumlib::config::read_default_cfg();
         let phase_watcher = watch::channel(StatePhase::Disconnected);
         let audio = Audio::new(
             config.audio.input_volume.unwrap_or(1.0),
             config.audio.output_volume.unwrap_or(1.0),
             phase_watcher.1.clone(),
-        );
+        ).map_err(|e| StateError::AudioError(e))?;
         let mut state = Self {
             config,
             server: None,
@@ -77,7 +78,7 @@ impl State {
             phase_watcher,
         };
         state.reload_config();
-        state
+        Ok(state)
     }
 
     pub fn handle_command(

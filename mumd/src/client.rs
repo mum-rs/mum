@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::{join, sync::{Mutex, mpsc, oneshot, watch}};
 
 pub async fn handle(
+    state: State,
     command_receiver: mpsc::UnboundedReceiver<(
         Command,
         oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
@@ -24,8 +25,8 @@ pub async fn handle(
     let (response_sender, response_receiver) =
         mpsc::unbounded_channel();
 
-    let state = State::new();
     let state = Arc::new(Mutex::new(state));
+
     join!(
         tcp::handle(
             Arc::clone(&state),
