@@ -269,7 +269,7 @@ impl Audio {
                 let iter: Box<dyn Iterator<Item = f32>> = match spec.channels {
                     1 => Box::new(samples.into_iter().flat_map(|e| vec![e, e])),
                     2 => Box::new(samples.into_iter()),
-                    _ => unimplemented!() // TODO handle panic (if speaker is surround speaker)
+                    _ => unimplemented!("Only mono and stereo sound is supported. See #80.")
                 };
                 let mut signal = signal::from_interleaved_samples_iter::<_, [f32; 2]>(iter);
                 let interp = Linear::new(Signal::next(&mut signal), Signal::next(&mut signal));
