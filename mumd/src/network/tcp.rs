@@ -1,3 +1,4 @@
+use crate::error::TcpError;
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 use log::*;
@@ -84,7 +85,7 @@ pub async fn handle(
     packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
     mut packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
     mut tcp_event_register_receiver: mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
-) {
+) -> Result<(), TcpError> {
     loop {
         let connection_info = 'data: loop {
             while connection_info_receiver.changed().await.is_ok() {
@@ -92,20 +93,20 @@ pub async fn handle(
                     break 'data data;
                 }
             }
-            return;
+            return Err(TcpError::NoConnectionInfoReceived);
         };
         let (mut sink, stream) = connect(
             connection_info.socket_addr,
             connection_info.hostname,
             connection_info.accept_invalid_cert,
         )
-        .await;
+        .await?;
 
         // Handshake (omitting `Version` message for brevity)
         let state_lock = state.lock().await;
         let username = state_lock.username().unwrap().to_string();
         let password = state_lock.password().map(|x| x.to_string());
-        authenticate(&mut sink, username, password).await;
+        authenticate(&mut sink, username, password).await?;
         let phase_watcher = state_lock.phase_receiver();
         let input_receiver = state_lock.audio().input_receiver();
         drop(state_lock);
@@ -115,6 +116,7 @@ pub async fn handle(
 
         run_until(
             |phase| matches!(phase, StatePhase::Disconnected),
+            //TODO take out the errors here and return them
             join5(
                 send_pings(packet_sender.clone(), 10),
                 listen(
@@ -144,62 +146,62 @@ async fn connect(
     server_addr: SocketAddr,
     server_host: String,
     accept_invalid_cert: bool,
-) -> (TcpSender, TcpReceiver) {
-    let stream = TcpStream::connect(&server_addr)
-        .await
-        .expect("failed to connect to server:");
+) -> Result<(TcpSender, TcpReceiver), TcpError> {
+    let stream = TcpStream::connect(&server_addr).await?;
     debug!("TCP connected");
 
     let mut builder = native_tls::TlsConnector::builder();
     builder.danger_accept_invalid_certs(accept_invalid_cert);
     let connector: TlsConnector = builder
         .build()
-        .expect("failed to create TLS connector")
+        .map_err(|e| TcpError::TlsConnectorBuilderError(e))?
         .into();
     let tls_stream = connector
         .connect(&server_host, stream)
         .await
-        .expect("failed to connect TLS: {}");
+        .map_err(|e| TcpError::TlsConnectError(e))?;
     debug!("TLS connected");
 
     // Wrap the TLS stream with Mumble's client-side control-channel codec
-    ClientControlCodec::new().framed(tls_stream).split()
+    Ok(ClientControlCodec::new().framed(tls_stream).split())
 }
 
 async fn authenticate(
     sink: &mut TcpSender,
     username: String,
     password: Option<String>
-) {
+) -> Result<(), TcpError> {
     let mut msg = msgs::Authenticate::new();
     msg.set_username(username);
     if let Some(password) = password {
         msg.set_password(password);
     }
     msg.set_opus(true);
-    sink.send(msg.into()).await.unwrap(); //TODO handle panic
+    sink.send(msg.into()).await?;
+    Ok(())
 }
 
 async fn send_pings(
     packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
     delay_seconds: u64,
-) {
+) -> Result<(), TcpError> {
     let mut interval = time::interval(Duration::from_secs(delay_seconds));
     loop {
         interval.tick().await;
         trace!("Sending TCP ping");
         let msg = msgs::Ping::new();
-        packet_sender.send(msg.into()).unwrap(); //TODO handle panic
+        packet_sender.send(msg.into())?;
     }
 }
 
 async fn send_packets(
     mut sink: TcpSender,
     packet_receiver: &mut mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
-) {
+) -> Result<(), TcpError> {
     loop {
-        let packet = packet_receiver.recv().await.unwrap(); //TODO handle panic
-        sink.send(packet).await.unwrap(); //TODO handle panic
+        // Safe since we always have at least one sender alive.
+        let packet = packet_receiver.recv().await.unwrap();
+        sink.send(packet).await?;
     }
 }
 
@@ -226,9 +228,9 @@ async fn send_voice(
                             .await
                             .next()
                             .await
-                            .unwrap()
+                            .unwrap() //TODO handle panic
                             .into())
-                        .unwrap();
+                        .unwrap(); //TODO handle panic
                 }
             },
             inner_phase_watcher.clone(),
