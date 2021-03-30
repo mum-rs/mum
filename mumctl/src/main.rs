@@ -186,7 +186,7 @@ fn main() {
     if !config::cfg_exists() {
         println!(
             "Config file not found. Create one in {}? [Y/n]",
-            config::get_creatable_cfg_path()
+            config::default_cfg_path().display(),
         );
         let stdin = std::io::stdin();
         let response = stdin.lock().lines().next();

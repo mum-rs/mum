@@ -1,9 +1,10 @@
 use crate::DEFAULT_PORT;
+use log::*;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::fs;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use toml::value::Array;
 use toml::Value;
 
@@ -21,12 +22,8 @@ pub struct Config {
 
 impl Config {
     pub fn write_default_cfg(&self, create: bool) -> Result<(), std::io::Error> {
-        let path = if create {
-            get_creatable_cfg_path()
-        } else {
-            get_cfg_path()
-        };
-        let path = std::path::Path::new(&path);
+        let path = default_cfg_path();
+
         // Possible race here. It's fine since it shows when:
         //   1) the file doesn't exist when checked and is then created
         //   2) the file exists when checked but is then removed
@@ -35,12 +32,13 @@ impl Config {
         // should work. Unless the file is removed AND the permissions
         // change, but then we don't have permissions so we can't
         // do anything anyways.
+
         if !create && !path.exists() {
             return Ok(());
         }
 
         fs::write(
-            path,
+            &path,
             toml::to_string(&TOMLConfig::from(self.clone())).unwrap(), //TODO handle panic
         )
     }
@@ -80,36 +78,15 @@ impl ServerConfig {
     }
 }
 
-pub fn get_cfg_path() -> String {
-    if let Ok(var) = std::env::var("XDG_CONFIG_HOME") {
-        let path = format!("{}/mumdrc", var);
-        if Path::new(&path).exists() {
-            return path;
+pub fn default_cfg_path() -> PathBuf {
+    match dirs::config_dir() {
+        Some(mut p) => {
+            p.push("mumdrc");
+            p
         }
-    } else if let Ok(var) = std::env::var("HOME") {
-        let path = format!("{}/.config/mumdrc", var);
-        if Path::new(&path).exists() {
-            return path;
-        }
+        //TODO This isn't cross platform.
+        None => PathBuf::from("/etc/mumdrc")
     }
-
-    "/etc/mumdrc".to_string()
-}
-
-pub fn get_creatable_cfg_path() -> String {
-    if let Ok(var) = std::env::var("XDG_CONFIG_HOME") {
-        let path = format!("{}/mumdrc", var);
-        if !Path::new(&path).exists() {
-            return path;
-        }
-    } else if let Ok(var) = std::env::var("HOME") {
-        let path = format!("{}/.config/mumdrc", var);
-        if !Path::new(&path).exists() {
-            return path;
-        }
-    }
-
-    "/etc/mumdrc".to_string()
 }
 
 pub fn cfg_exists() -> bool {
@@ -170,12 +147,19 @@ impl From<Config> for TOMLConfig {
 }
 
 pub fn read_default_cfg() -> Config {
-    Config::try_from(
-        toml::from_str::<TOMLConfig>(&match fs::read_to_string(get_cfg_path()) {
-            Ok(f) => f,
-            Err(_) => return Config::default(),
-        })
-        .expect("invalid TOML in config file"), //TODO handle panic
-    )
-    .expect("invalid config in TOML") //TODO handle panic
+    let path = default_cfg_path();
+    match fs::read_to_string(&path) {
+        Ok(s) => {
+            let toml_config: TOMLConfig = toml::from_str(&s).expect("Invalid TOML in config file"); //TODO handle panic
+            return Config::try_from(toml_config).expect("Invalid config in TOML"); //TODO handle panic
+        },
+        Err(e) => {
+            if matches!(e.kind(), std::io::ErrorKind::NotFound) && !path.exists() {
+                warn!("Config file not found");
+            } else {
+                error!("Error reading config file: {}", e);
+            }
+            return Config::default();
+        }
+    }
 }
