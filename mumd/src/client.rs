@@ -1,11 +1,13 @@
 use crate::command;
+use crate::error::ClientError;
 use crate::network::{tcp, udp, ConnectionInfo};
 use crate::state::State;
 
+use futures_util::{select, FutureExt};
 use mumble_protocol::{Serverbound, control::ControlPacket, crypt::ClientCryptState};
 use mumlib::command::{Command, CommandResponse};
 use std::sync::Arc;
-use tokio::{join, sync::{Mutex, mpsc, oneshot, watch}};
+use tokio::sync::{Mutex, mpsc, oneshot, watch};
 
 pub async fn handle(
     state: State,
@@ -13,7 +15,7 @@ pub async fn handle(
         Command,
         oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
-) {
+) -> Result<(), ClientError> {
     let (connection_info_sender, connection_info_receiver) =
         watch::channel::<Option<ConnectionInfo>>(None);
     let (crypt_state_sender, crypt_state_receiver) =
@@ -27,29 +29,28 @@ pub async fn handle(
 
     let state = Arc::new(Mutex::new(state));
 
-    //TODO report error here
-    let (_, _, _, _) = join!(
-        tcp::handle(
+    select! {
+        r = tcp::handle(
             Arc::clone(&state),
             connection_info_receiver.clone(),
             crypt_state_sender,
             packet_sender.clone(),
             packet_receiver,
             response_receiver,
-        ),
-        udp::handle(
+        ).fuse() => r.map_err(|e| ClientError::TcpError(e)),
+        _ = udp::handle(
             Arc::clone(&state),
             connection_info_receiver.clone(),
             crypt_state_receiver,
-        ),
-        command::handle(
+        ).fuse() => Ok(()),
+        _ = command::handle(
             state,
             command_receiver,
             response_sender,
             ping_request_sender,
             packet_sender,
             connection_info_sender,
-        ),
-        udp::handle_pings(ping_request_receiver),
-    );
+        ).fuse() => Ok(()),
+        _ = udp::handle_pings(ping_request_receiver).fuse() => Ok(()),
+    }
 }

@@ -8,11 +8,11 @@ mod state;
 
 use crate::state::State;
 
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{select, FutureExt, SinkExt, StreamExt};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
-use tokio::{join, net::{UnixListener, UnixStream}, sync::{mpsc, oneshot}};
+use tokio::{net::{UnixListener, UnixStream}, sync::{mpsc, oneshot}};
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 use bytes::{BufMut, BytesMut};
 
@@ -64,10 +64,18 @@ async fn main() {
         }
     };
 
-    join!(
-        client::handle(state, command_receiver),
-        receive_commands(command_sender),
-    );
+    let run = select! {
+        r = client::handle(state, command_receiver).fuse() => r,
+        _ = receive_commands(command_sender).fuse() => Ok(()),
+    };
+
+    match run {
+        Err(e) => {
+            error!("mumd: {}", e);
+            std::process::exit(1);
+        }
+        _ => {}
+    }
 }
 
 async fn receive_commands(

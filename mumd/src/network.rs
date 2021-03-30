@@ -4,7 +4,7 @@ pub mod udp;
 use futures_util::FutureExt;
 use log::*;
 use std::{future::Future, net::SocketAddr};
-use tokio::{join, select, sync::{oneshot, watch}};
+use tokio::{select, sync::{oneshot, watch}};
 
 use crate::state::StatePhase;
 
@@ -31,12 +31,12 @@ pub enum VoiceStreamType {
     UDP,
 }
 
-async fn run_until<F>(
+async fn run_until<F, R>(
     phase_checker: impl Fn(StatePhase) -> bool,
     fut: F,
     mut phase_watcher: watch::Receiver<StatePhase>,
-) where
-    F: Future<Output = ()>,
+) -> Option<R>
+    where F: Future<Output = R>,
 {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {
@@ -55,10 +55,13 @@ async fn run_until<F>(
         let rx = rx.fuse();
         let fut = fut.fuse();
         select! {
-            _ = fut => (),
-            _ = rx => (),
-        };
+            r = fut => Some(r),
+            _ = rx => None,
+        }
     };
 
-    join!(main_block, phase_transition_block);
+    select! {
+        m = main_block => m,
+        _ = phase_transition_block => None,
+    }
 }
