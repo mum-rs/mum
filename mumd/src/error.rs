@@ -24,6 +24,19 @@ impl From<mpsc::error::SendError<ControlPacket<Serverbound>>> for TcpError {
     }
 }
 
+pub enum UdpError {
+    NoConnectionInfoReceived,
+    DisconnectBeforeCryptSetup,
+    
+    IOError(std::io::Error),
+}
+
+impl From<std::io::Error> for UdpError {
+    fn from(e: std::io::Error) -> Self {
+        UdpError::IOError(e)
+    }
+}
+
 pub enum AudioStream {
     Input,
     Output,

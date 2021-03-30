@@ -27,7 +27,8 @@ pub async fn handle(
 
     let state = Arc::new(Mutex::new(state));
 
-    join!(
+    //TODO report error here
+    let (_, _, _, _) = join!(
         tcp::handle(
             Arc::clone(&state),
             connection_info_receiver.clone(),
