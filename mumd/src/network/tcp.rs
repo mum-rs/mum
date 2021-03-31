@@ -225,21 +225,18 @@ async fn send_voice(
             |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::TCP)),
             async {
                 loop {
-                    let res: Result<(), ServerSendError> = packet_sender.send(
+                    packet_sender.send(
                         receiver
                             .lock()
                             .await
                             .next()
                             .await
                             .expect("No audio stream")
-                            .into());
-                    if matches!(res, Err(_)) {
-                        return res;
-                    }
+                            .into())?;
                 }
             },
             inner_phase_watcher.clone(),
-        ).await.unwrap_or(Ok(()))?;
+        ).await.unwrap_or(Ok::<(), ServerSendError>(()))?;
     }
 }
 
