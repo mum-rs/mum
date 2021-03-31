@@ -44,7 +44,13 @@ static LOGGER: SimpleLogger = SimpleLogger;
 fn main() {
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
-    let mut config = config::read_default_cfg();
+    let mut config = match config::read_default_cfg() {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Couldn't read config: {}", e);
+            return;
+        }
+    };
 
     let mut app = App::new("mumctl")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -186,15 +192,15 @@ fn main() {
     if !config::cfg_exists() {
         println!(
             "Config file not found. Create one in {}? [Y/n]",
-            config::get_creatable_cfg_path()
+            config::default_cfg_path().display(),
         );
         let stdin = std::io::stdin();
         let response = stdin.lock().lines().next();
         if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
-            config.write_default_cfg(true).unwrap();
+            error_if_err!(config.write_default_cfg(true));
         }
     } else {
-        config.write_default_cfg(false).unwrap();
+        error_if_err!(config.write_default_cfg(false));
     }
 }
 
@@ -202,11 +208,7 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
     if let Some(matches) = matches.subcommand_matches("connect") {
         match_server_connect(matches, &config)?;
     } else if let Some(_) = matches.subcommand_matches("disconnect") {
-        match send_command(Command::ServerDisconnect) {
-            Ok(v) => error_if_err!(v),
-            Err(e) => error!("{}", e),
-        }
-        // error_if_err!(send_command(Command::ServerDisconnect));
+        error_if_err!(send_command(Command::ServerDisconnect)?);
     } else if let Some(matches) = matches.subcommand_matches("server") {
         if let Some(matches) = matches.subcommand_matches("config") {
             match_server_config(matches, config);
@@ -276,13 +278,13 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
         match name {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::InputVolumeSet(volume))?.unwrap();
+                    error_if_err!(send_command(Command::InputVolumeSet(volume))?);
                     config.audio.input_volume = Some(volume);
                 }
             }
             "audio.output_volume" => {
                 if let Ok(volume) = value.parse() {
-                    send_command(Command::OutputVolumeSet(volume))?.unwrap();
+                    error_if_err!(send_command(Command::OutputVolumeSet(volume))?);
                     config.audio.output_volume = Some(volume);
                 }
             }
@@ -291,7 +293,7 @@ fn process_matches(matches: ArgMatches, config: &mut Config, app: &mut App) -> R
             }
         }
     } else if matches.subcommand_matches("config-reload").is_some() {
-        send_command(Command::ConfigReload)?.unwrap();
+        error_if_err!(send_command(Command::ConfigReload)?);
     } else if let Some(matches) = matches.subcommand_matches("completions") {
         app.gen_completions_to(
             "mumctl",

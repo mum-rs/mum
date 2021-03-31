@@ -1,3 +1,4 @@
+use crate::error::UdpError;
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 
@@ -31,7 +32,7 @@ pub async fn handle(
     state: Arc<Mutex<State>>,
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
-) {
+) -> Result<(), UdpError> {
     let receiver = state.lock().await.audio().input_receiver();
 
     loop {
@@ -41,9 +42,9 @@ pub async fn handle(
                     break 'data data;
                 }
             }
-            return;
+            return Err(UdpError::NoConnectionInfoReceived);
         };
-        let (sink, source) = connect(&mut crypt_state_receiver).await;
+        let (sink, source) = connect(&mut crypt_state_receiver).await?;
 
         let sink = Arc::new(Mutex::new(sink));
         let source = Arc::new(Mutex::new(source));
@@ -82,22 +83,21 @@ pub async fn handle(
 
 async fn connect(
     crypt_state: &mut mpsc::Receiver<ClientCryptState>,
-) -> (UdpSender, UdpReceiver) {
+) -> Result<(UdpSender, UdpReceiver), UdpError> {
     // Bind UDP socket
     let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
-        .await
-        .expect("Failed to bind UDP socket");
+        .await?;
 
     // Wait for initial CryptState
     let crypt_state = match crypt_state.recv().await {
         Some(crypt_state) => crypt_state,
         // disconnected before we received the CryptSetup packet, oh well
-        None => panic!("Disconnect before crypt packet received"), //TODO exit gracefully
+        None => return Err(UdpError::DisconnectBeforeCryptSetup),
     };
     debug!("UDP connected");
 
     // Wrap the raw UDP packets in Mumble's crypto and voice codec (CryptState does both)
-    UdpFramed::new(udp_socket, crypt_state).split()
+    Ok(UdpFramed::new(udp_socket, crypt_state).split())
 }
 
 async fn new_crypt_state(

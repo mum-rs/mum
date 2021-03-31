@@ -4,6 +4,7 @@ mod noise_gate;
 
 use crate::audio::output::SaturatingAdd;
 use crate::audio::noise_gate::{from_interleaved_samples_stream, OpusEncoder, StreamingNoiseGate, StreamingSignalExt};
+use crate::error::{AudioError, AudioStream};
 use crate::network::VoiceStreamType;
 use crate::state::StatePhase;
 
@@ -85,16 +86,16 @@ pub struct Audio {
 }
 
 impl Audio {
-    pub fn new(input_volume: f32, output_volume: f32, phase_watcher: watch::Receiver<StatePhase>) -> Self {
+    pub fn new(input_volume: f32, output_volume: f32, phase_watcher: watch::Receiver<StatePhase>) -> Result<Self, AudioError> {
         let sample_rate = SampleRate(SAMPLE_RATE);
 
         let host = cpal::default_host();
         let output_device = host
             .default_output_device()
-            .expect("default output device not found");
+            .ok_or(AudioError::NoDevice(AudioStream::Output))?;
         let output_supported_config = output_device
             .supported_output_configs()
-            .expect("error querying output configs")
+            .map_err(|e| AudioError::NoConfigs(AudioStream::Output, e))?
             .find_map(|c| {
                 if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
                     Some(c)
@@ -102,17 +103,17 @@ impl Audio {
                     None
                 }
             })
-            .unwrap()
+            .ok_or(AudioError::NoSupportedConfig(AudioStream::Output))?
             .with_sample_rate(sample_rate);
         let output_supported_sample_format = output_supported_config.sample_format();
         let output_config: StreamConfig = output_supported_config.into();
 
         let input_device = host
             .default_input_device()
-            .expect("default input device not found");
+            .ok_or(AudioError::NoDevice(AudioStream::Input))?;
         let input_supported_config = input_device
             .supported_input_configs()
-            .expect("error querying output configs")
+            .map_err(|e| AudioError::NoConfigs(AudioStream::Input, e))?
             .find_map(|c| {
                 if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
                     Some(c)
@@ -120,7 +121,7 @@ impl Audio {
                     None
                 }
             })
-            .unwrap()
+            .ok_or(AudioError::NoSupportedConfig(AudioStream::Input))?
             .with_sample_rate(sample_rate);
         let input_supported_sample_format = input_supported_config.sample_format();
         let input_config: StreamConfig = input_supported_config.into();
@@ -164,7 +165,7 @@ impl Audio {
                 err_fn,
             ),
         }
-        .unwrap();
+        .map_err(|e| AudioError::InvalidStream(AudioStream::Output, e))?;
 
         let (sample_sender, sample_receiver) = futures_channel::mpsc::channel(1_000_000);
 
@@ -199,7 +200,7 @@ impl Audio {
                 err_fn,
             ),
         }
-        .unwrap();
+        .map_err(|e| AudioError::InvalidStream(AudioStream::Input, e))?;
 
         let opus_stream = OpusEncoder::new(
             4,
@@ -217,7 +218,7 @@ impl Audio {
                         position_info: None,
                     });
 
-        output_stream.play().unwrap();
+        output_stream.play().map_err(|e| AudioError::OutputPlayError(e))?;
 
         let mut res = Self {
             output_config,
@@ -232,7 +233,7 @@ impl Audio {
             play_sounds,
         };
         res.load_sound_effects(&[]);
-        res
+        Ok(res)
     }
 
     pub fn load_sound_effects(&mut self, sound_effects: &[SoundEffect]) {
@@ -268,7 +269,7 @@ impl Audio {
                 let iter: Box<dyn Iterator<Item = f32>> = match spec.channels {
                     1 => Box::new(samples.into_iter().flat_map(|e| vec![e, e])),
                     2 => Box::new(samples.into_iter()),
-                    _ => unimplemented!() // TODO handle gracefully (this might not even happen)
+                    _ => unimplemented!("Only mono and stereo sound is supported. See #80.")
                 };
                 let mut signal = signal::from_interleaved_samples_iter::<_, [f32; 2]>(iter);
                 let interp = Linear::new(Signal::next(&mut signal), Signal::next(&mut signal));
@@ -401,4 +402,3 @@ fn get_sfx(file: &str) -> Cow<'static, [u8]> {
 fn get_default_sfx() -> Cow<'static, [u8]> {
     Cow::from(include_bytes!("fallback_sfx.wav").as_ref())
 }
-

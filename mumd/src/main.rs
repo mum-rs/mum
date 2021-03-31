@@ -1,15 +1,18 @@
 mod audio;
 mod client;
 mod command;
+mod error;
 mod network;
-mod notify;
+mod notifications;
 mod state;
 
-use futures_util::{SinkExt, StreamExt};
+use crate::state::State;
+
+use futures_util::{select, FutureExt, SinkExt, StreamExt};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
-use tokio::{join, net::{UnixListener, UnixStream}, sync::{mpsc, oneshot}};
+use tokio::{net::{UnixListener, UnixStream}, sync::{mpsc, oneshot}};
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 use bytes::{BufMut, BytesMut};
 
@@ -21,7 +24,7 @@ async fn main() {
     }
 
     setup_logger(std::io::stderr(), true);
-    notify::init();
+    notifications::init();
 
     // check if another instance is live
     let connection = UnixStream::connect(mumlib::SOCKET_PATH).await;
@@ -53,10 +56,26 @@ async fn main() {
 
     let (command_sender, command_receiver) = mpsc::unbounded_channel();
 
-    join!(
-        client::handle(command_receiver),
-        receive_commands(command_sender),
-    );
+    let state = match State::new() {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Error instantiating mumd: {}", e);
+            return;
+        }
+    };
+
+    let run = select! {
+        r = client::handle(state, command_receiver).fuse() => r,
+        _ = receive_commands(command_sender).fuse() => Ok(()),
+    };
+
+    match run {
+        Err(e) => {
+            error!("mumd: {}", e);
+            std::process::exit(1);
+        }
+        _ => {}
+    }
 }
 
 async fn receive_commands(

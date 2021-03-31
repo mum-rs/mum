@@ -3,9 +3,10 @@ pub mod server;
 pub mod user;
 
 use crate::audio::{Audio, NotificationEvents};
+use crate::error::StateError;
 use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::network::tcp::{TcpEvent, TcpEventData};
-use crate::notify;
+use crate::notifications;
 use crate::state::server::Server;
 
 use log::*;
@@ -62,14 +63,14 @@ pub struct State {
 }
 
 impl State {
-    pub fn new() -> Self {
-        let config = mumlib::config::read_default_cfg();
+    pub fn new() -> Result<Self, StateError> {
+        let config = mumlib::config::read_default_cfg()?;
         let phase_watcher = watch::channel(StatePhase::Disconnected);
         let audio = Audio::new(
             config.audio.input_volume.unwrap_or(1.0),
             config.audio.output_volume.unwrap_or(1.0),
             phase_watcher.1.clone(),
-        );
+        ).map_err(|e| StateError::AudioError(e))?;
         let mut state = Self {
             config,
             server: None,
@@ -77,7 +78,7 @@ impl State {
             phase_watcher,
         };
         state.reload_config();
-        state
+        Ok(state)
     }
 
     pub fn handle_command(
@@ -462,7 +463,7 @@ impl State {
                     == self.get_users_channel(self.server().unwrap().session_id().unwrap())
                 {
                     if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                        notify::send(format!(
+                        notifications::send(format!(
                             "{} connected and joined {}",
                             &msg.get_name(),
                             channel.name()
@@ -515,7 +516,7 @@ impl State {
                     self.get_users_channel(self.server().unwrap().session_id().unwrap());
                 if from_channel == this_channel || to_channel == this_channel {
                     if let Some(channel) = self.server().unwrap().channels().get(&to_channel) {
-                        notify::send(format!(
+                        notifications::send(format!(
                             "{} moved to channel {}",
                             user.name(),
                             channel.name()
@@ -544,7 +545,7 @@ impl State {
                     s += if deaf { " deafened" } else { " undeafened" };
                 }
                 s += " themselves";
-                notify::send(s);
+                notifications::send(s);
             }
         }
     }
@@ -560,7 +561,7 @@ impl State {
         if this_channel == other_channel {
             self.audio.play_effect(NotificationEvents::UserDisconnected);
             if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
-                notify::send(format!("{} disconnected", &user.name()));
+                notifications::send(format!("{} disconnected", &user.name()));
             }
         }
 
@@ -573,7 +574,12 @@ impl State {
     }
 
     pub fn reload_config(&mut self) {
-        self.config = mumlib::config::read_default_cfg();
+        match mumlib::config::read_default_cfg() {
+            Ok(config) => {
+                self.config = config;
+            }
+            Err(e) => error!("Couldn't read config: {}", e),
+        }
         if let Some(input_volume) = self.config.audio.input_volume {
             self.audio.set_input_volume(input_volume);
         }
