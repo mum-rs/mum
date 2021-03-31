@@ -2,8 +2,8 @@ use log::*;
 
 pub fn init() {
     #[cfg(feature = "notifications")]
-    if libnotify::init("mumd").is_err() {
-        warn!("Unable to initialize notifications");
+    if let Err(e) = libnotify::init("mumd") {
+        warn!("Unable to initialize notifications: {}", e);
     }
 }
 
@@ -11,8 +11,8 @@ pub fn init() {
 pub fn send(msg: String) -> Option<bool> {
     match libnotify::Notification::new("mumd", Some(msg.as_str()), None).show() {
         Ok(_) => Some(true),
-        Err(_) => {
-            warn!("Unable to send notification");
+        Err(e) => {
+            warn!("Unable to send notification: {}", e);
             Some(false)
         }
     }

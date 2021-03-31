@@ -3,11 +3,13 @@ use mumlib::error::ConfigError;
 use std::fmt;
 use tokio::sync::mpsc;
 
+pub type ServerSendError = mpsc::error::SendError<ControlPacket<Serverbound>>;
+
 pub enum TcpError {
     NoConnectionInfoReceived,
     TlsConnectorBuilderError(native_tls::Error),
     TlsConnectError(native_tls::Error),
-    SendError(mpsc::error::SendError<ControlPacket<Serverbound>>),
+    SendError(ServerSendError),
 
     IOError(std::io::Error),
 }
@@ -33,8 +35,8 @@ impl From<std::io::Error> for TcpError {
     }
 }
 
-impl From<mpsc::error::SendError<ControlPacket<Serverbound>>> for TcpError {
-    fn from(e: mpsc::error::SendError<ControlPacket<Serverbound>>) -> Self {
+impl From<ServerSendError> for TcpError {
+    fn from(e: ServerSendError) -> Self {
         TcpError::SendError(e)
     }
 }

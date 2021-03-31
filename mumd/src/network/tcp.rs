@@ -1,4 +1,4 @@
-use crate::error::TcpError;
+use crate::error::{ServerSendError, TcpError};
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 use log::*;
@@ -225,19 +225,21 @@ async fn send_voice(
             |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::TCP)),
             async {
                 loop {
-                    packet_sender.send(
+                    let res: Result<(), ServerSendError> = packet_sender.send(
                         receiver
                             .lock()
                             .await
                             .next()
                             .await
-                            .unwrap() //TODO handle panic
-                            .into())
-                        .unwrap(); //TODO handle panic
+                            .expect("No audio stream")
+                            .into());
+                    if matches!(res, Err(_)) {
+                        return res;
+                    }
                 }
             },
             inner_phase_watcher.clone(),
-        ).await;
+        ).await.unwrap_or(Ok(()))?;
     }
 }
 

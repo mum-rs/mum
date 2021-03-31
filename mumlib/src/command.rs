@@ -31,7 +31,6 @@ pub enum Command {
     UserVolumeSet(String, f32),
 }
 
-//TODO none-response
 #[derive(Debug, Deserialize, Serialize)]
 pub enum CommandResponse {
     ChannelList {
