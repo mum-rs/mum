@@ -4,7 +4,12 @@ use log::*;
 use mumlib::command::{Command as MumCommand, CommandResponse};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
-use std::{io::{self, Read, BufRead, Write}, iter, fmt::Formatter, os::unix::net::UnixStream};
+use std::{
+    fmt::Formatter,
+    io::{self, BufRead, Read, Write},
+    iter,
+    os::unix::net::UnixStream,
+};
 use structopt::{clap::Shell, StructOpt};
 
 const INDENTATION: &str = "  ";
@@ -25,7 +30,8 @@ impl log::Log for SimpleLogger {
                     Level::Warn => "warning: ".yellow(),
                     _ => "".normal(),
                 },
-                record.args());
+                record.args()
+            );
         }
     }
 
@@ -182,35 +188,46 @@ impl std::fmt::Display for CliError {
 
 fn main() -> Result<()> {
     log::set_logger(&LOGGER)
-        .map(|()| log::set_max_level(LevelFilter::Info)).unwrap();
+        .map(|()| log::set_max_level(LevelFilter::Info))
+        .unwrap();
     let mut config = config::read_default_cfg()?;
 
     let opt = Mum::from_args();
     match opt.command {
-        Command::Connect { host, username, password, port } => {
+        Command::Connect {
+            host,
+            username,
+            password,
+            port,
+        } => {
             let port = port.unwrap_or(mumlib::DEFAULT_PORT);
 
-            let (host, username, password, port) = match config.servers.iter().find(|e| e.name == host) {
-                Some(server) => (
-                    &server.host,
-                    server.username.as_ref().or(username.as_ref()).ok_or(CliError::NoUsername)?,
-                    server.password.as_ref().or(password.as_ref()),
-                    server.port.unwrap_or(port),
-                ),
-                None => (
-                    &host,
-                    username.as_ref().ok_or(CliError::NoUsername)?,
-                    password.as_ref(),
-                    port,
-                ),
-            };
+            let (host, username, password, port) =
+                match config.servers.iter().find(|e| e.name == host) {
+                    Some(server) => (
+                        &server.host,
+                        server
+                            .username
+                            .as_ref()
+                            .or(username.as_ref())
+                            .ok_or(CliError::NoUsername)?,
+                        server.password.as_ref().or(password.as_ref()),
+                        server.port.unwrap_or(port),
+                    ),
+                    None => (
+                        &host,
+                        username.as_ref().ok_or(CliError::NoUsername)?,
+                        password.as_ref(),
+                        port,
+                    ),
+                };
 
             let response = send_command(MumCommand::ServerConnect {
                 host: host.to_string(),
                 port,
                 username: username.to_string(),
                 password: password.map(|x| x.to_string()),
-                accept_invalid_cert: true //TODO
+                accept_invalid_cert: true, //TODO
             })??;
             if let Some(CommandResponse::ServerConnect { welcome_message }) = response {
                 println!("Connected to {}", host);
@@ -227,7 +244,8 @@ fn main() -> Result<()> {
         }
         Command::Channel(channel_command) => {
             match channel_command {
-                Channel::List { short: _short } => { //TODO actually use this
+                Channel::List { short: _short } => {
+                    //TODO actually use this
                     match send_command(MumCommand::ChannelList)?? {
                         Some(CommandResponse::ChannelList { channels }) => {
                             print_channel(&channels, 0);
@@ -237,38 +255,34 @@ fn main() -> Result<()> {
                 }
                 Channel::Connect { name } => {
                     send_command(MumCommand::ChannelJoin {
-                        channel_identifier: name
+                        channel_identifier: name,
                     })??;
                 }
             }
         }
-        Command::Status => {
-            match send_command(MumCommand::Status)?? {
-                Some(CommandResponse::Status { server_state }) => {
-                    parse_state(&server_state);
-                }
-                _ => unreachable!("Response should only be a Status"),
+        Command::Status => match send_command(MumCommand::Status)?? {
+            Some(CommandResponse::Status { server_state }) => {
+                parse_state(&server_state);
             }
-        }
-        Command::Config { key, value } => {
-            match key.as_str() {
-                "audio.input_volume" => {
-                    if let Ok(volume) = value.parse() {
-                        send_command(MumCommand::InputVolumeSet(volume))??;
-                        config.audio.input_volume = Some(volume);
-                    }
-                }
-                "audio.output_volume" => {
-                    if let Ok(volume) = value.parse() {
-                        send_command(MumCommand::OutputVolumeSet(volume))??;
-                        config.audio.output_volume = Some(volume);
-                    }
-                }
-                _ => {
-                    return Err(CliError::ConfigKeyNotFound(key))?;
+            _ => unreachable!("Response should only be a Status"),
+        },
+        Command::Config { key, value } => match key.as_str() {
+            "audio.input_volume" => {
+                if let Ok(volume) = value.parse() {
+                    send_command(MumCommand::InputVolumeSet(volume))??;
+                    config.audio.input_volume = Some(volume);
                 }
             }
-        }
+            "audio.output_volume" => {
+                if let Ok(volume) = value.parse() {
+                    send_command(MumCommand::OutputVolumeSet(volume))??;
+                    config.audio.output_volume = Some(volume);
+                }
+            }
+            _ => {
+                return Err(CliError::ConfigKeyNotFound(key))?;
+            }
+        },
         Command::ConfigReload => {
             send_command(MumCommand::ConfigReload)??;
         }
@@ -292,26 +306,22 @@ fn main() -> Result<()> {
                 todo!();
             }
         }
-        Command::Mute { user } => {
-            match user {
-                Some(user) => {
-                    send_command(MumCommand::MuteOther(user, Some(true)))??;
-                }
-                None => {
-                    send_command(MumCommand::MuteSelf(Some(true)))??;
-                }
+        Command::Mute { user } => match user {
+            Some(user) => {
+                send_command(MumCommand::MuteOther(user, Some(true)))??;
             }
-        }
-        Command::Unmute { user } => {
-            match user {
-                Some(user) => {
-                    send_command(MumCommand::MuteOther(user, Some(false)))??;
-                }
-                None => {
-                    send_command(MumCommand::MuteSelf(Some(false)))??;
-                }
+            None => {
+                send_command(MumCommand::MuteSelf(Some(true)))??;
             }
-        }
+        },
+        Command::Unmute { user } => match user {
+            Some(user) => {
+                send_command(MumCommand::MuteOther(user, Some(false)))??;
+            }
+            None => {
+                send_command(MumCommand::MuteSelf(Some(false)))??;
+            }
+        },
         Command::Deafen => {
             send_command(MumCommand::DeafenSelf(Some(true)))??;
         }
@@ -338,7 +348,11 @@ fn main() -> Result<()> {
 
 fn match_server_command(server_command: Server, config: &mut Config) -> Result<()> {
     match server_command {
-        Server::Config { server_name, key, value } => {
+        Server::Config {
+            server_name,
+            key,
+            value,
+        } => {
             let server_name = match server_name {
                 Some(server_name) => server_name,
                 None => {
@@ -348,7 +362,8 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     return Ok(());
                 }
             };
-            let server = config.servers
+            let server = config
+                .servers
                 .iter_mut()
                 .find(|s| s.name == server_name)
                 .ok_or(CliError::NoServerFound(server_name))?;
@@ -381,24 +396,28 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     println!("{}", server.host);
                 }
                 (Some("port"), None) => {
-                    println!("{}",
-                             server
-                             .port
-                             .ok_or(CliError::NotSet("port".to_string()))?);
+                    println!(
+                        "{}",
+                        server.port.ok_or(CliError::NotSet("port".to_string()))?
+                    );
                 }
                 (Some("username"), None) => {
-                    println!("{}",
-                             server
-                             .username
-                             .as_ref()
-                             .ok_or(CliError::NotSet("username".to_string()))?);
+                    println!(
+                        "{}",
+                        server
+                            .username
+                            .as_ref()
+                            .ok_or(CliError::NotSet("username".to_string()))?
+                    );
                 }
                 (Some("password"), None) => {
-                    println!("{}",
-                             server
-                             .password
-                             .as_ref()
-                             .ok_or(CliError::NotSet("password".to_string()))?);
+                    println!(
+                        "{}",
+                        server
+                            .password
+                            .as_ref()
+                            .ok_or(CliError::NotSet("password".to_string()))?
+                    );
                 }
                 (Some("name"), Some(_)) => {
                     return Err(CliError::UseServerRename)?;
@@ -422,9 +441,20 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
             }
         }
         Server::Rename { old_name, new_name } => {
-            config.servers.iter_mut().find(|s| s.name == old_name).ok_or(CliError::NoServerFound(old_name))?.name = new_name;
+            config
+                .servers
+                .iter_mut()
+                .find(|s| s.name == old_name)
+                .ok_or(CliError::NoServerFound(old_name))?
+                .name = new_name;
         }
-        Server::Add { name, host, port, username, password } => {
+        Server::Add {
+            name,
+            host,
+            port,
+            username,
+            password,
+        } => {
             if config.servers.iter().any(|s| s.name == name) {
                 return Err(CliError::ServerAlreadyExists(name))?;
             } else {
@@ -438,7 +468,11 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
             }
         }
         Server::Remove { name } => {
-            let idx = config.servers.iter().position(|s| s.name == name).ok_or(CliError::NoServerFound(name))?;
+            let idx = config
+                .servers
+                .iter()
+                .position(|s| s.name == name)
+                .ok_or(CliError::NoServerFound(name))?;
             config.servers.remove(idx);
         }
         Server::List => {
@@ -456,9 +490,11 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     response.map(|f| (e, f))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
-            for (server, response) in query.into_iter()
+            for (server, response) in query
+                .into_iter()
                 .filter(|e| e.1.is_ok())
-                .map(|e| (e.0, e.1.unwrap().unwrap())) {
+                .map(|e| (e.0, e.1.unwrap().unwrap()))
+            {
                 if let CommandResponse::ServerStatus {
                     users, max_users, ..
                 } = response
@@ -472,7 +508,6 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
     }
     Ok(())
 }
-
 
 fn parse_state(server_state: &mumlib::state::Server) {
     println!(
@@ -500,15 +535,24 @@ fn parse_state(server_state: &mumlib::state::Server) {
     }
 }
 
-fn send_command(command: MumCommand) -> Result<mumlib::error::Result<Option<CommandResponse>>, CliError> {
-    let mut connection = UnixStream::connect(mumlib::SOCKET_PATH).map_err(|_| CliError::ConnectionError)?;
+fn send_command(
+    command: MumCommand,
+) -> Result<mumlib::error::Result<Option<CommandResponse>>, CliError> {
+    let mut connection =
+        UnixStream::connect(mumlib::SOCKET_PATH).map_err(|_| CliError::ConnectionError)?;
 
     let serialized = bincode::serialize(&command).unwrap();
 
-    connection.write(&(serialized.len() as u32).to_be_bytes()).map_err(|_| CliError::ConnectionError)?;
-    connection.write(&serialized).map_err(|_| CliError::ConnectionError)?;
+    connection
+        .write(&(serialized.len() as u32).to_be_bytes())
+        .map_err(|_| CliError::ConnectionError)?;
+    connection
+        .write(&serialized)
+        .map_err(|_| CliError::ConnectionError)?;
 
-    connection.read_exact(&mut [0; 4]).map_err(|_| CliError::ConnectionError)?;
+    connection
+        .read_exact(&mut [0; 4])
+        .map_err(|_| CliError::ConnectionError)?;
     bincode::deserialize_from(&mut connection).map_err(|_| CliError::ConnectionError)
 }
 
