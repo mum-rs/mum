@@ -11,9 +11,9 @@ repository = "https://github.com/sornas/mum"
 license = "MIT"
 
 [dependencies]
-colored = "2.0"
+colored = "2"
 dirs = "3"
 fern = "0.6"
 log = "0.4"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 toml = "0.5"
