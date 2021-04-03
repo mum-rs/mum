@@ -55,6 +55,7 @@ enum Command {
         host: String,
         username: Option<String>,
         password: Option<String>,
+        #[structopt(short = "p", long = "port")]
         port: Option<u16>,
     },
     /// Disconnect from the currently connected server
@@ -110,8 +111,10 @@ enum Server {
     Add {
         name: String,
         host: String,
+        #[structopt(short = "p", long = "port")]
         port: Option<u16>,
         username: Option<String>,
+        #[structopt(requires = "username")]
         password: Option<String>,
     },
     /// Remove a saved server
