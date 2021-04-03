@@ -54,7 +54,7 @@ them, build with --no-default-features. Features can then be enabled with
 The following features can be specified:
 
 | Name               | Needed for    |
-|--------------------+---------------+
+|--------------------|---------------|
 | mumd/notifications | Notifications |
 
 If you're using Cargo 1.51 or later you can specify features directly from the
