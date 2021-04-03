@@ -9,14 +9,6 @@ use structopt::{clap::Shell, StructOpt};
 
 const INDENTATION: &str = "  ";
 
-macro_rules! error_if_err {
-    ($func:expr) => {
-        if let Err(e) = $func {
-            error!("{}", e);
-        }
-    };
-}
-
 struct SimpleLogger;
 
 impl log::Log for SimpleLogger {
@@ -336,10 +328,10 @@ fn main() -> Result<()> {
         let stdin = std::io::stdin();
         let response = stdin.lock().lines().next();
         if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
-            error_if_err!(config.write_default_cfg(true));
+            config.write_default_cfg(true)?;
         }
     } else {
-        error_if_err!(config.write_default_cfg(false));
+        config.write_default_cfg(false)?;
     }
     Ok(())
 }
