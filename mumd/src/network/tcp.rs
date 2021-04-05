@@ -108,7 +108,7 @@ pub async fn handle(
         let password = state_lock.password().map(|x| x.to_string());
         authenticate(&mut sink, username, password).await?;
         let phase_watcher = state_lock.phase_receiver();
-        let input_receiver = state_lock.audio().input_receiver();
+        let input_receiver = state_lock.audio_input().input_receiver();
         drop(state_lock);
         let event_queue = TcpEventQueue::new();
 
@@ -358,7 +358,7 @@ async fn listen(
                         state
                             .lock()
                             .await
-                            .audio()
+                            .audio_output()
                             .decode_packet_payload(
                                 VoiceStreamType::TCP,
                                 session_id,

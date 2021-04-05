@@ -33,7 +33,7 @@ pub async fn handle(
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
 ) -> Result<(), UdpError> {
-    let receiver = state.lock().await.audio().input_receiver();
+    let receiver = state.lock().await.audio_input().input_receiver();
 
     loop {
         let connection_info = 'data: loop {
@@ -151,7 +151,7 @@ async fn listen(
                 state
                     .lock() //TODO change so that we only have to lock audio and not the whole state
                     .await
-                    .audio()
+                    .audio_output()
                     .decode_packet_payload(VoiceStreamType::UDP, session_id, payload);
             }
         }
