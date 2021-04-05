@@ -211,7 +211,7 @@ impl State {
                 now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
             }
             Command::InputVolumeSet(volume) => {
-                self.audio_input.set_input_volume(volume);
+                self.audio_input.set_volume(volume);
                 now!(Ok(None))
             }
             Command::MuteOther(string, toggle) => {
@@ -305,7 +305,7 @@ impl State {
                 now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
             }
             Command::OutputVolumeSet(volume) => {
-                self.audio_output.set_output_volume(volume);
+                self.audio_output.set_volume(volume);
                 now!(Ok(None))
             }
             Command::Ping => {
@@ -585,10 +585,10 @@ impl State {
             Err(e) => error!("Couldn't read config: {}", e),
         }
         if let Some(input_volume) = self.config.audio.input_volume {
-            self.audio_input.set_input_volume(input_volume);
+            self.audio_input.set_volume(input_volume);
         }
         if let Some(output_volume) = self.config.audio.output_volume {
-            self.audio_output.set_output_volume(output_volume);
+            self.audio_output.set_volume(output_volume);
         }
         if let Some(sound_effects) = &self.config.audio.sound_effects {
             self.audio_output.load_sound_effects(sound_effects);

@@ -68,10 +68,10 @@ impl TryFrom<&str> for NotificationEvents {
 }
 
 pub struct AudioInput {
-    _input_stream: cpal::Stream,
+    _stream: cpal::Stream,
 
-    input_channel_receiver: Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
-    input_volume_sender: watch::Sender<f32>,
+    channel_receiver: Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
+    volume_sender: watch::Sender<f32>,
 }
 
 impl AudioInput {
@@ -136,45 +136,50 @@ impl AudioInput {
         .map_err(|e| AudioError::InvalidStream(AudioStream::Input, e))?;
 
         let opus_stream = OpusEncoder::new(
-            4,
-            input_config.sample_rate.0,
-            input_config.channels as usize,
-            StreamingSignalExt::into_interleaved_samples(
-                StreamingNoiseGate::new(
-                    from_interleaved_samples_stream::<_, f32>(sample_receiver), //TODO group frames correctly
-                    10_000))).enumerate().map(|(i, e)| VoicePacket::Audio {
-                        _dst: std::marker::PhantomData,
-                        target: 0,      // normal speech
-                        session_id: (), // unused for server-bound packets
-                        seq_num: i as u64,
-                        payload: VoicePacketPayload::Opus(e.into(), false),
-                        position_info: None,
-                    });
+                4,
+                input_config.sample_rate.0,
+                input_config.channels as usize,
+                StreamingSignalExt::into_interleaved_samples(
+                    StreamingNoiseGate::new(
+                        from_interleaved_samples_stream::<_, f32>(sample_receiver), //TODO group frames correctly
+                        10_000
+                    )
+                )
+            ).enumerate()
+            .map(|(i, e)| VoicePacket::Audio {
+                _dst: std::marker::PhantomData,
+                target: 0,      // normal speech
+                session_id: (), // unused for server-bound packets
+                seq_num: i as u64,
+                payload: VoicePacketPayload::Opus(e.into(), false),
+                position_info: None,
+            }
+        );
 
         input_stream.play().map_err(|e| AudioError::OutputPlayError(e))?;
 
         let res = Self {
-            _input_stream: input_stream,
-            input_volume_sender,
-            input_channel_receiver: Arc::new(tokio::sync::Mutex::new(Box::new(opus_stream))),
+            _stream: input_stream,
+            volume_sender: input_volume_sender,
+            channel_receiver: Arc::new(tokio::sync::Mutex::new(Box::new(opus_stream))),
         };
         Ok(res)
     }
 
-    pub fn input_receiver(&self) -> Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
-        Arc::clone(&self.input_channel_receiver)
+    pub fn receiver(&self) -> Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
+        Arc::clone(&self.channel_receiver)
     }
 
-    pub fn set_input_volume(&self, input_volume: f32) {
-        self.input_volume_sender.send(input_volume).unwrap();
+    pub fn set_volume(&self, input_volume: f32) {
+        self.volume_sender.send(input_volume).unwrap();
     }
 }
 
 pub struct AudioOutput {
-    output_config: StreamConfig,
-    _output_stream: cpal::Stream,
+    config: StreamConfig,
+    _stream: cpal::Stream,
 
-    output_volume_sender: watch::Sender<f32>,
+    volume_sender: watch::Sender<f32>,
 
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
@@ -247,13 +252,14 @@ impl AudioOutput {
             ),
         }
         .map_err(|e| AudioError::InvalidStream(AudioStream::Output, e))?;
+        output_stream.play().map_err(|e| AudioError::OutputPlayError(e))?;
 
         let mut res = Self {
-            output_config,
-            _output_stream: output_stream,
+            config: output_config,
+            _stream: output_stream,
             client_streams,
             sounds: HashMap::new(),
-            output_volume_sender,
+            volume_sender: output_volume_sender,
             user_volumes,
             play_sounds,
         };
@@ -303,7 +309,7 @@ impl AudioOutput {
                     .until_exhausted()
                     // if the source audio is stereo and is being played as mono, discard the right audio
                     .flat_map(
-                        |e| if self.output_config.channels == 1 {
+                        |e| if self.config.channels == 1 {
                             vec![e[0]]
                         } else {
                             e.to_vec()
@@ -320,7 +326,7 @@ impl AudioOutput {
             Entry::Occupied(mut entry) => {
                 entry
                     .get_mut()
-                    .decode_packet(payload, self.output_config.channels as usize);
+                    .decode_packet(payload, self.config.channels as usize);
             }
             Entry::Vacant(_) => {
                 warn!("Can't find session id {}", session_id);
@@ -336,8 +342,8 @@ impl AudioOutput {
                 }
                 Entry::Vacant(entry) => {
                     entry.insert(output::ClientStream::new(
-                        self.output_config.sample_rate.0,
-                        self.output_config.channels,
+                        self.config.sample_rate.0,
+                        self.config.channels,
                     ));
                 }
             }
@@ -364,8 +370,8 @@ impl AudioOutput {
         self.client_streams.lock().unwrap().clear();
     }
 
-    pub fn set_output_volume(&self, output_volume: f32) {
-        self.output_volume_sender.send(output_volume).unwrap();
+    pub fn set_volume(&self, output_volume: f32) {
+        self.volume_sender.send(output_volume).unwrap();
     }
 
     pub fn set_user_volume(&self, id: u32, volume: f32) {

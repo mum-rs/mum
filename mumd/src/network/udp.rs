@@ -33,7 +33,7 @@ pub async fn handle(
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
 ) -> Result<(), UdpError> {
-    let receiver = state.lock().await.audio_input().input_receiver();
+    let receiver = state.lock().await.audio_input().receiver();
 
     loop {
         let connection_info = 'data: loop {
