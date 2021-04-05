@@ -10,7 +10,7 @@ use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPa
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::{Clientbound, Serverbound};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::RwLock};
 use std::convert::{Into, TryInto};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -79,7 +79,7 @@ impl TcpEventQueue {
 }
 
 pub async fn handle(
-    state: Arc<Mutex<State>>,
+    state: Arc<RwLock<State>>,
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     crypt_state_sender: mpsc::Sender<ClientCryptState>,
     packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
@@ -103,7 +103,7 @@ pub async fn handle(
         .await?;
 
         // Handshake (omitting `Version` message for brevity)
-        let state_lock = state.lock().await;
+        let state_lock = state.read().unwrap();
         let username = state_lock.username().unwrap().to_string();
         let password = state_lock.password().map(|x| x.to_string());
         authenticate(&mut sink, username, password).await?;
@@ -241,7 +241,7 @@ async fn send_voice(
 }
 
 async fn listen(
-    state: Arc<Mutex<State>>,
+    state: Arc<RwLock<State>>,
     mut stream: TcpReceiver,
     crypt_state_sender: mpsc::Sender<ClientCryptState>,
     event_queue: TcpEventQueue,
@@ -260,7 +260,7 @@ async fn listen(
                 // We end up here if the login was rejected. We probably want
                 // to exit before that.
                 warn!("TCP stream gone");
-                state.lock().await.broadcast_phase(StatePhase::Disconnected);
+                state.read().unwrap().broadcast_phase(StatePhase::Disconnected);
                 break;
             }
         };
@@ -299,7 +299,7 @@ async fn listen(
                         .await;
                 }
                 event_queue.resolve(TcpEventData::Connected(Ok(&msg))).await;
-                let mut state = state.lock().await;
+                let mut state = state.write().unwrap();
                 let server = state.server_mut().unwrap();
                 server.parse_server_sync(*msg);
                 match &server.welcome_text {
@@ -323,24 +323,24 @@ async fn listen(
                 }
             }
             ControlPacket::UserState(msg) => {
-                state.lock().await.parse_user_state(*msg);
+                state.write().unwrap().parse_user_state(*msg);
             }
             ControlPacket::UserRemove(msg) => {
-                state.lock().await.remove_client(*msg);
+                state.write().unwrap().remove_client(*msg);
             }
             ControlPacket::ChannelState(msg) => {
                 debug!("Channel state received");
                 state
-                    .lock()
-                    .await
+                    .write()
+                    .unwrap()
                     .server_mut()
                     .unwrap()
                     .parse_channel_state(*msg); //TODO parse initial if initial
             }
             ControlPacket::ChannelRemove(msg) => {
                 state
-                    .lock()
-                    .await
+                    .write()
+                    .unwrap()
                     .server_mut()
                     .unwrap()
                     .parse_channel_remove(*msg);
@@ -356,8 +356,8 @@ async fn listen(
                         ..
                     } => {
                         state
-                            .lock()
-                            .await
+                            .read()
+                            .unwrap()
                             .audio()
                             .decode_packet_payload(
                                 VoiceStreamType::TCP,
