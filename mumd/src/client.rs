@@ -6,8 +6,8 @@ use crate::state::State;
 use futures_util::{select, FutureExt};
 use mumble_protocol::{Serverbound, control::ControlPacket, crypt::ClientCryptState};
 use mumlib::command::{Command, CommandResponse};
-use std::sync::Arc;
-use tokio::sync::{Mutex, mpsc, oneshot, watch};
+use std::sync::{Arc, RwLock};
+use tokio::sync::{mpsc, oneshot, watch};
 
 pub async fn handle(
     state: State,
@@ -27,7 +27,7 @@ pub async fn handle(
     let (response_sender, response_receiver) =
         mpsc::unbounded_channel();
 
-    let state = Arc::new(Mutex::new(state));
+    let state = Arc::new(RwLock::new(state));
 
     select! {
         r = tcp::handle(

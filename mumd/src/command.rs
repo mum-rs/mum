@@ -8,11 +8,11 @@ use crate::state::{ExecutionContext, State};
 use log::*;
 use mumble_protocol::{Serverbound, control::ControlPacket};
 use mumlib::command::{Command, CommandResponse};
-use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, watch, Mutex};
+use std::sync::{Arc, RwLock};
+use tokio::sync::{mpsc, oneshot, watch};
 
 pub async fn handle(
-    state: Arc<Mutex<State>>,
+    state: Arc<RwLock<State>>,
     mut command_receiver: mpsc::UnboundedReceiver<(
         Command,
         oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
@@ -25,7 +25,7 @@ pub async fn handle(
     debug!("Begin listening for commands");
     while let Some((command, response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
-        let mut state = state.lock().await;
+        let mut state = state.write().unwrap();
         let event = state.handle_command(command, &mut packet_sender, &mut connection_info_sender);
         drop(state);
         match event {

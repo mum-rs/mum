@@ -14,7 +14,7 @@ use std::convert::TryFrom;
 use std::net::{Ipv6Addr, SocketAddr};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::{join, net::UdpSocket};
 use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::{interval, Duration};
@@ -29,11 +29,11 @@ type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound
 type UdpReceiver = SplitStream<UdpFramed<ClientCryptState>>;
 
 pub async fn handle(
-    state: Arc<Mutex<State>>,
+    state: Arc<RwLock<State>>,
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
 ) -> Result<(), UdpError> {
-    let receiver = state.lock().await.audio().input_receiver();
+    let receiver = state.read().unwrap().audio().input_receiver();
 
     loop {
         let connection_info = 'data: loop {
@@ -49,7 +49,7 @@ pub async fn handle(
         let sink = Arc::new(Mutex::new(sink));
         let source = Arc::new(Mutex::new(source));
 
-        let phase_watcher = state.lock().await.phase_receiver();
+        let phase_watcher = state.read().unwrap().phase_receiver();
         let last_ping_recv = AtomicU64::new(0);
 
         run_until(
@@ -119,7 +119,7 @@ async fn new_crypt_state(
 }
 
 async fn listen(
-    state: Arc<Mutex<State>>,
+    state: Arc<RwLock<State>>,
     source: Arc<Mutex<UdpReceiver>>,
     last_ping_recv: &AtomicU64,
 ) {
@@ -136,8 +136,8 @@ async fn listen(
         match packet {
             VoicePacket::Ping { timestamp } => {
                 state
-                    .lock() //TODO clean up unnecessary lock by only updating phase if it should change
-                    .await
+                    .read()
+                    .unwrap()
                     .broadcast_phase(StatePhase::Connected(VoiceStreamType::UDP));
                 last_ping_recv.store(timestamp, Ordering::Relaxed);
             }
@@ -149,8 +149,8 @@ async fn listen(
                 ..
             } => {
                 state
-                    .lock() //TODO change so that we only have to lock audio and not the whole state
-                    .await
+                    .read()
+                    .unwrap()
                     .audio()
                     .decode_packet_payload(VoiceStreamType::UDP, session_id, payload);
             }
@@ -159,7 +159,7 @@ async fn listen(
 }
 
 async fn send_pings(
-    state: Arc<Mutex<State>>,
+    state: Arc<RwLock<State>>,
     sink: Arc<Mutex<UdpSender>>,
     server_addr: SocketAddr,
     last_ping_recv: &AtomicU64,
@@ -173,8 +173,8 @@ async fn send_pings(
         if last_send.is_some() && last_send.unwrap() != last_recv {
             debug!("Sending TCP voice");
             state
-                .lock()
-                .await
+                .read()
+                .unwrap()
                 .broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
         }
         match sink
