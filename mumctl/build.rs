@@ -11,9 +11,11 @@ fn main() {
 
 fn commit_hash() -> Option<String> {
     let output = Command::new("git")
-                         .arg("describe")
-                         .arg("--tags")
-                         .current_dir(env!("CARGO_MANIFEST_DIR"))
-                         .output();
-    output.ok().map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .arg("describe")
+        .arg("--tags")
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output();
+    output
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
 }

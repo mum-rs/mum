@@ -40,15 +40,15 @@ mumctl channel list ::
 mumctl completions [--bash|--fish|--zsh] ::
     Generate a completion file for the specified shell.
 
-mumctl config <name> <value> ::
-    Set a configuration value in the mumd(1) config-file.
+mumctl config <key> <value> ::
+    Set a configuration value in the mumd(1) config-file. See mumdrc(5).
 
 mumctl config-reload ::
     Force a reload of the configuration file (e.g. after editing it externally.
 
-mumctl connect [-p|--port <port>] <host> [username] ::
+mumctl connect <host> [-p|--port <port>] [username] ::
     Connect to a server on the specified port. The host may be either the name
-    of a saved server or an IP or a URL (in which case username needs to be passed
+    of a saved server or an IP/URL (in which case username needs to be passed
     as well).
     If omitted, the port defaults to 64738.
 
@@ -65,10 +65,10 @@ mumctl mute [user] ::
     Mute yourself or someone else.
     If user is omitted, you mute yourself. Otherwise, the user with the username [user] is muted.
 
-mumctl server add [--password <password>] [--port <port>] [--username <username>] [<name>] <host> ::
+mumctl server add <name> <host> [--port <port>] [<username> | <username> <password>] ::
     Add a saved server configuration.
 
-mumctl server config <server> <name> <value> ::
+mumctl server config <server> <key> <value> ::
     Configure a variable in a saved server configuration.
 
 mumctl server list ::
@@ -106,7 +106,7 @@ Gustav Sörnäs and Eskil Queseth.
 Reporting bugs
 --------------
 
-Please report bugs to the Github repository at https://github.com/sornas/mum/
+Please report bugs to the Github repository at https://github.com/mum-rs/mum/
 or by e-mail to gustav@sornas.net.
 
 See also

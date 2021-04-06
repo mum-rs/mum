@@ -2,12 +2,12 @@
 .\"     Title: mumd
 .\"    Author: [see the "AUTHOR(S)" section]
 .\" Generator: Asciidoctor 2.0.12
-.\"      Date: 2021-03-29
+.\"      Date: 2021-04-03
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MUMCTL" "1" "2021-03-29" "\ \&" "\ \&"
+.TH "MUMCTL" "1" "2021-04-03" "\ \&" "\ \&"
 .ie \n(.g .ds Aq \(aq
 .el       .ds Aq '
 .ss \n[.ss] 0
@@ -66,9 +66,9 @@ mumctl completions [\-\-bash|\-\-fish|\-\-zsh]
 Generate a completion file for the specified shell.
 .RE
 .sp
-mumctl config <name> <value>
+mumctl config <key> <value>
 .RS 4
-Set a configuration value in the mumd(1) config\-file.
+Set a configuration value in the mumd(1) config\-file. See mumdrc(5).
 .RE
 .sp
 mumctl config\-reload
@@ -76,10 +76,10 @@ mumctl config\-reload
 Force a reload of the configuration file (e.g. after editing it externally.
 .RE
 .sp
-mumctl connect [\-p|\-\-port <port>] <host> [username]
+mumctl connect <host> [\-p|\-\-port <port>] [username]
 .RS 4
 Connect to a server on the specified port. The host may be either the name
-of a saved server or an IP or a URL (in which case username needs to be passed
+of a saved server or an IP/URL (in which case username needs to be passed
 as well).
 If omitted, the port defaults to 64738.
 .RE
@@ -105,12 +105,12 @@ Mute yourself or someone else.
 If user is omitted, you mute yourself. Otherwise, the user with the username [user] is muted.
 .RE
 .sp
-mumctl server add [\-\-password <password>] [\-\-port <port>] [\-\-username <username>] [<name>] <host>
+mumctl server add <name> <host> [\-\-port <port>] [<username> | <username> <password>]
 .RS 4
 Add a saved server configuration.
 .RE
 .sp
-mumctl server config <server> <name> <value>
+mumctl server config <server> <key> <value>
 .RS 4
 Configure a variable in a saved server configuration.
 .RE
@@ -163,7 +163,7 @@ Gustav Sörnäs and Eskil Queseth.
 .SH "REPORTING BUGS"
 .sp
 Please report bugs to the Github repository at \c
-.URL "https://github.com/sornas/mum/" ""
+.URL "https://github.com/mum\-rs/mum/" ""
 or by e\-mail to \c
 .MTO "gustav\(atsornas.net" "" "."
 .SH "SEE ALSO"
