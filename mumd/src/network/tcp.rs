@@ -10,10 +10,10 @@ use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPa
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::{Clientbound, Serverbound};
-use std::{collections::HashMap, sync::RwLock};
+use std::collections::HashMap;
 use std::convert::{Into, TryInto};
 use std::net::SocketAddr;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::{self, Duration};
@@ -103,13 +103,17 @@ pub async fn handle(
         .await?;
 
         // Handshake (omitting `Version` message for brevity)
-        let state_lock = state.read().unwrap();
-        let username = state_lock.username().unwrap().to_string();
-        let password = state_lock.password().map(|x| x.to_string());
+        let (username, password) = {
+            let state_lock = state.read().unwrap();
+            (state_lock.username().unwrap().to_string(),
+                state_lock.password().map(|x| x.to_string()))
+        };
         authenticate(&mut sink, username, password).await?;
-        let phase_watcher = state_lock.phase_receiver();
-        let input_receiver = state_lock.audio_input().receiver();
-        drop(state_lock);
+        let (phase_watcher, input_receiver) = {
+            let state_lock = state.read().unwrap();
+            (state_lock.phase_receiver(),
+                state_lock.audio_input().receiver())
+        };
         let event_queue = TcpEventQueue::new();
 
         info!("Logging in...");
