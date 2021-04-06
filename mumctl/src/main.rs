@@ -161,7 +161,7 @@ where
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        std::fmt::Display::fmt(&self.0, f)
+        fmt::Display::fmt(&self.0, f)
     }
 }
 
