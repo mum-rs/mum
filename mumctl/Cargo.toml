@@ -13,7 +13,6 @@ license = "MIT"
 [dependencies]
 mumlib = { version = "0.3", path = "../mumlib" }
 
-anyhow = "1"
 bincode = "1"
 colored = "2"
 log = "0.4"

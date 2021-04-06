@@ -1,15 +1,9 @@
-use anyhow::Result;
 use colored::Colorize;
 use log::*;
 use mumlib::command::{Command as MumCommand, CommandResponse};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
-use std::{
-    fmt::Formatter,
-    io::{self, BufRead, Read, Write},
-    iter,
-    os::unix::net::UnixStream,
-};
+use std::{fmt,io::{self, BufRead, Read, Write}, iter, os::unix::net::UnixStream};
 use structopt::{clap::Shell, StructOpt};
 
 const INDENTATION: &str = "  ";
@@ -153,10 +147,28 @@ enum CliError {
     NoServers,
 }
 
+#[derive(Debug)]
+struct Error(Box<dyn std::error::Error>); // new type since otherwise we'd get an impl conflict with impl<T> From<T> for T below
+
+impl<E> From<E> for Error
+where
+    E: std::error::Error + fmt::Display + 'static,
+{
+    fn from(e: E) -> Self {
+        Error(Box::new(e))
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        std::fmt::Display::fmt(&self.0, f)
+    }
+}
+
 impl std::error::Error for CliError {}
 
-impl std::fmt::Display for CliError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for CliError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CliError::NoUsername => {
                 write!(f, "No username specified")
@@ -168,7 +180,7 @@ impl std::fmt::Display for CliError {
                 write!(f, "Server '{}' not found", s)
             }
             CliError::NotSet(s) => {
-                write!(f, "Key '{}' not set", s) //TODO
+                write!(f, "Key '{}' not set", s)
             }
             CliError::UseServerRename => {
                 write!(f, "Use 'server rename' instead")
@@ -186,10 +198,15 @@ impl std::fmt::Display for CliError {
     }
 }
 
-fn main() -> Result<()> {
+fn main() {
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(LevelFilter::Info))
         .unwrap();
+    if let Err(e) = match_opt() {
+        error!("{}", e);
+    }
+}
+fn match_opt() -> Result<(), Error> {
     let mut config = config::read_default_cfg()?;
 
     let opt = Mum::from_args();
@@ -346,7 +363,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn match_server_command(server_command: Server, config: &mut Config) -> Result<()> {
+fn match_server_command(server_command: Server, config: &mut Config) -> Result<(), CliError> {
     match server_command {
         Server::Config {
             server_name,
