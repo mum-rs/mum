@@ -11,7 +11,7 @@ repository = "https://github.com/sornas/mum"
 license = "MIT"
 
 [dependencies]
-mumlib = { path = "../mumlib" }
+mumlib = { version = "0.3", path = "../mumlib" }
 
 anyhow = "1"
 bincode = "1"
