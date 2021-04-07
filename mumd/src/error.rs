@@ -86,6 +86,8 @@ pub enum AudioError {
     NoSupportedConfig(AudioStream),
     InvalidStream(AudioStream, cpal::BuildStreamError),
     OutputPlayError(cpal::PlayStreamError),
+    InputPlayError(cpal::PlayStreamError),
+    InputPauseError(cpal::PauseStreamError),
 }
 
 impl fmt::Display for AudioError {
@@ -96,6 +98,8 @@ impl fmt::Display for AudioError {
             AudioError::NoSupportedConfig(s) => write!(f, "No supported {} config found", s),
             AudioError::InvalidStream(s, e) => write!(f, "Invalid {} stream: {}", s, e),
             AudioError::OutputPlayError(e) => write!(f, "Playback error: {}", e),
+            AudioError::InputPlayError(e) => write!(f, "Recording error: {}", e),
+            AudioError::InputPauseError(e) => write!(f, "Recording error: {}", e),
         }
     }
 }
