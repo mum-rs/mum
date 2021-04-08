@@ -3,8 +3,12 @@ name = "mumctl"
 version = "0.3.1"
 authors = ["Gustav Sörnäs <gustav@sornas.net>",
            "Eskil Queseth <eskilq@kth.se>"]
-license = "MIT"
 edition = "2018"
+description = """
+CLI controller for mumd.
+"""
+repository = "https://github.com/sornas/mum"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
