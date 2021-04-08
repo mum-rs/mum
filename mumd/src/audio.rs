@@ -3,7 +3,7 @@ pub mod output;
 mod noise_gate;
 
 use crate::audio::input::{DefaultAudioInputDevice, AudioInputDevice};
-use crate::audio::output::SaturatingAdd;
+use crate::audio::output::ClientStream;
 use crate::audio::noise_gate::{from_interleaved_samples_stream, OpusEncoder, StreamingNoiseGate, StreamingSignalExt};
 use crate::error::{AudioError, AudioStream};
 use crate::network::VoiceStreamType;
@@ -20,7 +20,7 @@ use mumble_protocol::Serverbound;
 use mumble_protocol::voice::{VoicePacketPayload, VoicePacket};
 use mumlib::config::SoundEffect;
 use std::borrow::Cow;
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
+use std::collections::{hash_map::Entry, HashMap};
 use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::fs::File;
@@ -126,10 +126,9 @@ pub struct AudioOutput {
 
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
-    client_streams: Arc<Mutex<HashMap<(VoiceStreamType, u32), output::ClientStream>>>,
+    client_streams: Arc<Mutex<ClientStream>>,
 
     sounds: HashMap<NotificationEvents, Vec<f32>>,
-    play_sounds: Arc<Mutex<VecDeque<f32>>>,
 }
 
 impl AudioOutput {
@@ -159,14 +158,12 @@ impl AudioOutput {
 
         let user_volumes = Arc::new(std::sync::Mutex::new(HashMap::new()));
         let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
-        let play_sounds = Arc::new(std::sync::Mutex::new(VecDeque::new()));
 
-        let client_streams = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        let client_streams = Arc::new(std::sync::Mutex::new(ClientStream::new(sample_rate.0, output_config.channels)));
         let output_stream = match output_supported_sample_format {
             SampleFormat::F32 => output_device.build_output_stream(
                 &output_config,
                 output::curry_callback::<f32>(
-                    Arc::clone(&play_sounds),
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     Arc::clone(&user_volumes),
@@ -176,7 +173,6 @@ impl AudioOutput {
             SampleFormat::I16 => output_device.build_output_stream(
                 &output_config,
                 output::curry_callback::<i16>(
-                    Arc::clone(&play_sounds),
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     Arc::clone(&user_volumes),
@@ -186,7 +182,6 @@ impl AudioOutput {
             SampleFormat::U16 => output_device.build_output_stream(
                 &output_config,
                 output::curry_callback::<u16>(
-                    Arc::clone(&play_sounds),
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     Arc::clone(&user_volumes),
@@ -204,7 +199,6 @@ impl AudioOutput {
             sounds: HashMap::new(),
             volume_sender: output_volume_sender,
             user_volumes,
-            play_sounds,
         };
         res.load_sound_effects(&[]);
         Ok(res)
@@ -265,52 +259,23 @@ impl AudioOutput {
     }
 
     pub fn decode_packet_payload(&self, stream_type: VoiceStreamType, session_id: u32, payload: VoicePacketPayload) {
-        match self.client_streams.lock().unwrap().entry((stream_type, session_id)) {
-            Entry::Occupied(mut entry) => {
-                entry
-                    .get_mut()
-                    .decode_packet(payload, self.config.channels as usize);
-            }
-            Entry::Vacant(_) => {
-                warn!("Can't find session id {}", session_id);
-            }
-        }
+        self.client_streams.lock().unwrap().decode_packet(
+            Some((stream_type, session_id)),
+            payload,
+            self.config.channels as usize,
+        );
     }
 
     pub fn add_client(&self, session_id: u32) {
-        for stream_type in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
-            match self.client_streams.lock().unwrap().entry((*stream_type, session_id)) {
-                Entry::Occupied(_) => {
-                    warn!("Session id {} already exists", session_id);
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(output::ClientStream::new(
-                        self.config.sample_rate.0,
-                        self.config.channels,
-                    ));
-                }
-            }
-        }
+        self.client_streams.lock().unwrap().add_client(session_id);
     }
 
     pub fn remove_client(&self, session_id: u32) {
-        for stream_type in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
-            match self.client_streams.lock().unwrap().entry((*stream_type, session_id)) {
-                Entry::Occupied(entry) => {
-                    entry.remove();
-                }
-                Entry::Vacant(_) => {
-                    warn!(
-                        "Tried to remove session id {} that doesn't exist",
-                        session_id
-                    );
-                }
-            }
-        }
+        self.client_streams.lock().unwrap().remove_client(session_id);
     }
 
-    pub fn clear_clients(&mut self) {
-        self.client_streams.lock().unwrap().clear();
+    pub fn clear_clients(&self) {
+        self.client_streams.lock().unwrap().clear_clients();
     }
 
     pub fn set_volume(&self, output_volume: f32) {
@@ -341,15 +306,7 @@ impl AudioOutput {
 
     pub fn play_effect(&self, effect: NotificationEvents) {
         let samples = self.sounds.get(&effect).unwrap();
-
-        let mut play_sounds = self.play_sounds.lock().unwrap();
-
-        for (val, e) in play_sounds.iter_mut().zip(samples.iter()) {
-            *val = val.saturating_add(*e);
-        }
-
-        let l = play_sounds.len();
-        play_sounds.extend(samples.iter().skip(l));
+        self.client_streams.lock().unwrap().extend(None, samples);
     }
 }
 
