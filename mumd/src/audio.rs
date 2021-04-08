@@ -1,3 +1,7 @@
+//! All things audio.
+//!
+//! Audio is handled mostly as signals from [dasp_signal]. Input/output is handled by [cpal].
+
 pub mod input;
 pub mod output;
 pub mod transformers;
@@ -27,8 +31,11 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use tokio::sync::watch;
 
+/// The sample rate used internally.
 const SAMPLE_RATE: u32 = 48000;
 
+/// All types of notifications that can be shown. Each notification can be bound to its own audio
+/// file.
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, EnumIter)]
 pub enum NotificationEvents {
     ServerConnect,
@@ -65,9 +72,11 @@ impl TryFrom<&str> for NotificationEvents {
     }
 }
 
+/// Input audio state.
 pub struct AudioInput {
     device: DefaultAudioInputDevice,
 
+    /// Voice packets received from the network.
     channel_receiver:
         Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
 }
@@ -114,10 +123,15 @@ impl AudioInput {
 
 pub struct AudioOutput {
     device: DefaultAudioOutputDevice,
+    /// The volume and mute-status of a user ID.
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
+    /// The client stream per user ID. A separate stream is kept for UDP and TCP.
+    ///
+    /// Shared with [DefaultAudioOutputDevice].
     client_streams: Arc<Mutex<ClientStream>>,
 
+    /// Which sound effect should be played on an event.
     sounds: HashMap<NotificationEvents, Vec<f32>>,
 }
 
@@ -140,6 +154,7 @@ impl AudioOutput {
         Ok(res)
     }
 
+    /// Loads sound effects, getting unspecified effects from [get_default_sfx].
     pub fn load_sound_effects(&mut self, sound_effects: &[SoundEffect]) {
         let overrides: HashMap<_, _> = sound_effects
             .iter()
@@ -153,6 +168,7 @@ impl AudioOutput {
             })
             .collect();
 
+        // This makes sure that every [NotificationEvent] is present in [self.sounds].
         self.sounds = NotificationEvents::iter()
             .map(|event| {
                 let bytes = overrides
@@ -195,6 +211,7 @@ impl AudioOutput {
             .collect();
     }
 
+    /// Decodes a voice packet.
     pub fn decode_packet_payload(
         &self,
         stream_type: VoiceStreamType,
@@ -207,11 +224,13 @@ impl AudioOutput {
             .decode_packet((stream_type, session_id), payload);
     }
 
+    /// Sets the volume of the output device.
     pub fn set_volume(&self, output_volume: f32) {
         self.device.set_volume(output_volume);
     }
 
-    pub fn set_user_volume(&self, id: u32, volume: f32) {
+    /// Sets the incoming volume of a user.
+    pub(crate) fn set_user_volume(&self, id: u32, volume: f32) {
         match self.user_volumes.lock().unwrap().entry(id) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().0 = volume;
@@ -222,6 +241,7 @@ impl AudioOutput {
         }
     }
 
+    /// Mutes another user.
     pub fn set_mute(&self, id: u32, mute: bool) {
         match self.user_volumes.lock().unwrap().entry(id) {
             Entry::Occupied(mut entry) => {
@@ -233,12 +253,14 @@ impl AudioOutput {
         }
     }
 
+    /// Queues a sound effect.
     pub fn play_effect(&self, effect: NotificationEvents) {
         let samples = self.sounds.get(&effect).unwrap();
         self.client_streams.lock().unwrap().extend(None, samples);
     }
 }
 
+/// Reads a sound effect from disk.
 // moo
 fn get_sfx(file: &str) -> Cow<'static, [u8]> {
     let mut buf: Vec<u8> = Vec::new();
@@ -251,6 +273,7 @@ fn get_sfx(file: &str) -> Cow<'static, [u8]> {
     }
 }
 
+/// Gets the default sound effect.
 fn get_default_sfx() -> Cow<'static, [u8]> {
     Cow::from(include_bytes!("fallback_sfx.wav").as_ref())
 }

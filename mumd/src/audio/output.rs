@@ -1,3 +1,4 @@
+//! Receives audio packets from the networking and plays them.
 use crate::audio::SAMPLE_RATE;
 use crate::error::{AudioError, AudioStream};
 use crate::network::VoiceStreamType;
@@ -13,6 +14,7 @@ use tokio::sync::watch;
 
 type ClientStreamKey = (VoiceStreamType, u32);
 
+/// Collected state for client opus decoders and sound effects.
 pub struct ClientStream {
     buffer_clients: HashMap<ClientStreamKey, (VecDeque<f32>, opus::Decoder)>, //TODO ring buffer?
     buffer_effects: VecDeque<f32>,
@@ -44,6 +46,7 @@ impl ClientStream {
         })
     }
 
+    /// Decodes a voice packet.
     pub fn decode_packet(&mut self, client: ClientStreamKey, payload: VoicePacketPayload) {
         match payload {
             VoicePacketPayload::Opus(bytes, _eot) => {
@@ -61,6 +64,7 @@ impl ClientStream {
         }
     }
 
+    /// Extends either a decoder queue or the buffer effect queue with some received values.
     pub fn extend(&mut self, client: Option<ClientStreamKey>, values: &[f32]) {
         let buffer = match client {
             Some(x) => &mut self.get_client(x).0,
@@ -69,6 +73,12 @@ impl ClientStream {
         buffer.extend(values.iter().copied());
     }
 }
+
+/// Adds two values in some saturating way.
+/// 
+/// Since we support [f32], [i16] and [u16] we need some way of adding two values
+/// without peaking above/below the edge values. This trait ensures that we can
+/// use all three primitive types as a generic parameter.
 
 pub trait SaturatingAdd {
     fn saturating_add(self, rhs: Self) -> Self;
@@ -107,11 +117,16 @@ pub trait AudioOutputDevice {
 pub struct DefaultAudioOutputDevice {
     config: StreamConfig,
     stream: cpal::Stream,
+    /// The client stream per user ID. A separate stream is kept for UDP and TCP.
+    ///
+    /// Shared with [super::AudioOutput].
     client_streams: Arc<Mutex<ClientStream>>,
+    /// Output volume configuration.
     volume_sender: watch::Sender<f32>,
 }
 
 impl DefaultAudioOutputDevice {
+    /// Initializes the default audio output.
     pub fn new(
         output_volume: f32,
         user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
@@ -211,6 +226,7 @@ impl AudioOutputDevice for DefaultAudioOutputDevice {
     }
 }
 
+/// Over-engineered way of handling multiple types of samples.
 pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
     user_bufs: Arc<Mutex<ClientStream>>,
     output_volume_receiver: watch::Receiver<f32>,
