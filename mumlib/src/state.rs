@@ -1,4 +1,3 @@
-use serde::export::Formatter;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
@@ -140,7 +139,7 @@ macro_rules! true_to_str {
 }
 
 impl Display for User {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{} {}{}{}{}{}",
