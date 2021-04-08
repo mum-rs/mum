@@ -9,6 +9,7 @@ CLI controller for mumd.
 """
 repository = "https://github.com/sornas/mum"
 license = "MIT"
+readme = "../README.md"
 
 [dependencies]
 mumlib = { version = "0.3", path = "../mumlib" }
