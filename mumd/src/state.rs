@@ -371,7 +371,6 @@ impl State {
                 }
 
                 self.server = None;
-                self.audio_output.clear_clients();
 
                 self.phase_watcher
                     .0
@@ -457,8 +456,6 @@ impl State {
             *self.server_mut().unwrap().session_id_mut() = Some(session);
         } else {
             // this is someone else
-            self.audio_output_mut().add_client(session);
-
             // send notification only if we've passed the connecting phase
             if matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
                 let channel_id = msg.get_channel_id();
@@ -569,7 +566,6 @@ impl State {
             }
         }
 
-        self.audio_output().remove_client(msg.get_session());
         self.server_mut()
             .unwrap()
             .users_mut()

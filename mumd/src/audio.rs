@@ -3,14 +3,13 @@ pub mod output;
 mod noise_gate;
 
 use crate::audio::input::{DefaultAudioInputDevice, AudioInputDevice};
-use crate::audio::output::ClientStream;
+use crate::audio::output::{DefaultAudioOutputDevice, AudioOutputDevice, ClientStream};
 use crate::audio::noise_gate::{from_interleaved_samples_stream, OpusEncoder, StreamingNoiseGate, StreamingSignalExt};
-use crate::error::{AudioError, AudioStream};
+use crate::error::AudioError;
 use crate::network::VoiceStreamType;
 use crate::state::StatePhase;
 
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, SampleRate, StreamConfig};
+use cpal::SampleRate;
 use dasp_interpolate::linear::Linear;
 use dasp_signal::{self as signal, Signal};
 use futures_util::stream::Stream;
@@ -119,11 +118,7 @@ impl AudioInput {
 }
 
 pub struct AudioOutput {
-    config: StreamConfig,
-    _stream: cpal::Stream,
-
-    volume_sender: watch::Sender<f32>,
-
+    device: DefaultAudioOutputDevice,
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
     client_streams: Arc<Mutex<ClientStream>>,
@@ -133,71 +128,20 @@ pub struct AudioOutput {
 
 impl AudioOutput {
     pub fn new(output_volume: f32) -> Result<Self, AudioError> {
-        let sample_rate = SampleRate(SAMPLE_RATE);
-
-        let host = cpal::default_host();
-        let output_device = host
-            .default_output_device()
-            .ok_or(AudioError::NoDevice(AudioStream::Output))?;
-        let output_supported_config = output_device
-            .supported_output_configs()
-            .map_err(|e| AudioError::NoConfigs(AudioStream::Output, e))?
-            .find_map(|c| {
-                if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
-                    Some(c)
-                } else {
-                    None
-                }
-            })
-            .ok_or(AudioError::NoSupportedConfig(AudioStream::Output))?
-            .with_sample_rate(sample_rate);
-        let output_supported_sample_format = output_supported_config.sample_format();
-        let output_config: StreamConfig = output_supported_config.into();
-
-        let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
-
         let user_volumes = Arc::new(std::sync::Mutex::new(HashMap::new()));
-        let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
 
-        let client_streams = Arc::new(std::sync::Mutex::new(ClientStream::new(sample_rate.0, output_config.channels)));
-        let output_stream = match output_supported_sample_format {
-            SampleFormat::F32 => output_device.build_output_stream(
-                &output_config,
-                output::curry_callback::<f32>(
-                    Arc::clone(&client_streams),
-                    output_volume_receiver,
-                    Arc::clone(&user_volumes),
-                ),
-                err_fn,
-            ),
-            SampleFormat::I16 => output_device.build_output_stream(
-                &output_config,
-                output::curry_callback::<i16>(
-                    Arc::clone(&client_streams),
-                    output_volume_receiver,
-                    Arc::clone(&user_volumes),
-                ),
-                err_fn,
-            ),
-            SampleFormat::U16 => output_device.build_output_stream(
-                &output_config,
-                output::curry_callback::<u16>(
-                    Arc::clone(&client_streams),
-                    output_volume_receiver,
-                    Arc::clone(&user_volumes),
-                ),
-                err_fn,
-            ),
-        }
-        .map_err(|e| AudioError::InvalidStream(AudioStream::Output, e))?;
-        output_stream.play().map_err(|e| AudioError::OutputPlayError(e))?;
+        let default = DefaultAudioOutputDevice::new(
+            output_volume,
+            Arc::clone(&user_volumes),
+        )?;
+        default.play()?;
+
+        let client_streams = default.get_client_streams();
 
         let mut res = Self {
-            config: output_config,
-            _stream: output_stream,
-            client_streams,
+            device: default,
             sounds: HashMap::new(),
-            volume_sender: output_volume_sender,
+            client_streams,
             user_volumes,
         };
         res.load_sound_effects(&[]);
@@ -246,7 +190,7 @@ impl AudioOutput {
                     .until_exhausted()
                     // if the source audio is stereo and is being played as mono, discard the right audio
                     .flat_map(
-                        |e| if self.config.channels == 1 {
+                        |e| if self.device.get_num_channels() == 1 {
                             vec![e[0]]
                         } else {
                             e.to_vec()
@@ -262,24 +206,12 @@ impl AudioOutput {
         self.client_streams.lock().unwrap().decode_packet(
             Some((stream_type, session_id)),
             payload,
-            self.config.channels as usize,
+            self.device.get_num_channels(),
         );
     }
 
-    pub fn add_client(&self, session_id: u32) {
-        self.client_streams.lock().unwrap().add_client(session_id);
-    }
-
-    pub fn remove_client(&self, session_id: u32) {
-        self.client_streams.lock().unwrap().remove_client(session_id);
-    }
-
-    pub fn clear_clients(&self) {
-        self.client_streams.lock().unwrap().clear_clients();
-    }
-
     pub fn set_volume(&self, output_volume: f32) {
-        self.volume_sender.send(output_volume).unwrap();
+        self.device.set_volume(output_volume);
     }
 
     pub fn set_user_volume(&self, id: u32, volume: f32) {

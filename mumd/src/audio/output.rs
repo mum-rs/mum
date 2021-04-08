@@ -1,10 +1,13 @@
 use crate::network::VoiceStreamType;
-use log::*;
+use crate::audio::SAMPLE_RATE;
+use crate::error::{AudioError, AudioStream};
 
-use cpal::{OutputCallbackInfo, Sample};
+use log::*;
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{SampleFormat, SampleRate, StreamConfig, OutputCallbackInfo, Sample};
 use mumble_protocol::voice::VoicePacketPayload;
 use opus::Channels;
-use std::collections::{HashMap, VecDeque, hash_map::Entry};
+use std::collections::{HashMap, VecDeque};
 use std::ops::AddAssign;
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
@@ -58,53 +61,13 @@ impl ClientStream {
             F: FnOnce(ConsumerInput) {
         let iter = self.buffer.iter_mut();
         consumer(iter);
+        //remove empty Vec
+        self.buffer.retain(|_, v| v.is_empty());
     }
 
     pub fn extend(&mut self, key: ClientStreamKey, values: &[f32]) {
-        match self.buffer.entry(key) {
-            Entry::Occupied(mut entry) => {
-                entry.get_mut().extend(values.iter().copied());
-            }
-            Entry::Vacant(_) => {
-                match key {
-                    None => warn!("Can't find session None"),
-                    Some(key) => warn!("Can't find session id {}", key.1),
-                }
-            }
-        }
-    }
-
-    pub fn add_client(&mut self, session_id: u32) {
-        for stream_type in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
-            match self.buffer.entry(Some((*stream_type, session_id))) {
-                Entry::Occupied(_) => {
-                    warn!("Session id {} already exists", session_id);
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(VecDeque::new());
-                }
-            }
-        }
-    }
-
-    pub fn remove_client(&mut self, session_id: u32) {
-        for stream_type in [VoiceStreamType::TCP, VoiceStreamType::UDP].iter() {
-            match self.buffer.entry(Some((*stream_type, session_id))) {
-                Entry::Occupied(entry) => {
-                    entry.remove();
-                }
-                Entry::Vacant(_) => {
-                    warn!(
-                        "Tried to remove session id {} that doesn't exist",
-                        session_id
-                    );
-                }
-            }
-        }
-    }
-
-    pub fn clear_clients(&mut self) {
-        self.buffer.retain(|k , _| k.is_none());
+        let entry = self.buffer.entry(key).or_insert(VecDeque::new());
+        entry.extend(values.iter().copied());
     }
 }
 
@@ -131,6 +94,114 @@ impl SaturatingAdd for i16 {
 impl SaturatingAdd for u16 {
     fn saturating_add(self, rhs: Self) -> Self {
         u16::saturating_add(self, rhs)
+    }
+}
+
+pub trait AudioOutputDevice {
+    fn play(&self) -> Result<(), AudioError>;
+    fn pause(&self) -> Result<(), AudioError>;
+    fn set_volume(&self, volume: f32);
+    fn get_num_channels(&self) -> usize;
+    fn get_client_streams(&self) -> Arc<Mutex<ClientStream>>;
+}
+
+pub struct DefaultAudioOutputDevice {
+    config: StreamConfig,
+    _stream: cpal::Stream,
+    client_streams: Arc<Mutex<ClientStream>>,
+    volume_sender: watch::Sender<f32>,
+}
+
+impl DefaultAudioOutputDevice {
+    pub fn new(
+        output_volume: f32,
+        user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
+    ) -> Result<Self, AudioError> {
+        let sample_rate = SampleRate(SAMPLE_RATE);
+
+        let host = cpal::default_host();
+        let output_device = host
+            .default_output_device()
+            .ok_or(AudioError::NoDevice(AudioStream::Output))?;
+        let output_supported_config = output_device
+            .supported_output_configs()
+            .map_err(|e| AudioError::NoConfigs(AudioStream::Output, e))?
+            .find_map(|c| {
+                if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
+                    Some(c)
+                } else {
+                    None
+                }
+            })
+            .ok_or(AudioError::NoSupportedConfig(AudioStream::Output))?
+            .with_sample_rate(sample_rate);
+        let output_supported_sample_format = output_supported_config.sample_format();
+        let output_config: StreamConfig = output_supported_config.into();
+        let client_streams = Arc::new(std::sync::Mutex::new(ClientStream::new(sample_rate.0, output_config.channels)));
+
+        let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
+
+        let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
+
+        let output_stream = match output_supported_sample_format {
+            SampleFormat::F32 => output_device.build_output_stream(
+                &output_config,
+                curry_callback::<f32>(
+                    Arc::clone(&client_streams),
+                    output_volume_receiver,
+                    user_volumes,
+                ),
+                err_fn,
+            ),
+            SampleFormat::I16 => output_device.build_output_stream(
+                &output_config,
+                curry_callback::<i16>(
+                    Arc::clone(&client_streams),
+                    output_volume_receiver,
+                    user_volumes,
+                ),
+                err_fn,
+            ),
+            SampleFormat::U16 => output_device.build_output_stream(
+                &output_config,
+                curry_callback::<u16>(
+                    Arc::clone(&client_streams),
+                    output_volume_receiver,
+                    user_volumes,
+                ),
+                err_fn,
+            ),
+        }
+        .map_err(|e| AudioError::InvalidStream(AudioStream::Output, e))?;
+
+        Ok(Self {
+            config: output_config,
+            _stream: output_stream,
+            volume_sender: output_volume_sender,
+            client_streams,
+        })
+    }
+}
+
+impl AudioOutputDevice for DefaultAudioOutputDevice {
+    fn play(&self) -> Result<(), AudioError> {
+        self._stream.play().map_err(|e| AudioError::OutputPlayError(e))
+    }
+
+    fn pause(&self) -> Result<(), AudioError> {
+        self._stream.pause().map_err(|e| AudioError::OutputPauseError(e))
+    }
+
+    fn set_volume(&self, volume: f32) {
+        self.volume_sender.send(volume).unwrap();
+    }
+
+    fn get_num_channels(&self) -> usize {
+        self.config.channels as usize
+    }
+
+    fn get_client_streams(&self) -> Arc<Mutex<ClientStream>> {
+        Arc::clone(&self.client_streams)
     }
 }
 
