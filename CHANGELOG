@@ -59,24 +59,15 @@ Added
 ~~~~~
 
  * Published to crates.io. You can now install with +cargo install {mumctl,mumd}+!
-
  * Support for macOS.
-
  * Notifications via libnotify (behind a feature-gate).
-
  * List configured servers, if they're online and how many users are
    connected with +mumctl status+.
-
  * Configure your own outgoing volume and others' ingoing volume with +mumctl config+.
-
  * Mute/deafen yourself with +mumctl {mute,deafen}+.
-
  * Locally mute others with +mumctl user <user> mute+.
-
  * Sound effects.
-
  * Short about-texts when using +--help+.
-
  * Man pages.
 
 Changed
@@ -104,17 +95,15 @@ Added
 ~~~~~
 
  * Connect to and disconnect from servers with +mumctl server {connect,disconnect}+.
-
  * Save and reconfigure servers with +mumctl server {add,remove,rename,config}+.
-
  * List channels and connect to them with +mumctl channel {list,join}+.
-
  * Store configuration in a file.
-
  * Generate CLI completions for zsh, bash and fish with +mumctl completions --{zsh,bash,fish}+.
 
 Links
 -----
 
-[0.3]: https://github.com/sornas/mum/tree/v0.3
-[0.2]: https://github.com/sornas/mum/tree/v0.2
+[0.3.2]: https://github.com/mum-rs/mum/tree/v0.3.2
+[0.3.1]: https://github.com/mum-rs/mum/tree/v0.3.1
+[0.3.0]: https://github.com/mum-rs/mum/tree/v0.3.0
+[0.2.0]: https://github.com/mum-rs/mum/tree/v0.2.0
