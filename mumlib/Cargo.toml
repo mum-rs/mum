@@ -9,6 +9,7 @@ Exposed parts of mum.
 """
 repository = "https://github.com/sornas/mum"
 license = "MIT"
+readme = "../README.md"
 
 [dependencies]
 colored = "2"
