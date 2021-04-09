@@ -13,6 +13,8 @@ pub enum Error {
     InvalidServerPassword,
 }
 
+impl std::error::Error for Error {}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -43,6 +45,9 @@ impl fmt::Display for ChannelIdentifierError {
     }
 }
 
+impl std::error::Error for ChannelIdentifierError {}
+
+#[derive(Debug)]
 pub enum ConfigError {
     InvalidConfig,
     TOMLErrorSer(toml::ser::Error),
@@ -51,6 +56,8 @@ pub enum ConfigError {
     WontCreateFile,
     IOError(std::io::Error),
 }
+
+impl std::error::Error for ConfigError {}
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

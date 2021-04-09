@@ -9,6 +9,7 @@ Mumble client daemon.
 """
 repository = "https://github.com/sornas/mum"
 license = "MIT"
+readme = "../README.md"
 
 [features]
 default = ["notifications"]
