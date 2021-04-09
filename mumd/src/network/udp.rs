@@ -33,11 +33,7 @@ pub async fn handle(
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
 ) -> Result<(), UdpError> {
-<<<<<<< HEAD
-    let receiver = state.lock().await.audio_input().receiver();
-=======
-    let receiver = state.read().unwrap().audio().input_receiver();
->>>>>>> 48f0d38 (Replace State tokio::sync::Mutex by std::sync::RwLock)
+    let receiver = state.read().unwrap().audio_input().receiver();
 
     loop {
         let connection_info = 'data: loop {
@@ -153,15 +149,9 @@ async fn listen(
                 ..
             } => {
                 state
-<<<<<<< HEAD
-                    .lock() //TODO change so that we only have to lock audio and not the whole state
-                    .await
-                    .audio_output()
-=======
                     .read()
                     .unwrap()
-                    .audio()
->>>>>>> 48f0d38 (Replace State tokio::sync::Mutex by std::sync::RwLock)
+                    .audio_output()
                     .decode_packet_payload(VoiceStreamType::UDP, session_id, payload);
             }
         }
