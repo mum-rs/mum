@@ -12,7 +12,7 @@ license = "MIT"
 readme = "../README.md"
 
 [dependencies]
-mumlib = { version = "0.3", path = "../mumlib" }
+mumlib = { version = "0.4", path = "../mumlib" }
 
 bincode = "1"
 colored = "2"

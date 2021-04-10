@@ -17,7 +17,7 @@ default = ["notifications"]
 notifications = ["libnotify"]
 
 [dependencies]
-mumlib = { version = "0.3", path = "../mumlib" }
+mumlib = { version = "0.4", path = "../mumlib" }
 
 cpal = "0.13"
 bytes = "1.0"
