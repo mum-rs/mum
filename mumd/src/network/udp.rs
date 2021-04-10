@@ -3,6 +3,7 @@ use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 
 use futures_util::{FutureExt, SinkExt, StreamExt};
+use futures_util::future::join4;
 use futures_util::stream::{SplitSink, SplitStream, Stream};
 use log::*;
 use mumble_protocol::crypt::ClientCryptState;
@@ -12,16 +13,13 @@ use mumble_protocol::Serverbound;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::net::{Ipv6Addr, SocketAddr};
-use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{atomic::{AtomicU64, Ordering}, Arc, RwLock};
 use tokio::{join, net::UdpSocket};
 use tokio::sync::{mpsc, watch, Mutex};
 use tokio::time::{interval, Duration};
 use tokio_util::udp::UdpFramed;
 
 use super::{run_until, VoiceStreamType};
-use futures_util::future::join4;
 
 pub type PingRequest = (u64, SocketAddr, Box<dyn FnOnce(PongPacket)>);
 
@@ -228,7 +226,7 @@ pub async fn handle_pings(
         .await
         .expect("Failed to bind UDP socket");
 
-    let pending = Rc::new(Mutex::new(HashMap::new()));
+    let pending = Mutex::new(HashMap::new());
 
     let sender_handle = async {
         while let Some((id, socket_addr, handle)) = ping_request_receiver.recv().await {
