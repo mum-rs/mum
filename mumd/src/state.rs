@@ -43,7 +43,7 @@ pub enum ExecutionContext {
     Now(Box<dyn FnOnce() -> mumlib::error::Result<Option<CommandResponse>>>),
     Ping(
         Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
-        Box<dyn FnOnce(PongPacket) -> mumlib::error::Result<Option<CommandResponse>>>,
+        Box<dyn FnOnce(PongPacket) -> mumlib::error::Result<Option<CommandResponse>> + Send>,
     ),
 }
 

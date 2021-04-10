@@ -515,15 +515,20 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                 .collect();
             for (server, response) in config.servers.iter().zip(queries) {
                 match response.join().unwrap() {
-                    Ok(Ok(response)) => {
-                        if let Some(CommandResponse::ServerStatus {
-                            users, max_users, ..
-                        }) = response
+                    Ok(Ok(Some(response))) => {
+                        if let CommandResponse::ServerStatus {
+                            users,
+                            max_users,
+                            ..
+                        } = response
                         {
-                            println!("{} [{}/{}]", server.name, users, max_users)
+                            println!("{} [{}/{}]", server.name, users, max_users);
                         } else {
-                            unreachable!()
+                            unreachable!();
                         }
+                    }
+                    Ok(Ok(None)) => {
+                        println!("{} offline", server.name);
                     }
                     Ok(Err(e)) => {
                         error!("{}", e);

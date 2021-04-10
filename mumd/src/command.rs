@@ -57,7 +57,9 @@ pub async fn handle(
                             id,
                             addr,
                             Box::new(move |packet| {
-                                response_sender.send(converter(packet)).unwrap();
+                                if let Some(packet) = packet {
+                                    response_sender.send(converter(packet)).unwrap();
+                                }
                             }),
                         ));
                         if res.is_err() {
