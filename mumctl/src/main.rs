@@ -500,6 +500,15 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
             if config.servers.is_empty() {
                 return Err(CliError::NoServers)?;
             }
+
+            let longest = config
+                .servers
+                .iter()
+                .map(|s| s.name.len())
+                .max()
+                .unwrap()  // ok since !config.servers.is_empty() above
+                + 1;
+
             let queries: Vec<_> = config
                 .servers
                 .iter()
@@ -513,6 +522,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     })
                 })
                 .collect();
+
             for (server, response) in config.servers.iter().zip(queries) {
                 match response.join().unwrap() {
                     Ok(Ok(Some(response))) => {
@@ -522,13 +532,13 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                             ..
                         } = response
                         {
-                            println!("{} [{}/{}]", server.name, users, max_users);
+                            println!("{0:<1$} [{2:}/{3:}]", server.name, longest, users, max_users);
                         } else {
                             unreachable!();
                         }
                     }
                     Ok(Ok(None)) => {
-                        println!("{} offline", server.name);
+                        println!("{0:<1$} offline", server.name, longest);
                     }
                     Ok(Err(e)) => {
                         error!("{}", e);
