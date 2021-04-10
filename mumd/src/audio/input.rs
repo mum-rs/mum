@@ -33,11 +33,11 @@ pub trait AudioInputDevice {
     fn pause(&self) -> Result<(), AudioError>;
     fn set_volume(&self, volume: f32);
     fn sample_receiver(&mut self) -> futures_channel::mpsc::Receiver<f32>;
-    fn get_num_channels(&self) -> usize;
+    fn num_channels(&self) -> usize;
 }
 
 pub struct DefaultAudioInputDevice {
-    _stream: cpal::Stream,
+    stream: cpal::Stream,
     sample_receiver: Option<futures_channel::mpsc::Receiver<f32>>,
     volume_sender: watch::Sender<f32>,
     channels: u16,
@@ -105,7 +105,7 @@ impl DefaultAudioInputDevice {
         .map_err(|e| AudioError::InvalidStream(AudioStream::Input, e))?;
 
         let res = Self {
-            _stream: input_stream,
+            stream: input_stream,
             sample_receiver: Some(sample_receiver),
             volume_sender,
             channels: input_config.channels,
@@ -116,10 +116,10 @@ impl DefaultAudioInputDevice {
 
 impl AudioInputDevice for DefaultAudioInputDevice {
     fn play(&self) -> Result<(), AudioError> {
-        self._stream.play().map_err(|e| AudioError::InputPlayError(e))
+        self.stream.play().map_err(|e| AudioError::InputPlayError(e))
     }
     fn pause(&self) -> Result<(), AudioError> {
-        self._stream.pause().map_err(|e| AudioError::InputPauseError(e))
+        self.stream.pause().map_err(|e| AudioError::InputPauseError(e))
     }
     fn set_volume(&self, volume: f32) {
         self.volume_sender.send(volume).unwrap();
@@ -128,7 +128,7 @@ impl AudioInputDevice for DefaultAudioInputDevice {
         let ret = self.sample_receiver.take();
         ret.unwrap()
     }
-    fn get_num_channels(&self) -> usize {
+    fn num_channels(&self) -> usize {
         self.channels as usize
     }
 }

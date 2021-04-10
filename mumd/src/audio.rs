@@ -68,7 +68,7 @@ impl TryFrom<&str> for NotificationEvents {
 }
 
 pub struct AudioInput {
-    _device: DefaultAudioInputDevice,
+    device: DefaultAudioInputDevice,
 
     channel_receiver: Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
 }
@@ -81,7 +81,7 @@ impl AudioInput {
         let opus_stream = OpusEncoder::new(
                 4,
                 sample_rate.0,
-                default.get_num_channels(),
+                default.num_channels(),
                 StreamingSignalExt::into_interleaved_samples(
                     StreamingNoiseGate::new(
                         from_interleaved_samples_stream::<_, f32>(default.sample_receiver()), //TODO group frames correctly
@@ -102,7 +102,7 @@ impl AudioInput {
         default.play()?;
 
         let res = Self {
-            _device: default,
+            device: default,
             channel_receiver: Arc::new(tokio::sync::Mutex::new(Box::new(opus_stream))),
         };
         Ok(res)
@@ -113,7 +113,7 @@ impl AudioInput {
     }
 
     pub fn set_volume(&self, input_volume: f32) {
-        self._device.set_volume(input_volume);
+        self.device.set_volume(input_volume);
     }
 }
 
@@ -136,7 +136,7 @@ impl AudioOutput {
         )?;
         default.play()?;
 
-        let client_streams = default.get_client_streams();
+        let client_streams = default.client_streams();
 
         let mut res = Self {
             device: default,
@@ -190,7 +190,7 @@ impl AudioOutput {
                     .until_exhausted()
                     // if the source audio is stereo and is being played as mono, discard the right audio
                     .flat_map(
-                        |e| if self.device.get_num_channels() == 1 {
+                        |e| if self.device.num_channels() == 1 {
                             vec![e[0]]
                         } else {
                             e.to_vec()
@@ -204,9 +204,8 @@ impl AudioOutput {
 
     pub fn decode_packet_payload(&self, stream_type: VoiceStreamType, session_id: u32, payload: VoicePacketPayload) {
         self.client_streams.lock().unwrap().decode_packet(
-            Some((stream_type, session_id)),
+            (stream_type, session_id),
             payload,
-            self.device.get_num_channels(),
         );
     }
 
