@@ -62,7 +62,7 @@ impl ClientStream {
         let iter = self.buffer.iter_mut();
         consumer(iter);
         //remove empty Vec
-        self.buffer.retain(|_, v| v.is_empty());
+        self.buffer.retain(|_, v| !v.is_empty());
     }
 
     pub fn extend(&mut self, key: ClientStreamKey, values: &[f32]) {
