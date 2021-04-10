@@ -230,6 +230,7 @@ pub async fn handle_pings(
 
     let sender_handle = async {
         while let Some((id, socket_addr, handle)) = ping_request_receiver.recv().await {
+            debug!("Sending ping {} to {}", id, socket_addr);
             let packet = PingPacket { id };
             let packet: [u8; 12] = packet.into();
             udp_socket.send_to(&packet, &socket_addr).await.unwrap();

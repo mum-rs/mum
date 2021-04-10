@@ -49,6 +49,7 @@ pub async fn handle(
             }
             ExecutionContext::Ping(generator, converter) => {
                 let ret = generator();
+                debug!("Ping generated: {:?}", ret);
                 match ret {
                     Ok(addr) => {
                         let id = ping_count.fetch_add(1, Ordering::Relaxed);
