@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "mumctl"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bincode",
  "colored",
@@ -852,7 +852,7 @@ dependencies = [
 
 [[package]]
 name = "mumd"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bincode",
  "bytes",
@@ -883,7 +883,7 @@ dependencies = [
 
 [[package]]
 name = "mumlib"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "colored",
  "dirs",
