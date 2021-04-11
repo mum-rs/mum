@@ -43,7 +43,7 @@ pub enum ExecutionContext {
     Now(Box<dyn FnOnce() -> mumlib::error::Result<Option<CommandResponse>>>),
     Ping(
         Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
-        Box<dyn FnOnce(PongPacket) -> mumlib::error::Result<Option<CommandResponse>> + Send>,
+        Box<dyn FnOnce(Option<PongPacket>) -> mumlib::error::Result<Option<CommandResponse>> + Send>,
     ),
 }
 
@@ -387,7 +387,7 @@ impl State {
                     }
                 }),
                 Box::new(move |pong| {
-                    Ok(Some(CommandResponse::ServerStatus {
+                    Ok(pong.map(|pong| CommandResponse::ServerStatus {
                         version: pong.version,
                         users: pong.users,
                         max_users: pong.max_users,
