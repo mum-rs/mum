@@ -14,9 +14,9 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::convert::TryFrom;
 use std::net::{Ipv6Addr, SocketAddr};
 use std::sync::{atomic::{AtomicU64, Ordering}, Arc, RwLock};
-use tokio::{join, net::UdpSocket, select};
+use tokio::{join, net::UdpSocket};
 use tokio::sync::{mpsc, oneshot, watch, Mutex};
-use tokio::time::{interval, Duration};
+use tokio::time::{interval, timeout, Duration};
 use tokio_util::udp::UdpFramed;
 
 use super::{run_until, VoiceStreamType};
@@ -246,20 +246,19 @@ pub async fn handle_pings(
             }
 
             tokio::spawn(async move {
-                let rx = rx.fuse();
-                let timeout = async {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-                };
-                handle(select! {
-                    r = rx => match r {
-                        Ok(r) => Some(r),
-                        Err(_) => {
-                            warn!("Ping response sender dropped");
+                handle(
+                    match timeout(Duration::from_secs(1), rx).await {
+                        Ok(Ok(r)) => Some(r),
+                        Ok(Err(_)) => {
+                            warn!("Ping response sender for server {}, ping id {} dropped", socket_addr, id);
                             None
                         }
-                    },
-                    _ = timeout => None,
-                });
+                        Err(_) => {
+                            debug!("Server {} timed out when sending ping id {}", socket_addr, id);
+                            None
+                        }
+                    }
+                );
             });
         }
     };
