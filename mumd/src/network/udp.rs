@@ -226,7 +226,7 @@ pub async fn handle_pings(
         .await
         .expect("Failed to bind UDP socket");
 
-    let pending = Arc::new(Mutex::new(HashMap::new()));
+    let pending = Mutex::new(HashMap::new());
 
     let sender = async {
         while let Some((id, socket_addr, handle)) = ping_request_receiver.recv().await {
