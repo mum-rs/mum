@@ -230,14 +230,14 @@ pub async fn handle_pings(
 
     let sender = async {
         while let Some((id, socket_addr, handle)) = ping_request_receiver.recv().await {
-            debug!("Sending ping {} to {}", id, socket_addr);
+            debug!("Sending ping with id {} to {}", id, socket_addr);
             let packet = PingPacket { id };
             let packet: [u8; 12] = packet.into();
             udp_socket.send_to(&packet, &socket_addr).await.unwrap();
             let (tx, rx) = oneshot::channel();
             match pending.lock().await.entry(id) {
                 Entry::Occupied(_) => {
-                    warn!("Tried to send duplicate ping {}", id);
+                    warn!("Tried to send duplicate ping with id {}", id);
                     continue;
                 }
                 Entry::Vacant(v) => {
@@ -272,7 +272,6 @@ pub async fn handle_pings(
                 warn!("Ping response had length {}, expected 24", read);
                 continue;
             }
-            assert_eq!(read, 24); // just checked
 
             let packet = PongPacket::try_from(buf.as_slice()).unwrap();
 
@@ -280,11 +279,11 @@ pub async fn handle_pings(
                 Entry::Occupied(o) => {
                     let id = *o.key();
                     if o.remove().send(packet).is_err() {
-                        debug!("Received response to ping {} too late", id);
+                        debug!("Received response to ping with id {} too late", id);
                     }
                 }
                 Entry::Vacant(v) => {
-                    warn!("Received ping {} that we didn't send", v.key());
+                    warn!("Received ping with id {} that we didn't send", v.key());
                 }
             }
         }
