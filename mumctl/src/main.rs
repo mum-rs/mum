@@ -301,7 +301,7 @@ fn match_opt() -> Result<(), Error> {
                 }
             }
             _ => {
-                return Err(CliError::ConfigKeyNotFound(key))?;
+                return Err(CliError::ConfigKeyNotFound(key).into());
             }
         },
         Command::ConfigReload => {
@@ -477,7 +477,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
             password,
         } => {
             if config.servers.iter().any(|s| s.name == name) {
-                return Err(CliError::ServerAlreadyExists(name))?;
+                return Err(CliError::ServerAlreadyExists(name).into());
             } else {
                 config.servers.push(ServerConfig {
                     name,
@@ -498,7 +498,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
         }
         Server::List => {
             if config.servers.is_empty() {
-                return Err(CliError::NoServers)?;
+                return Err(CliError::NoServers.into());
             }
 
             let longest = config
@@ -542,11 +542,11 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     }
                     Ok(Err(e)) => {
                         error!("{}", e);
-                        return Err(e)?;
+                        return Err(e.into());
                     }
                     Err(e) => {
                         error!("{}", e);
-                        return Err(e)?;
+                        return Err(e.into());
                     }
                 }
             }
