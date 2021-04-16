@@ -112,7 +112,7 @@ pub async fn handle(
         let (phase_watcher, input_receiver) = {
             let state_lock = state.read().unwrap();
             (state_lock.phase_receiver(),
-                state_lock.audio().input_receiver())
+                state_lock.audio_input().receiver())
         };
         let event_queue = TcpEventQueue::new();
 
@@ -362,7 +362,7 @@ async fn listen(
                         state
                             .read()
                             .unwrap()
-                            .audio()
+                            .audio_output()
                             .decode_packet_payload(
                                 VoiceStreamType::TCP,
                                 session_id,

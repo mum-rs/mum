@@ -2,7 +2,7 @@ pub mod channel;
 pub mod server;
 pub mod user;
 
-use crate::audio::{Audio, NotificationEvents};
+use crate::audio::{AudioInput, AudioOutput, NotificationEvents};
 use crate::error::StateError;
 use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::network::tcp::{TcpEvent, TcpEventData};
@@ -57,7 +57,8 @@ pub enum StatePhase {
 pub struct State {
     config: Config,
     server: Option<Server>,
-    audio: Audio,
+    audio_input: AudioInput,
+    audio_output: AudioOutput,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
 }
@@ -66,15 +67,18 @@ impl State {
     pub fn new() -> Result<Self, StateError> {
         let config = mumlib::config::read_default_cfg()?;
         let phase_watcher = watch::channel(StatePhase::Disconnected);
-        let audio = Audio::new(
+        let audio_input = AudioInput::new(
             config.audio.input_volume.unwrap_or(1.0),
-            config.audio.output_volume.unwrap_or(1.0),
             phase_watcher.1.clone(),
+        ).map_err(|e| StateError::AudioError(e))?;
+        let audio_output = AudioOutput::new(
+            config.audio.output_volume.unwrap_or(1.0),
         ).map_err(|e| StateError::AudioError(e))?;
         let mut state = Self {
             config,
             server: None,
-            audio,
+            audio_input,
+            audio_output,
             phase_watcher,
         };
         state.reload_config();
@@ -176,13 +180,13 @@ impl State {
                 let mut new_deaf = None;
                 if let Some((mute, deafen)) = action {
                     if server.deafened() != deafen {
-                        self.audio.play_effect(if deafen {
+                        self.audio_output.play_effect(if deafen {
                             NotificationEvents::Deafen
                         } else {
                             NotificationEvents::Undeafen
                         });
                     } else if server.muted() != mute {
-                        self.audio.play_effect(if mute {
+                        self.audio_output.play_effect(if mute {
                             NotificationEvents::Mute
                         } else {
                             NotificationEvents::Unmute
@@ -207,7 +211,7 @@ impl State {
                 now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
             }
             Command::InputVolumeSet(volume) => {
-                self.audio.set_input_volume(volume);
+                self.audio_input.set_volume(volume);
                 now!(Ok(None))
             }
             Command::MuteOther(string, toggle) => {
@@ -240,7 +244,7 @@ impl State {
 
                 if let Some(action) = action {
                     user.set_suppressed(action);
-                    self.audio.set_mute(id, action);
+                    self.audio_output.set_mute(id, action);
                 }
 
                 return now!(Ok(None));
@@ -269,13 +273,13 @@ impl State {
                 let mut new_mute = None;
                 if let Some((mute, deafen)) = action {
                     if server.deafened() != deafen {
-                        self.audio.play_effect(if deafen {
+                        self.audio_output.play_effect(if deafen {
                             NotificationEvents::Deafen
                         } else {
                             NotificationEvents::Undeafen
                         });
                     } else if server.muted() != mute {
-                        self.audio.play_effect(if mute {
+                        self.audio_output.play_effect(if mute {
                             NotificationEvents::Mute
                         } else {
                             NotificationEvents::Unmute
@@ -301,7 +305,7 @@ impl State {
                 now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
             }
             Command::OutputVolumeSet(volume) => {
-                self.audio.set_output_volume(volume);
+                self.audio_output.set_volume(volume);
                 now!(Ok(None))
             }
             Command::Ping => {
@@ -367,13 +371,12 @@ impl State {
                 }
 
                 self.server = None;
-                self.audio.clear_clients();
 
                 self.phase_watcher
                     .0
                     .send(StatePhase::Disconnected)
                     .unwrap();
-                self.audio.play_effect(NotificationEvents::ServerDisconnect);
+                self.audio_output.play_effect(NotificationEvents::ServerDisconnect);
                 now!(Ok(None))
             }
             Command::ServerStatus { host, port } => ExecutionContext::Ping(
@@ -420,7 +423,7 @@ impl State {
                     Some(v) => v,
                 };
 
-                self.audio.set_user_volume(user_id, volume);
+                self.audio_output.set_user_volume(user_id, volume);
                 now!(Ok(None))
             }
         }
@@ -453,8 +456,6 @@ impl State {
             *self.server_mut().unwrap().session_id_mut() = Some(session);
         } else {
             // this is someone else
-            self.audio_mut().add_client(session);
-
             // send notification only if we've passed the connecting phase
             if matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
                 let channel_id = msg.get_channel_id();
@@ -470,7 +471,7 @@ impl State {
                         ));
                     }
 
-                    self.audio.play_effect(NotificationEvents::UserConnected);
+                    self.audio_output.play_effect(NotificationEvents::UserConnected);
                 }
             }
         }
@@ -524,7 +525,7 @@ impl State {
                     } else {
                         warn!("{} moved to invalid channel {}", user.name(), to_channel);
                     }
-                    self.audio.play_effect(if from_channel == this_channel {
+                    self.audio_output.play_effect(if from_channel == this_channel {
                         NotificationEvents::UserJoinedChannel
                     } else {
                         NotificationEvents::UserLeftChannel
@@ -559,13 +560,12 @@ impl State {
         let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
         let other_channel = self.get_users_channel(msg.get_session());
         if this_channel == other_channel {
-            self.audio.play_effect(NotificationEvents::UserDisconnected);
+            self.audio_output.play_effect(NotificationEvents::UserDisconnected);
             if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
                 notifications::send(format!("{} disconnected", &user.name()));
             }
         }
 
-        self.audio().remove_client(msg.get_session());
         self.server_mut()
             .unwrap()
             .users_mut()
@@ -581,13 +581,13 @@ impl State {
             Err(e) => error!("Couldn't read config: {}", e),
         }
         if let Some(input_volume) = self.config.audio.input_volume {
-            self.audio.set_input_volume(input_volume);
+            self.audio_input.set_volume(input_volume);
         }
         if let Some(output_volume) = self.config.audio.output_volume {
-            self.audio.set_output_volume(output_volume);
+            self.audio_output.set_volume(output_volume);
         }
         if let Some(sound_effects) = &self.config.audio.sound_effects {
-            self.audio.load_sound_effects(sound_effects);
+            self.audio_output.load_sound_effects(sound_effects);
         }
     }
 
@@ -600,14 +600,20 @@ impl State {
 
     pub fn initialized(&self) {
         self.broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
-        self.audio.play_effect(NotificationEvents::ServerConnect);
+        self.audio_output.play_effect(NotificationEvents::ServerConnect);
     }
 
-    pub fn audio(&self) -> &Audio {
-        &self.audio
+    pub fn audio_input(&self) -> &AudioInput {
+        &self.audio_input
     }
-    pub fn audio_mut(&mut self) -> &mut Audio {
-        &mut self.audio
+    pub fn audio_output(&self) -> &AudioOutput {
+        &self.audio_output
+    }
+    pub fn audio_input_mut(&mut self) -> &mut AudioInput {
+        &mut self.audio_input
+    }
+    pub fn audio_output_mut(&mut self) -> &mut AudioOutput {
+        &mut self.audio_output
     }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
         self.phase_watcher.1.clone()
