@@ -109,7 +109,13 @@ async fn receive_commands(
 
                     sender.send((command, tx)).unwrap();
 
-                    let response = rx.await.unwrap();
+                    let response = match rx.await {
+                        Ok(r) => r,
+                        Err(_) => {
+                            error!("Internal command response sender dropped");
+                            Ok(None)
+                        }
+                    };
                     let mut serialized = BytesMut::new();
                     bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
 

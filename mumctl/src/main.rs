@@ -3,7 +3,11 @@ use log::*;
 use mumlib::command::{Command as MumCommand, CommandResponse};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
-use std::{fmt,io::{self, BufRead, Read, Write}, iter, os::unix::net::UnixStream};
+use std::fmt;
+use std::io::{self, BufRead, Read, Write};
+use std::iter;
+use std::os::unix::net::UnixStream;
+use std::thread;
 use structopt::{clap::Shell, StructOpt};
 
 const INDENTATION: &str = "  ";
@@ -297,7 +301,7 @@ fn match_opt() -> Result<(), Error> {
                 }
             }
             _ => {
-                return Err(CliError::ConfigKeyNotFound(key))?;
+                return Err(CliError::ConfigKeyNotFound(key).into());
             }
         },
         Command::ConfigReload => {
@@ -363,7 +367,7 @@ fn match_opt() -> Result<(), Error> {
     Ok(())
 }
 
-fn match_server_command(server_command: Server, config: &mut Config) -> Result<(), CliError> {
+fn match_server_command(server_command: Server, config: &mut Config) -> Result<(), Error> {
     match server_command {
         Server::Config {
             server_name,
@@ -473,7 +477,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
             password,
         } => {
             if config.servers.iter().any(|s| s.name == name) {
-                return Err(CliError::ServerAlreadyExists(name))?;
+                return Err(CliError::ServerAlreadyExists(name).into());
             } else {
                 config.servers.push(ServerConfig {
                     name,
@@ -494,31 +498,56 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
         }
         Server::List => {
             if config.servers.is_empty() {
-                return Err(CliError::NoServers)?;
+                return Err(CliError::NoServers.into());
             }
-            let query = config
+
+            let longest = config
                 .servers
                 .iter()
-                .map(|e| {
-                    let response = send_command(MumCommand::ServerStatus {
-                        host: e.host.clone(),
-                        port: e.port.unwrap_or(mumlib::DEFAULT_PORT),
-                    });
-                    response.map(|f| (e, f))
+                .map(|s| s.name.len())
+                .max()
+                .unwrap()  // ok since !config.servers.is_empty() above
+                + 1;
+
+            let queries: Vec<_> = config
+                .servers
+                .iter()
+                .map(|s| {
+                    let query = MumCommand::ServerStatus {
+                        host: s.host.clone(),
+                        port: s.port.unwrap_or(mumlib::DEFAULT_PORT),
+                    };
+                    thread::spawn(move || {
+                        send_command(query)
+                    })
                 })
-                .collect::<Result<Vec<_>, _>>()?;
-            for (server, response) in query
-                .into_iter()
-                .filter(|e| e.1.is_ok())
-                .map(|e| (e.0, e.1.unwrap().unwrap()))
-            {
-                if let CommandResponse::ServerStatus {
-                    users, max_users, ..
-                } = response
-                {
-                    println!("{} [{}/{}]", server.name, users, max_users)
-                } else {
-                    unreachable!()
+                .collect();
+
+            for (server, response) in config.servers.iter().zip(queries) {
+                match response.join().unwrap() {
+                    Ok(Ok(Some(response))) => {
+                        if let CommandResponse::ServerStatus {
+                            users,
+                            max_users,
+                            ..
+                        } = response
+                        {
+                            println!("{0:<1$} [{2:}/{3:}]", server.name, longest, users, max_users);
+                        } else {
+                            unreachable!();
+                        }
+                    }
+                    Ok(Ok(None)) => {
+                        println!("{0:<1$} offline", server.name, longest);
+                    }
+                    Ok(Err(e)) => {
+                        error!("{}", e);
+                        return Err(e.into());
+                    }
+                    Err(e) => {
+                        error!("{}", e);
+                        return Err(e.into());
+                    }
                 }
             }
         }

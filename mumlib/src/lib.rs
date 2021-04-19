@@ -16,7 +16,7 @@ pub fn setup_logger<T: Into<fern::Output>>(target: T, color: bool) {
         .format(move |out, message, record| {
             let message = message.to_string();
             out.finish(format_args!(
-                "{} {}:{}{}{}",
+                "{} {} {}:{}{}{}",
                 //TODO runtime flag that disables color
                 if color {
                     match record.level() {
@@ -36,6 +36,7 @@ pub fn setup_logger<T: Into<fern::Output>>(target: T, color: bool) {
                     }
                     .normal()
                 },
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S%.6f]"),
                 record.file().unwrap(),
                 record.line().unwrap(),
                 if message.chars().any(|e| e == '\n') {

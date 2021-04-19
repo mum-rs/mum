@@ -8,7 +8,7 @@ use crate::state::{ExecutionContext, State};
 use log::*;
 use mumble_protocol::{Serverbound, control::ControlPacket};
 use mumlib::command::{Command, CommandResponse};
-use std::sync::{Arc, RwLock};
+use std::sync::{atomic::{AtomicU64, Ordering}, Arc, RwLock};
 use tokio::sync::{mpsc, oneshot, watch};
 
 pub async fn handle(
@@ -23,6 +23,7 @@ pub async fn handle(
     mut connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
 ) {
     debug!("Begin listening for commands");
+    let ping_count = AtomicU64::new(0);
     while let Some((command, response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
         let mut state = state.write().unwrap();
@@ -47,10 +48,13 @@ pub async fn handle(
                 response_sender.send(generator()).unwrap();
             }
             ExecutionContext::Ping(generator, converter) => {
-                match generator() {
+                let ret = generator();
+                debug!("Ping generated: {:?}", ret);
+                match ret {
                     Ok(addr) => {
+                        let id = ping_count.fetch_add(1, Ordering::Relaxed);
                         let res = ping_request_sender.send((
-                            0,
+                            id,
                             addr,
                             Box::new(move |packet| {
                                 response_sender.send(converter(packet)).unwrap();
