@@ -37,6 +37,7 @@ Fixed
  * Informative error message instead of panic when a running mumd-process can't
    be found.
  * Lots of other minor informative error messages instead of panics.
+ * Status requests are sent in parallel.
 
 Other
 ~~~~~
