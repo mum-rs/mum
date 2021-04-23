@@ -11,6 +11,8 @@ pub enum Error {
     InvalidServerAddr(String, u16),
     InvalidUsername(String),
     InvalidServerPassword,
+
+    GenericError, //TODO remove
 }
 
 impl std::error::Error for Error {}
@@ -25,7 +27,8 @@ impl fmt::Display for Error {
                 write!(f, "Invalid server address: {}: {}", addr, port)
             }
             Error::InvalidUsername(username) => write!(f, "Invalid username: {}", username),
-            Error::InvalidServerPassword => write!(f, "Invalid server password")
+            Error::InvalidServerPassword => write!(f, "Invalid server password"),
+            Error::GenericError => write!(f, "Generic Error"),
         }
     }
 }

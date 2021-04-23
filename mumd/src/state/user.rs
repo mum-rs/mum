@@ -1,7 +1,8 @@
-use mumble_protocol::control::msgs;
-use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
+use tokio::sync::Mutex;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+use mumble_protocol::control::msgs;
+
 pub struct User {
     channel: u32,
     comment: Option<String>,
@@ -10,15 +11,22 @@ pub struct User {
     priority_speaker: bool,
     recording: bool,
 
-    suppress: bool,  // by me
     self_mute: bool, // by self
     self_deaf: bool, // by self
     mute: bool,      // by admin
     deaf: bool,      // by admin
+
+    //by me
+    suppress: bool,  // by me
+    pub volume: f32,
+
+    pub last_frame: Option<u64>,
+    pub buffer: VecDeque<f32>,
+    pub decoder: Option<Mutex<opus::Decoder>>,
 }
 
 impl User {
-    pub fn new(mut msg: msgs::UserState) -> Self {
+    pub fn new(mut msg: Box<msgs::UserState>) -> Self {
         Self {
             channel: msg.get_channel_id(),
             comment: if msg.has_comment() {
@@ -34,15 +42,19 @@ impl User {
             name: msg.take_name(),
             priority_speaker: msg.has_priority_speaker() && msg.get_priority_speaker(),
             recording: msg.has_recording() && msg.get_recording(),
-            suppress: msg.has_suppress() && msg.get_suppress(),
             self_mute: msg.has_self_mute() && msg.get_self_mute(),
             self_deaf: msg.has_self_deaf() && msg.get_self_deaf(),
             mute: msg.has_mute() && msg.get_mute(),
             deaf: msg.has_deaf() && msg.get_deaf(),
+            suppress: msg.has_suppress() && msg.get_suppress(),
+            volume: 1.0,
+            last_frame: None,
+            buffer: VecDeque::new(),
+            decoder: None,
         }
     }
 
-    pub fn parse_user_state(&mut self, mut msg: msgs::UserState) {
+    pub fn parse_state(&mut self, mut msg: Box<msgs::UserState>) {
         if msg.has_channel_id() {
             self.channel = msg.get_channel_id();
         }

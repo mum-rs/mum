@@ -1,5 +1,4 @@
 mod audio;
-mod client;
 mod command;
 mod error;
 mod network;
@@ -7,12 +6,16 @@ mod notifications;
 mod state;
 
 use crate::state::State;
+use crate::network::{tcp, udp};
 
-use futures_util::{select, FutureExt, SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
-use tokio::{net::{UnixListener, UnixStream}, sync::{mpsc, oneshot}};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tokio::net::UnixStream;
+use tokio::select;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 use bytes::{BufMut, BytesMut};
 
@@ -54,9 +57,7 @@ async fn main() {
         }
     }
 
-    let (command_sender, command_receiver) = mpsc::unbounded_channel();
-
-    let state = match State::new() {
+    let state = match State::new(None).await {
         Ok(s) => s,
         Err(e) => {
             error!("Error instantiating mumd: {}", e);
@@ -64,64 +65,13 @@ async fn main() {
         }
     };
 
-    let run = select! {
-        r = client::handle(state, command_receiver).fuse() => r,
-        _ = receive_commands(command_sender).fuse() => Ok(()),
+    let state = Arc::new(RwLock::new(state));
+
+    select! {
+        _ = tcp::handle(Arc::clone(&state)) => unimplemented!(),
+        _ = udp::handle(Arc::clone(&state)) => unimplemented!(),
+        _ = audio::input::handle(Arc::clone(&state)) => unimplemented!(),
+        _ = audio::output::handle(Arc::clone(&state)) => unimplemented!(),
+        _ = command::receive_commands(Arc::clone(&state)) => unimplemented!(),
     };
-
-    match run {
-        Err(e) => {
-            error!("mumd: {}", e);
-            std::process::exit(1);
-        }
-        _ => {}
-    }
-}
-
-async fn receive_commands(
-    command_sender: mpsc::UnboundedSender<(
-        Command,
-        oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
-    )>,
-) {
-    let socket = UnixListener::bind(mumlib::SOCKET_PATH).unwrap();
-
-    loop {
-        if let Ok((incoming, _)) = socket.accept().await {
-            let sender = command_sender.clone();
-            tokio::spawn(async move {
-                let (reader, writer) = incoming.into_split();
-                let mut reader = FramedRead::new(reader, LengthDelimitedCodec::new());
-                let mut writer = FramedWrite::new(writer, LengthDelimitedCodec::new());
-                
-                while let Some(next) = reader.next().await {
-                    let buf = match next {
-                        Ok(buf) => buf,
-                        Err(_) => continue,
-                    };
-
-                    let command = match bincode::deserialize::<Command>(&buf) {
-                        Ok(e) => e,
-                        Err(_) => continue,
-                    };
-
-                    let (tx, rx) = oneshot::channel();
-
-                    sender.send((command, tx)).unwrap();
-
-                    let response = match rx.await {
-                        Ok(r) => r,
-                        Err(_) => {
-                            error!("Internal command response sender dropped");
-                            Ok(None)
-                        }
-                    };
-                    let mut serialized = BytesMut::new();
-                    bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
-
-                    let _ = writer.send(serialized.freeze()).await;
-                }
-            });
-        }
-    }
 }

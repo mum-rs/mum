@@ -1,26 +1,24 @@
-use crate::error::{ServerSendError, TcpError};
-use crate::network::ConnectionInfo;
-use crate::state::{State, StatePhase};
+use crate::audio::output::AudioOutputMessage;
+use crate::error::{TcpError, ConnectionError};
+use crate::state::State;
+use crate::state::server::Server;
 use log::*;
 
-use futures_util::{FutureExt, SinkExt, StreamExt};
-use futures_util::select;
-use futures_util::stream::{SplitSink, SplitStream, Stream};
-use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPacket};
-use mumble_protocol::crypt::ClientCryptState;
+use futures_util::{SinkExt, StreamExt};
+use futures_util::stream::{SplitSink, SplitStream};
+use mumble_protocol::control::{ClientControlCodec, ControlCodec, ControlPacket};
+use mumble_protocol::control::msgs;
 use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::{Clientbound, Serverbound};
-use std::collections::HashMap;
-use std::convert::{Into, TryInto};
-use std::net::SocketAddr;
-use std::sync::{Arc, RwLock};
+use std::convert::Into;
+use std::sync::Arc;
 use tokio::net::TcpStream;
-use tokio::sync::{mpsc, watch, Mutex};
+use tokio::sync::{mpsc, RwLock};
 use tokio::time::{self, Duration};
+use tokio::select;
 use tokio_native_tls::{TlsConnector, TlsStream};
 use tokio_util::codec::{Decoder, Framed};
 
-use super::{run_until, VoiceStreamType};
 
 type TcpSender = SplitSink<
     Framed<TlsStream<TcpStream>, ControlCodec<Serverbound, Clientbound>>,
@@ -29,142 +27,83 @@ type TcpSender = SplitSink<
 type TcpReceiver =
     SplitStream<Framed<TlsStream<TcpStream>, ControlCodec<Serverbound, Clientbound>>>;
 
-pub(crate) type TcpEventCallback = Box<dyn FnOnce(TcpEventData)>;
+pub async fn handle(state: Arc<RwLock<State>>) -> Result<(), TcpError> {
+    let state_lock = state.read().await;
+    let mut server_recv = state_lock.server_recv();
+    let tcp_send = state_lock.get_tcp_sink_sender();
+    drop(state_lock);
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
-pub enum TcpEvent {
-    Connected,    //fires when the client has connected to a server
-    Disconnected, //fires when the client has disconnected from a server
-}
-
-#[derive(Clone)]
-pub enum TcpEventData<'a> {
-    Connected(Result<&'a msgs::ServerSync, mumlib::Error>),
-    Disconnected,
-}
-
-impl<'a> From<&TcpEventData<'a>> for TcpEvent {
-    fn from(t: &TcpEventData) -> Self {
-        match t {
-            TcpEventData::Connected(_) => TcpEvent::Connected,
-            TcpEventData::Disconnected => TcpEvent::Disconnected,
-        }
-    }
-}
-
-#[derive(Clone)]
-struct TcpEventQueue {
-    handlers: Arc<Mutex<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
-}
-
-impl TcpEventQueue {
-    fn new() -> Self {
-        Self {
-            handlers: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
-    async fn register(&self, at: TcpEvent, callback: TcpEventCallback) {
-        self.handlers.lock().await.entry(at).or_default().push(callback);
-    }
-
-    async fn resolve<'a>(&self, data: TcpEventData<'a>) {
-        if let Some(vec) = self.handlers.lock().await.get_mut(&TcpEvent::from(&data)) {
-            let old = std::mem::take(vec);
-            for handler in old {
-                handler(data.clone());
-            }
-        }
-    }
-}
-
-pub async fn handle(
-    state: Arc<RwLock<State>>,
-    mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
-    crypt_state_sender: mpsc::Sender<ClientCryptState>,
-    packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
-    mut packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
-    mut tcp_event_register_receiver: mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
-) -> Result<(), TcpError> {
     loop {
-        let connection_info = 'data: loop {
-            while connection_info_receiver.changed().await.is_ok() {
-                if let Some(data) = connection_info_receiver.borrow().clone() {
-                    break 'data data;
-                }
-            }
-            return Err(TcpError::NoConnectionInfoReceived);
-        };
-        let (mut sink, stream) = connect(
-            connection_info.socket_addr,
-            connection_info.hostname,
-            connection_info.accept_invalid_cert,
-        )
-        .await?;
+        // wait not being in idle state
+        if server_recv.borrow().is_none() {
+            server_recv.changed().await.unwrap();
+            continue;
+        }
 
-        // Handshake (omitting `Version` message for brevity)
-        let (username, password) = {
-            let state_lock = state.read().unwrap();
-            (state_lock.username().unwrap().to_string(),
-                state_lock.password().map(|x| x.to_string()))
+        let server = match server_recv.borrow().as_ref() {
+            Some(server) => server.clone(),
+            None => continue, //disconnected???
         };
-        authenticate(&mut sink, username, password).await?;
-        let (phase_watcher, input_receiver) = {
-            let state_lock = state.read().unwrap();
-            (state_lock.phase_receiver(),
-                state_lock.audio_input().receiver())
-        };
-        let event_queue = TcpEventQueue::new();
 
+        let (mut sink, stream) = connect(&server).await?;
+
+        // TODO: Handshake (omitting `Version` message for brevity)
+        authenticate(&mut sink, &server).await?;
         info!("Logging in...");
 
-        let phase_watcher_inner = phase_watcher.clone();
-
-        run_until(
-            |phase| matches!(phase, StatePhase::Disconnected),
-            async {
-                select! {
-                    r = send_pings(packet_sender.clone(), 10).fuse() => r,
-                    r = listen(
-                        Arc::clone(&state),
-                        stream,
-                        crypt_state_sender.clone(),
-                        event_queue.clone(),
-                    ).fuse() => r,
-                    r = send_voice(
-                        packet_sender.clone(),
-                        Arc::clone(&input_receiver),
-                        phase_watcher_inner,
-                    ).fuse() => r,
-                    r = send_packets(sink, &mut packet_receiver).fuse() => r,
-                    _ = register_events(&mut tcp_event_register_receiver, event_queue.clone()).fuse() => Ok(()),
-                }
+        //TODO handle errors
+        let error = select! {
+            _ = tokio::spawn(send_pings(tcp_send.clone(), 10)) => {
+                //TODO: handle fatal return
+                ConnectionError::GenericError
             },
-            phase_watcher,
-        ).await.unwrap_or(Ok(()))?;
-
-        event_queue.resolve(TcpEventData::Disconnected).await;
-
-        debug!("Fully disconnected TCP stream, waiting for new connection info");
+            //TODO receive pings?
+            _ = tokio::spawn(listen(Arc::clone(&state), stream)) => {
+                //TODO: handle fatal return
+                ConnectionError::GenericError
+            },
+            _ = tokio::spawn(send_packets(Arc::clone(&state), sink)) => {
+                ConnectionError::GenericError
+            },
+            _ = tokio::spawn(check_changed_server(Arc::clone(&state), server)) => {
+                //server changed, set to disconnected, and try to reconnect
+                ConnectionError::GenericError
+            }
+        };
+        state.read().await.set_disconnected(error).await;
+        debug!("Fully disconnected Tcp");
     }
 }
 
-async fn connect(
-    server_addr: SocketAddr,
-    server_host: String,
-    accept_invalid_cert: bool,
-) -> Result<(TcpSender, TcpReceiver), TcpError> {
-    let stream = TcpStream::connect(&server_addr).await?;
+//tcp need to check all server fields
+async fn check_changed_server(
+    state: Arc<RwLock<State>>,
+    current: Server,
+) {
+    let mut server_recv = state.read().await.server_recv();
+
+    while let Ok(()) = server_recv.changed().await {
+        match server_recv.borrow().as_ref() {
+            //unchanged
+            Some(server) if *server == current => {},
+            //changed
+            _ => break,
+        };
+    }
+}
+
+async fn connect(server: &Server) -> Result<(TcpSender, TcpReceiver), TcpError> {
+    let stream = TcpStream::connect(&server.addr).await?;
     debug!("TCP connected");
 
     let mut builder = native_tls::TlsConnector::builder();
-    builder.danger_accept_invalid_certs(accept_invalid_cert);
+    builder.danger_accept_invalid_certs(server.accept_invalid_cert);
     let connector: TlsConnector = builder
         .build()
         .map_err(|e| TcpError::TlsConnectorBuilderError(e))?
         .into();
     let tls_stream = connector
-        .connect(&server_host, stream)
+        .connect(&server.host, stream)
         .await
         .map_err(|e| TcpError::TlsConnectError(e))?;
     debug!("TLS connected");
@@ -175,13 +114,12 @@ async fn connect(
 
 async fn authenticate(
     sink: &mut TcpSender,
-    username: String,
-    password: Option<String>
+    server: &Server,
 ) -> Result<(), TcpError> {
     let mut msg = msgs::Authenticate::new();
-    msg.set_username(username);
-    if let Some(password) = password {
-        msg.set_password(password);
+    msg.set_username(server.username.to_owned());
+    if let Some(password) = server.password.as_ref() {
+        msg.set_password(password.to_owned());
     }
     msg.set_opus(true);
     sink.send(msg.into()).await?;
@@ -202,70 +140,41 @@ async fn send_pings(
 }
 
 async fn send_packets(
+    state: Arc<RwLock<State>>,
     mut sink: TcpSender,
-    packet_receiver: &mut mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
 ) -> Result<(), TcpError> {
-    loop {
+    //need to take care, this receiver should be given back before returning
+    let mut packet_receiver = state.read().await.get_tcp_sink_receiver().await
+        .ok_or_else(|| TcpError::GenericError)?;
+    let error = loop {
         // Safe since we always have at least one sender alive.
         let packet = packet_receiver.recv().await.unwrap();
-        sink.send(packet).await?;
-    }
-}
-
-async fn send_voice(
-    packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
-    receiver: Arc<Mutex<Box<(dyn Stream<Item = VoicePacket<Serverbound>> + Unpin)>>>,
-    phase_watcher: watch::Receiver<StatePhase>,
-) -> Result<(), TcpError> {
-    loop {
-        let mut inner_phase_watcher = phase_watcher.clone();
-        loop {
-            inner_phase_watcher.changed().await.unwrap();
-            if matches!(*inner_phase_watcher.borrow(), StatePhase::Connected(VoiceStreamType::TCP)) {
-                break;
-            }
+        if let Err(_) = sink.send(packet).await {
+            break TcpError::GenericError;
         }
-        run_until(
-            |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::TCP)),
-            async {
-                loop {
-                    packet_sender.send(
-                        receiver
-                            .lock()
-                            .await
-                            .next()
-                            .await
-                            .expect("No audio stream")
-                            .into())?;
-                }
-            },
-            inner_phase_watcher.clone(),
-        ).await.unwrap_or(Ok::<(), ServerSendError>(()))?;
-    }
+    };
+    state.read().await.set_tcp_sink_receiver(packet_receiver).await;
+    Err(error)
 }
 
 async fn listen(
     state: Arc<RwLock<State>>,
     mut stream: TcpReceiver,
-    crypt_state_sender: mpsc::Sender<ClientCryptState>,
-    event_queue: TcpEventQueue,
 ) -> Result<(), TcpError> {
-    let mut crypt_state = None;
-    let mut crypt_state_sender = Some(crypt_state_sender);
-
+    let audio_sink = state.read().await.get_audio_sink_sender();
     loop {
         let packet = match stream.next().await {
             Some(Ok(packet)) => packet,
             Some(Err(e)) => {
                 error!("TCP error: {:?}", e);
-                continue; //TODO Break here? Maybe look at the error and handle it
+                return Err(TcpError::GenericError);
+                //TODO Break here? Maybe look at the error and handle it
             }
             None => {
                 // We end up here if the login was rejected. We probably want
                 // to exit before that.
-                warn!("TCP stream gone");
-                state.read().unwrap().broadcast_phase(StatePhase::Disconnected);
-                break;
+                error!("TCP stream gone");
+                return Err(TcpError::GenericError);
             }
         };
         match packet {
@@ -278,112 +187,88 @@ async fn listen(
             }
             ControlPacket::CryptSetup(msg) => {
                 debug!("Crypt setup");
-                // Wait until we're fully connected before initiating UDP voice
-                crypt_state = Some(ClientCryptState::new_from(
-                    msg.get_key()
-                        .try_into()
-                        .expect("Server sent private key with incorrect size"),
-                    msg.get_client_nonce()
-                        .try_into()
-                        .expect("Server sent client_nonce with incorrect size"),
-                    msg.get_server_nonce()
-                        .try_into()
-                        .expect("Server sent server_nonce with incorrect size"),
-                ));
+                state.read().await.set_crypt(Some(msg)).await;
             }
             ControlPacket::ServerSync(msg) => {
                 info!("Logged in");
-                if let Some(sender) = crypt_state_sender.take() {
-                    let _ = sender
-                        .send(
-                            crypt_state
-                                .take()
-                                .expect("Server didn't send us any CryptSetup packet!"),
-                        )
-                        .await;
+                //TODO check connection context
+                //TODO check if error
+                if let Err(_) = state.read().await.set_connected(msg).await {
+                    return Err(TcpError::GenericError);
                 }
-                event_queue.resolve(TcpEventData::Connected(Ok(&msg))).await;
-                let mut state = state.write().unwrap();
-                let server = state.server_mut().unwrap();
-                server.parse_server_sync(*msg);
-                match &server.welcome_text {
-                    Some(s) => info!("Welcome: {}", s),
-                    None => info!("No welcome received"),
-                }
-                for channel in server.channels().values() {
-                    info!("Found channel {}", channel.name());
-                }
-                state.initialized();
             }
             ControlPacket::Reject(msg) => {
                 debug!("Login rejected: {:?}", msg);
+                //TODO check connection context
                 match msg.get_field_type() {
                     msgs::Reject_RejectType::WrongServerPW => {
-                        event_queue.resolve(TcpEventData::Connected(Err(mumlib::Error::InvalidServerPassword))).await;
+                        return Err(TcpError::GenericError);
                     }
                     ty => {
                         warn!("Unhandled reject type: {:?}", ty);
+                        return Err(TcpError::GenericError);
                     }
                 }
             }
             ControlPacket::UserState(msg) => {
-                state.write().unwrap().parse_user_state(*msg);
+                debug!("UserState received");
+                let state = state.read().await;
+                state.user_parse(msg).await.map_err(|_| TcpError::GenericError)?;
             }
             ControlPacket::UserRemove(msg) => {
-                state.write().unwrap().remove_client(*msg);
+                debug!("UserRemove received");
+                if msg.has_session() {
+                    let state = state.read().await;
+                    state.user_remove(msg.get_session()).await
+                        .map_err(|_| TcpError::GenericError)?;
+                } else {
+                    error!("Invalid UserRemove Message");
+                    return Err(TcpError::GenericError);
+                }
             }
             ControlPacket::ChannelState(msg) => {
-                debug!("Channel state received");
-                state
-                    .write()
-                    .unwrap()
-                    .server_mut()
-                    .unwrap()
-                    .parse_channel_state(*msg); //TODO parse initial if initial
+                debug!("ChannelState received");
+                state.read().await.channel_parse(msg).await
+                    .map_err(|_| TcpError::GenericError)?;
             }
             ControlPacket::ChannelRemove(msg) => {
-                state
-                    .write()
-                    .unwrap()
-                    .server_mut()
-                    .unwrap()
-                    .parse_channel_remove(*msg);
+                debug!("ChannelRemove received");
+                if msg.has_channel_id() {
+                    state.read().await.channel_remove(msg.get_channel_id()).await;
+                } else {
+                    warn!("Invalid UserRemove Message");
+                }
+            }
+            ControlPacket::Ping(ping) => {
+                debug!("Ping tcp received");
+                state.read().await.tcp_ping_broadcast_send(ping);
             }
             ControlPacket::UDPTunnel(msg) => {
                 match *msg {
-                    VoicePacket::Ping { .. } => {}
+                    VoicePacket::Ping { timestamp } => {
+                        state.read().await.tcp_tunnel_ping_broadcast_send(timestamp);
+                    }
                     VoicePacket::Audio {
                         session_id,
-                        // seq_num,
+                        //target,
+                        seq_num,
                         payload,
                         // position_info,
                         ..
                     } => {
-                        state
-                            .read()
-                            .unwrap()
-                            .audio_output()
-                            .decode_packet_payload(
-                                VoiceStreamType::TCP,
-                                session_id,
-                                payload);
+                        //TODO verify seq_num
+                        audio_sink.send(AudioOutputMessage::VoicePacket {
+                            user_id: session_id,
+                            seq_num,
+                            data: payload,
+                            // position_info,
+                        }).unwrap();
                     }
                 }
             }
             packet => {
-                debug!("Received unhandled ControlPacket {:#?}", packet);
+                warn!("Received unhandled ControlPacket {:#?}", packet);
             }
         }
-    }
-    Ok(())
-}
-
-async fn register_events(
-    tcp_event_register_receiver: &mut mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
-    event_queue: TcpEventQueue,
-) {
-    loop {
-        let (event, handler) = tcp_event_register_receiver.recv().await.unwrap();
-        event_queue.register(event, handler).await;
     }
 }

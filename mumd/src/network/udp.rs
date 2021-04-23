@@ -1,293 +1,229 @@
 use crate::error::UdpError;
-use crate::network::ConnectionInfo;
-use crate::state::{State, StatePhase};
+use crate::state::State;
+use crate::audio::output::AudioOutputMessage;
 
-use futures_util::{FutureExt, SinkExt, StreamExt};
-use futures_util::future::join4;
-use futures_util::stream::{SplitSink, SplitStream, Stream};
+use futures_util::{SinkExt, StreamExt};
 use log::*;
 use mumble_protocol::crypt::ClientCryptState;
-use mumble_protocol::ping::{PingPacket, PongPacket};
 use mumble_protocol::voice::VoicePacket;
-use mumble_protocol::Serverbound;
-use std::collections::{hash_map::Entry, HashMap};
-use std::convert::TryFrom;
+use mumble_protocol::control::msgs::CryptSetup;
 use std::net::{Ipv6Addr, SocketAddr};
-use std::sync::{atomic::{AtomicU64, Ordering}, Arc, RwLock};
-use tokio::{join, net::UdpSocket};
-use tokio::sync::{mpsc, oneshot, watch, Mutex};
-use tokio::time::{interval, timeout, Duration};
+use std::sync::Arc;
+use std::convert::TryInto;
+use tokio::net::UdpSocket;
+use tokio::sync::broadcast;
+use tokio::sync::{watch, RwLock};
+use tokio::time::{timeout, Duration};
 use tokio_util::udp::UdpFramed;
+use tokio::select;
 
-use super::{run_until, VoiceStreamType};
-
-pub type PingRequest = (u64, SocketAddr, Box<dyn FnOnce(Option<PongPacket>) + Send>);
-
-type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
-type UdpReceiver = SplitStream<UdpFramed<ClientCryptState>>;
-
-pub async fn handle(
-    state: Arc<RwLock<State>>,
-    mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
-    mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
-) -> Result<(), UdpError> {
-    let receiver = state.read().unwrap().audio_input().receiver();
+pub async fn handle(state: Arc<RwLock<State>>) -> Result<(), UdpError> {
+    let state_lock = state.read().await;
+    let mut server = state_lock.server_recv();
+    let mut connected = state_lock.connected_recv();
+    let mut crypt = state_lock.crypt_recv();
+    drop(state_lock);
 
     loop {
-        let connection_info = 'data: loop {
-            while connection_info_receiver.changed().await.is_ok() {
-                if let Some(data) = connection_info_receiver.borrow().clone() {
-                    break 'data data;
-                }
-            }
-            return Err(UdpError::NoConnectionInfoReceived);
+        // wait not being in idle state
+        if server.borrow().is_none() {
+            server.changed().await.unwrap();
+            continue;
+        }
+
+        //wait the server connection
+        if !*connected.borrow() {
+            connected.changed().await.unwrap();
+            continue;
+        }
+
+        //wait the crypt
+        if crypt.borrow().is_none() {
+            crypt.changed().await.unwrap();
+            continue;
+        }
+
+        let udp_framed = connect(&crypt).await?;
+
+        let addr = match server.borrow().as_ref() {
+            Some(server) => server.addr.clone(),
+            None => continue, //disconnected
         };
-        let (sink, source) = connect(&mut crypt_state_receiver).await?;
 
-        let sink = Arc::new(Mutex::new(sink));
-        let source = Arc::new(Mutex::new(source));
+        select!(
+            _ = tokio::spawn(handle_socket(Arc::clone(&state), udp_framed, addr)) => {},
+            _ = tokio::spawn(send_pings(Arc::clone(&state))) => {},
+            _ = tokio::spawn(check_changed_server(Arc::clone(&state), addr)) => {}
+        );
+        debug!("Fully disconnected UDP stream");
+    }
+}
 
-        let phase_watcher = state.read().unwrap().phase_receiver();
-        let last_ping_recv = AtomicU64::new(0);
-
-        run_until(
-            |phase| matches!(phase, StatePhase::Disconnected),
-            join4(
-                listen(
-                    Arc::clone(&state),
-                    Arc::clone(&source),
-                    &last_ping_recv,
-                ),
-                send_voice(
-                    Arc::clone(&sink),
-                    connection_info.socket_addr,
-                    phase_watcher.clone(),
-                    Arc::clone(&receiver),
-                ),
-                send_pings(
-                    Arc::clone(&state),
-                    Arc::clone(&sink),
-                    connection_info.socket_addr,
-                    &last_ping_recv,
-                ),
-                new_crypt_state(&mut crypt_state_receiver, sink, source),
-            ).map(|_| ()),
-            phase_watcher,
-        ).await;
-
-        debug!("Fully disconnected UDP stream, waiting for new connection info");
+//udp only care if we disconnect or addr changed
+async fn check_changed_server(
+    state: Arc<RwLock<State>>,
+    addr: SocketAddr,
+) {
+    let mut server = state.read().await.server_recv();
+    while let Ok(()) = server.changed().await {
+        match server.borrow().as_ref() {
+            //unchanged
+            Some(server) if server.addr == addr => {},
+            //changed
+            _ => break,
+        };
     }
 }
 
 async fn connect(
-    crypt_state: &mut mpsc::Receiver<ClientCryptState>,
-) -> Result<(UdpSender, UdpReceiver), UdpError> {
+    crypt_state: &watch::Receiver<Option<Box<CryptSetup>>>,
+) -> Result<UdpFramed<ClientCryptState>, UdpError> {
     // Bind UDP socket
     let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
         .await?;
 
     // Wait for initial CryptState
-    let crypt_state = match crypt_state.recv().await {
-        Some(crypt_state) => crypt_state,
-        // disconnected before we received the CryptSetup packet, oh well
-        None => return Err(UdpError::DisconnectBeforeCryptSetup),
-    };
+    let crypt_state = new_crypt_state(crypt_state)?;
     debug!("UDP connected");
 
     // Wrap the raw UDP packets in Mumble's crypto and voice codec (CryptState does both)
-    Ok(UdpFramed::new(udp_socket, crypt_state).split())
+    let udp_framed = UdpFramed::new(udp_socket, crypt_state);
+    Ok(udp_framed)
 }
 
-async fn new_crypt_state(
-    crypt_state: &mut mpsc::Receiver<ClientCryptState>,
-    sink: Arc<Mutex<UdpSender>>,
-    source: Arc<Mutex<UdpReceiver>>,
-) {
-    loop {
-        if let Some(crypt_state) = crypt_state.recv().await {
-            info!("Received new crypt state");
-            let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
-                .await
-                .expect("Failed to bind UDP socket");
-            let (new_sink, new_source) = UdpFramed::new(udp_socket, crypt_state).split();
-            *sink.lock().await = new_sink;
-            *source.lock().await = new_source;
-        }
-    }
+fn new_crypt_state(
+    crypt: &watch::Receiver<Option<Box<CryptSetup>>>,
+) -> Result<ClientCryptState, UdpError> {
+    let key = crypt.borrow().to_owned();
+    // disconnected before we received the CryptSetup packet, oh well
+    let key = key.ok_or_else(|| UdpError::DisconnectBeforeCryptSetup)?;
+    Ok(ClientCryptState::new_from(
+        key.get_key()
+            .try_into()
+            .expect("Server sent private key with incorrect size"),
+        key.get_client_nonce()
+            .try_into()
+            .expect("Server sent client_nonce with incorrect size"),
+        key.get_server_nonce()
+            .try_into()
+            .expect("Server sent server_nonce with incorrect size"),
+    ))
 }
 
-async fn listen(
+//TODO break this function in three: send packet, recv packet, crypt
+async fn handle_socket(
     state: Arc<RwLock<State>>,
-    source: Arc<Mutex<UdpReceiver>>,
-    last_ping_recv: &AtomicU64,
-) {
-    loop {
-        let packet = source.lock().await.next().await.unwrap();
-        let (packet, _src_addr) = match packet {
-            Ok(packet) => packet,
-            Err(err) => {
-                warn!("Got an invalid UDP packet: {}", err);
-                // To be expected, considering this is the internet, just ignore it
-                continue;
-            }
-        };
-        match packet {
-            VoicePacket::Ping { timestamp } => {
-                state
-                    .read()
-                    .unwrap()
-                    .broadcast_phase(StatePhase::Connected(VoiceStreamType::UDP));
-                last_ping_recv.store(timestamp, Ordering::Relaxed);
-            }
-            VoicePacket::Audio {
-                session_id,
-                // seq_num,
-                payload,
-                // position_info,
-                ..
-            } => {
-                state
-                    .read()
-                    .unwrap()
-                    .audio_output()
-                    .decode_packet_payload(VoiceStreamType::UDP, session_id, payload);
-            }
-        }
-    }
-}
+    mut source: UdpFramed<ClientCryptState>,
+    addr: SocketAddr,
+) -> Result<(), UdpError> {
+    let state_lock = state.read().await;
 
-async fn send_pings(
-    state: Arc<RwLock<State>>,
-    sink: Arc<Mutex<UdpSender>>,
-    server_addr: SocketAddr,
-    last_ping_recv: &AtomicU64,
-) {
-    let mut last_send = None;
-    let mut interval = interval(Duration::from_millis(1000));
+    let audio_send = state.read().await.get_audio_sink_sender();
+    let mut udp_audio = state_lock.get_udp_sink_receiver().await.unwrap();
+    let mut crypt = state_lock.crypt_recv();
 
-    loop {
-        interval.tick().await;
-        let last_recv = last_ping_recv.load(Ordering::Relaxed);
-        if last_send.is_some() && last_send.unwrap() != last_recv {
-            debug!("Sending TCP voice");
-            state
-                .read()
-                .unwrap()
-                .broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
-        }
-        match sink
-            .lock()
-            .await
-            .send((VoicePacket::Ping { timestamp: last_recv + 1 }, server_addr))
-            .await
-        {
-            Ok(_) => {
-                last_send = Some(last_recv + 1);
-            },
-            Err(e) => {
-                debug!("Error sending UDP ping: {}", e);
-            }
-        }
-    }
-}
+    drop(state_lock);
 
-async fn send_voice(
-    sink: Arc<Mutex<UdpSender>>,
-    server_addr: SocketAddr,
-    phase_watcher: watch::Receiver<StatePhase>,
-    receiver: Arc<Mutex<Box<(dyn Stream<Item = VoicePacket<Serverbound>> + Unpin)>>>,
-) {
-    loop {
-        let mut inner_phase_watcher = phase_watcher.clone();
-        loop {
-            inner_phase_watcher.changed().await.unwrap();
-            if matches!(*inner_phase_watcher.borrow(), StatePhase::Connected(VoiceStreamType::UDP)) {
-                break;
-            }
-        }
-        run_until(
-            |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::UDP)),
-            async {
-                let mut receiver = receiver.lock().await;
-                loop {
-                    let sending = (receiver.next().await.unwrap(), server_addr);
-                    sink.lock().await.send(sending).await.unwrap();
+    //carefull not to return without giving udp_audio back
+    let error = loop {
+        select!(
+            packet_net = source.next() => {
+                let (packet, _src_addr) = match packet_net {
+                    Some(Ok(packet)) => packet,
+                    Some(Err(err)) => {
+                        warn!("Got an invalid UDP packet: {}", err);
+                        // To be expected, considering this is the internet, just ignore it
+                        continue;
+                    },
+                    None => {
+                        //socket closed
+                        break UdpError::GenericError;
+                    },
+                };
+                match packet {
+                    VoicePacket::Ping { timestamp } => {
+                        state.read().await.udp_ping_broadcast_send(timestamp);
+                    }
+                    VoicePacket::Audio {
+                        session_id,
+                        //target,
+                        seq_num, //TODO check packet seq
+                        payload,
+                        // position_info,
+                        ..
+                    } => {
+                        //TODO verify seq_num
+                        audio_send.send(AudioOutputMessage::VoicePacket {
+                            user_id: session_id,
+                            seq_num,
+                            data: payload,
+                        }).unwrap();
+                    }
                 }
             },
-            phase_watcher.clone(),
+            packet = udp_audio.recv() => {
+                //safe because there always be a state.udp_audio_send
+                let packet = packet.unwrap();
+                if let Err(_) = source.send((packet, addr)).await {
+                    break UdpError::GenericError;
+                }
+            },
+            _ = crypt.changed() => {
+                //update crypt on the fly
+                match new_crypt_state(&crypt) {
+                    Err(_) => break UdpError::GenericError,
+                    Ok(crypt_state) => *source.codec_mut() = crypt_state,
+                }
+            }
+        );
+    };
+    state.read().await.set_udp_sink_receiver(udp_audio).await;
+    Err(error)
+}
+
+async fn recv_ping(
+    last_ping: u64,
+    ping_recv: &mut broadcast::Receiver<u64>,
+) {
+    loop {
+        match ping_recv.recv().await {
+            //ping received, return
+            Ok(ping) if ping == last_ping => return,
+            //wrong response, older ping received? wait for next
+            Ok(_) => continue,
+            Err(_) => panic!("Udp ping broadcast closed"),
+        }
+    }
+}
+
+async fn send_pings(state: Arc<RwLock<State>>) {
+    let state_lock = state.read().await;
+
+    let send_packets = state_lock.get_udp_sink_sender();
+    let mut ping_recv = state_lock.udp_ping_broadcast_receiver();
+
+    drop(state_lock);
+
+    let mut last_send = 0;
+    loop {
+        //send the ping
+        send_packets.send(VoicePacket::Ping { timestamp: last_send }).unwrap();
+        //check if we receive the packet before the timeout
+        let received = timeout(
+            Duration::from_secs(1),          //timeout is 1s
+            recv_ping(last_send, &mut ping_recv), //return if correct ping received
         ).await;
+        match received {
+            Ok(()) => {
+                //ping received, using UDP
+                state.read().await.set_link_udp(true).await;
+            },
+            Err(_) => {
+                //timeout, use TCP instead
+                state.read().await.set_link_udp(false).await;
+            }
+        }
+        //change the ping id to avoid overlapping responses
+        last_send = last_send.wrapping_add(1);
     }
-}
-
-pub async fn handle_pings(
-    mut ping_request_receiver: mpsc::UnboundedReceiver<PingRequest>,
-) {
-    let udp_socket = UdpSocket::bind((Ipv6Addr::from(0u128), 0u16))
-        .await
-        .expect("Failed to bind UDP socket");
-
-    let pending = Mutex::new(HashMap::new());
-
-    let sender = async {
-        while let Some((id, socket_addr, handle)) = ping_request_receiver.recv().await {
-            debug!("Sending ping with id {} to {}", id, socket_addr);
-            let packet = PingPacket { id };
-            let packet: [u8; 12] = packet.into();
-            udp_socket.send_to(&packet, &socket_addr).await.unwrap();
-            let (tx, rx) = oneshot::channel();
-            match pending.lock().await.entry(id) {
-                Entry::Occupied(_) => {
-                    warn!("Tried to send duplicate ping with id {}", id);
-                    continue;
-                }
-                Entry::Vacant(v) => {
-                    v.insert(tx);
-                }
-            }
-
-            tokio::spawn(async move {
-                handle(
-                    match timeout(Duration::from_secs(1), rx).await {
-                        Ok(Ok(r)) => Some(r),
-                        Ok(Err(_)) => {
-                            warn!("Ping response sender for server {}, ping id {} dropped", socket_addr, id);
-                            None
-                        }
-                        Err(_) => {
-                            debug!("Server {} timed out when sending ping id {}", socket_addr, id);
-                            None
-                        }
-                    }
-                );
-            });
-        }
-    };
-
-    let receiver = async {
-        let mut buf = vec![0; 24];
-
-        while let Ok(read) = udp_socket.recv(&mut buf).await {
-            if read != 24 {
-                warn!("Ping response had length {}, expected 24", read);
-                continue;
-            }
-
-            let packet = PongPacket::try_from(buf.as_slice()).unwrap();
-
-            match pending.lock().await.entry(packet.id) {
-                Entry::Occupied(o) => {
-                    let id = *o.key();
-                    if o.remove().send(packet).is_err() {
-                        debug!("Received response to ping with id {} too late", id);
-                    }
-                }
-                Entry::Vacant(v) => {
-                    warn!("Received ping with id {} that we didn't send", v.key());
-                }
-            }
-        }
-    };
-
-    debug!("Waiting for ping requests");
-    join!(sender, receiver);
 }

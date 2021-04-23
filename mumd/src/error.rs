@@ -2,29 +2,68 @@ use mumble_protocol::{Serverbound, control::ControlPacket};
 use mumlib::error::ConfigError;
 use std::fmt;
 use tokio::sync::mpsc;
+use serde::{Deserialize, Serialize};
 
 pub type ServerSendError = mpsc::error::SendError<ControlPacket<Serverbound>>;
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum CommandError {
+    NotConnected,
+    Disconnected,
+    ChannelIdentifierError,
+
+    UnableToConnect(ConnectionError),
+
+    GenericError, //TODO remove
+}
+
+impl fmt::Display for CommandError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CommandError::NotConnected => write!(f, "Command Not Connected"),
+            CommandError::Disconnected => write!(f, "Command Disconnected"),
+            CommandError::ChannelIdentifierError => write!(
+                f, "Channel Identifier not found"
+            ),
+            CommandError::UnableToConnect(x)=> write!(f, "Unable to connect: {}", x),
+            CommandError::GenericError => write!(f, "Command Generic Error"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum ConnectionError {
+    GenericError, //TODO remove
+}
+
+impl fmt::Display for ConnectionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConnectionError::GenericError => write!(f, "Command Generic Error"),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum TcpError {
-    NoConnectionInfoReceived,
     TlsConnectorBuilderError(native_tls::Error),
     TlsConnectError(native_tls::Error),
     SendError(ServerSendError),
 
     IOError(std::io::Error),
+    GenericError, //TODO remove
 }
 
 impl fmt::Display for TcpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TcpError::NoConnectionInfoReceived
-                => write!(f, "No connection info received"),
             TcpError::TlsConnectorBuilderError(e)
                 => write!(f, "Error building TLS connector: {}", e),
             TcpError::TlsConnectError(e)
                 => write!(f, "TLS error when connecting: {}", e),
             TcpError::SendError(e) => write!(f, "Couldn't send packet: {}", e),
             TcpError::IOError(e) => write!(f, "IO error: {}", e),
+            TcpError::GenericError => write!(f, "Tcp Generic Error"),
         }
     }
 }
@@ -42,27 +81,15 @@ impl From<ServerSendError> for TcpError {
 }
 
 pub enum UdpError {
-    NoConnectionInfoReceived,
     DisconnectBeforeCryptSetup,
-    
+
     IOError(std::io::Error),
+    GenericError, //TODO remove
 }
 
 impl From<std::io::Error> for UdpError {
     fn from(e: std::io::Error) -> Self {
         UdpError::IOError(e)
-    }
-}
-
-pub enum ClientError {
-    TcpError(TcpError),
-}
-
-impl fmt::Display for ClientError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ClientError::TcpError(e) => write!(f, "TCP error: {}", e),
-        }
     }
 }
 
@@ -89,6 +116,8 @@ pub enum AudioError {
     OutputPauseError(cpal::PauseStreamError),
     InputPlayError(cpal::PlayStreamError),
     InputPauseError(cpal::PauseStreamError),
+    InputDeviceClosed,
+    GenericError, //TODO remove
 }
 
 impl fmt::Display for AudioError {
@@ -102,6 +131,8 @@ impl fmt::Display for AudioError {
             AudioError::OutputPauseError(e) => write!(f, "Playback error: {}", e),
             AudioError::InputPlayError(e) => write!(f, "Recording error: {}", e),
             AudioError::InputPauseError(e) => write!(f, "Recording error: {}", e),
+            AudioError::InputDeviceClosed => write!(f, "Input Device Closed"),
+            AudioError::GenericError => write!(f, "Audio Generic Error"),
         }
     }
 }
@@ -109,6 +140,8 @@ impl fmt::Display for AudioError {
 pub enum StateError {
     AudioError(AudioError),
     ConfigError(ConfigError),
+
+    GenericError, //TODO remove
 }
 
 impl From<AudioError> for StateError {
@@ -128,6 +161,7 @@ impl fmt::Display for StateError {
         match self {
             StateError::AudioError(e) => write!(f, "Audio error: {}", e),
             StateError::ConfigError(e) => write!(f, "Config error: {}", e),
+            StateError::GenericError => write!(f, "Generic error"),
         }
     }
 }

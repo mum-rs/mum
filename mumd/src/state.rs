@@ -2,642 +2,416 @@ pub mod channel;
 pub mod server;
 pub mod user;
 
-use crate::audio::{AudioInput, AudioOutput, NotificationEvents};
-use crate::error::StateError;
-use crate::network::{ConnectionInfo, VoiceStreamType};
-use crate::network::tcp::{TcpEvent, TcpEventData};
-use crate::notifications;
+use crate::audio::output::{AudioOutputMessage, NotificationEvents};
+use crate::error::{StateError, ConnectionError};
+use crate::state::channel::Channel;
 use crate::state::server::Server;
+use crate::state::user::User;
 
 use log::*;
-use mumble_protocol::control::msgs;
+use mumble_protocol::control::msgs::{self, CryptSetup};
 use mumble_protocol::control::ControlPacket;
-use mumble_protocol::ping::PongPacket;
-use mumble_protocol::voice::Serverbound;
-use mumlib::command::{Command, CommandResponse};
+use mumble_protocol::voice::{VoicePacket, Serverbound};
 use mumlib::config::Config;
-use mumlib::error::ChannelIdentifierError;
-use mumlib::Error;
-use crate::state::user::UserDiff;
-use std::net::{SocketAddr, ToSocketAddrs};
-use tokio::sync::{mpsc, watch};
-
-macro_rules! at {
-    ($event:expr, $generator:expr) => {
-        ExecutionContext::TcpEvent($event, Box::new($generator))
-    };
-}
-
-macro_rules! now {
-    ($data:expr) => {
-        ExecutionContext::Now(Box::new(move || $data))
-    };
-}
-
-//TODO give me a better name
-pub enum ExecutionContext {
-    TcpEvent(
-        TcpEvent,
-        Box<dyn FnOnce(TcpEventData) -> mumlib::error::Result<Option<CommandResponse>>>,
-    ),
-    Now(Box<dyn FnOnce() -> mumlib::error::Result<Option<CommandResponse>>>),
-    Ping(
-        Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
-        Box<dyn FnOnce(Option<PongPacket>) -> mumlib::error::Result<Option<CommandResponse>> + Send>,
-    ),
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum StatePhase {
-    Disconnected,
-    Connecting,
-    Connected(VoiceStreamType),
-}
+use std::sync::atomic::{Ordering, AtomicU32};
+use std::collections::HashMap;
+use tokio::sync::{mpsc, watch, RwLock, Mutex, broadcast};
+use tokio::time::{timeout, Duration};
 
 pub struct State {
-    config: Config,
-    server: Option<Server>,
-    audio_input: AudioInput,
-    audio_output: AudioOutput,
+    pub config: RwLock<Config>,
 
-    phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
+    pub channels: RwLock<HashMap<u32, RwLock<Channel>>>,
+    pub users: RwLock<HashMap<u32, RwLock<User>>>,
+    pub welcome_text: RwLock<Option<String>>,
+
+    //None is idle state, Some(server) is try to connected to server
+    server_recv: watch::Receiver<Option<Server>>,
+    server_send: Mutex<watch::Sender<Option<Server>>>,
+
+    input_volume_state_recv: watch::Receiver<f32>,
+    input_volume_state_send: Mutex<watch::Sender<f32>>,
+
+    output_volume_state_recv: watch::Receiver<f32>,
+    output_volume_state_send: Mutex<watch::Sender<f32>>,
+
+    muted_recv: watch::Receiver<bool>,
+    muted_send: Mutex<watch::Sender<bool>>,
+    deaf_recv: watch::Receiver<bool>,
+    deaf_send: Mutex<watch::Sender<bool>>,
+    connected_recv: watch::Receiver<bool>,
+    connected_send: Mutex<watch::Sender<bool>>,
+    //TODO use a AtomicBool?
+    link_udp_recv: watch::Receiver<bool>,
+    link_udp_send: Mutex<watch::Sender<bool>>,
+    //valid if connected, so no need for Option
+    session_id: AtomicU32,
+
+    crypt_recv: watch::Receiver<Option<Box<CryptSetup>>>,
+    crypt_send: Mutex<watch::Sender<Option<Box<CryptSetup>>>>,
+
+    audio_sink_sender: mpsc::UnboundedSender<AudioOutputMessage>,
+    audio_sink_receiver: Mutex<Option<mpsc::UnboundedReceiver<AudioOutputMessage>>>,
+
+    tcp_sink_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
+    tcp_sink_receiver: Mutex<Option<mpsc::UnboundedReceiver<ControlPacket<Serverbound>>>>,
+
+    udp_sink_sender: mpsc::UnboundedSender<VoicePacket<Serverbound>>,
+    udp_sink_receiver: Mutex<Option<mpsc::UnboundedReceiver<VoicePacket<Serverbound>>>>,
+
+    connection_broadcast: broadcast::Sender<Result<(), ConnectionError>>,
+    tcp_ping_broadcast: broadcast::Sender<Box<msgs::Ping>>,
+    tcp_tunnel_ping_broadcast: broadcast::Sender<u64>,
+    udp_ping_broadcast: broadcast::Sender<u64>,
 }
 
 impl State {
-    pub fn new() -> Result<Self, StateError> {
+    pub async fn new(server: Option<Server>) -> Result<Self, StateError> {
         let config = mumlib::config::read_default_cfg()?;
-        let phase_watcher = watch::channel(StatePhase::Disconnected);
-        let audio_input = AudioInput::new(
-            config.audio.input_volume.unwrap_or(1.0),
-            phase_watcher.1.clone(),
-        ).map_err(|e| StateError::AudioError(e))?;
-        let audio_output = AudioOutput::new(
-            config.audio.output_volume.unwrap_or(1.0),
-        ).map_err(|e| StateError::AudioError(e))?;
-        let mut state = Self {
-            config,
-            server: None,
-            audio_input,
-            audio_output,
-            phase_watcher,
+
+        let (server_send, server_recv) = watch::channel(server);
+        let (input_volume_state_send, input_volume_state_recv) = watch::channel(1.0);
+        let (output_volume_state_send, output_volume_state_recv) = watch::channel(1.0);
+        let (audio_sink_sender, audio_sink_receiver) = mpsc::unbounded_channel();
+
+        let (muted_send, muted_recv) = watch::channel(false);
+        let (deaf_send, deaf_recv) = watch::channel(false);
+        let (connected_send, connected_recv) = watch::channel(false);
+        let (crypt_send, crypt_recv) = watch::channel(None);
+        let (link_udp_send, link_udp_recv) = watch::channel(false);
+        let (tcp_sink_sender, tcp_sink_receiver) = mpsc::unbounded_channel();
+        let (udp_sink_sender, udp_sink_receiver) = mpsc::unbounded_channel();
+        let (connection_broadcast, _) = broadcast::channel(10);
+        let (tcp_ping_broadcast, _) = broadcast::channel(10);
+        let (tcp_tunnel_ping_broadcast, _) = broadcast::channel(10);
+        let (udp_ping_broadcast, _) = broadcast::channel(10);
+
+        let state = Self {
+            config: RwLock::new(config),
+            server_recv,
+            server_send: Mutex::new(server_send),
+            channels: RwLock::new(HashMap::new()),
+            users: RwLock::new(HashMap::new()),
+            welcome_text: RwLock::new(None),
+            input_volume_state_recv,
+            input_volume_state_send: Mutex::new(input_volume_state_send),
+            output_volume_state_recv,
+            output_volume_state_send: Mutex::new(output_volume_state_send),
+            audio_sink_sender,
+            audio_sink_receiver: Mutex::new(Some(audio_sink_receiver)),
+            muted_recv,
+            muted_send: Mutex::new(muted_send),
+            deaf_recv,
+            deaf_send: Mutex::new(deaf_send),
+            connected_recv,
+            connected_send: Mutex::new(connected_send),
+            link_udp_recv,
+            link_udp_send: Mutex::new(link_udp_send),
+            session_id: AtomicU32::new(0),
+            crypt_recv,
+            crypt_send: Mutex::new(crypt_send),
+            tcp_sink_sender,
+            tcp_sink_receiver: Mutex::new(Some(tcp_sink_receiver)),
+            udp_sink_sender,
+            udp_sink_receiver: Mutex::new(Some(udp_sink_receiver)),
+            connection_broadcast,
+            tcp_ping_broadcast,
+            tcp_tunnel_ping_broadcast,
+            udp_ping_broadcast,
         };
-        state.reload_config();
+        state.reload_config().await?;
         Ok(state)
     }
 
-    pub fn handle_command(
-        &mut self,
-        command: Command,
-        packet_sender: &mut mpsc::UnboundedSender<ControlPacket<Serverbound>>,
-        connection_info_sender: &mut watch::Sender<Option<ConnectionInfo>>,
-    ) -> ExecutionContext {
-        match command {
-            Command::ChannelJoin { channel_identifier } => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
 
-                let channels = self.server().unwrap().channels();
+    pub fn server_recv(&self) -> watch::Receiver<Option<Server>> {
+        self.server_recv.clone()
+    }
 
-                let matches = channels
-                    .iter()
-                    .map(|e| (e.0, e.1.path(channels)))
-                    .filter(|e| e.1.ends_with(&channel_identifier))
-                    .collect::<Vec<_>>();
-                let id = match matches.len() {
-                    0 => {
-                        let soft_matches = channels
-                            .iter()
-                            .map(|e| (e.0, e.1.path(channels).to_lowercase()))
-                            .filter(|e| e.1.ends_with(&channel_identifier.to_lowercase()))
-                            .collect::<Vec<_>>();
-                        match soft_matches.len() {
-                            0 => {
-                                return now!(Err(Error::ChannelIdentifierError(
-                                    channel_identifier,
-                                    ChannelIdentifierError::Invalid
-                                )))
-                            }
-                            1 => *soft_matches.get(0).unwrap().0,
-                            _ => {
-                                return now!(Err(Error::ChannelIdentifierError(
-                                    channel_identifier,
-                                    ChannelIdentifierError::Invalid
-                                )))
-                            }
-                        }
-                    }
-                    1 => *matches.get(0).unwrap().0,
-                    _ => {
-                        return now!(Err(Error::ChannelIdentifierError(
-                            channel_identifier,
-                            ChannelIdentifierError::Ambiguous
-                        )))
-                    }
-                };
-
-                let mut msg = msgs::UserState::new();
-                msg.set_session(self.server.as_ref().unwrap().session_id().unwrap());
-                msg.set_channel_id(id);
-                packet_sender.send(msg.into()).unwrap();
-                now!(Ok(None))
+    pub async fn wait_connected_state(&self, duration: Duration, state: bool) -> bool {
+        let mut connected = self.connected_recv();
+        timeout(duration, async {
+            while *connected.borrow() == state {
+                connected.changed().await.unwrap();
             }
-            Command::ChannelList => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-                let list = channel::into_channel(
-                    self.server.as_ref().unwrap().channels(),
-                    self.server.as_ref().unwrap().users(),
-                );
-                now!(Ok(Some(CommandResponse::ChannelList { channels: list })))
-            }
-            Command::ConfigReload => {
-                self.reload_config();
-                now!(Ok(None))
-            }
-            Command::DeafenSelf(toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
+        }).await.is_ok()
+    }
 
-                let server = self.server().unwrap();
-                let action = match (toggle, server.muted(), server.deafened()) {
-                    (Some(false), false, false) => None,
-                    (Some(false), false, true) => Some((false, false)),
-                    (Some(false), true, false) => None,
-                    (Some(false), true, true) => Some((true, false)),
-                    (Some(true), false, false) => Some((false, true)),
-                    (Some(true), false, true) => None,
-                    (Some(true), true, false) => Some((true, true)),
-                    (Some(true), true, true) => None,
-                    (None, false, false) => Some((false, true)),
-                    (None, false, true) => Some((false, false)),
-                    (None, true, false) => Some((true, true)),
-                    (None, true, true) => Some((true, false)),
-                };
+    pub fn is_idle(&self) -> bool {
+        self.server_recv.borrow().is_none()
+    }
 
-                let mut new_deaf = None;
-                if let Some((mute, deafen)) = action {
-                    if server.deafened() != deafen {
-                        self.audio_output.play_effect(if deafen {
-                            NotificationEvents::Deafen
-                        } else {
-                            NotificationEvents::Undeafen
-                        });
-                    } else if server.muted() != mute {
-                        self.audio_output.play_effect(if mute {
-                            NotificationEvents::Mute
-                        } else {
-                            NotificationEvents::Unmute
-                        });
-                    }
-                    let mut msg = msgs::UserState::new();
-                    if server.muted() != mute {
-                        msg.set_self_mute(mute);
-                    } else if !mute && !deafen && server.deafened() {
-                        msg.set_self_mute(false);
-                    }
-                    if server.deafened() != deafen {
-                        msg.set_self_deaf(deafen);
-                        new_deaf = Some(deafen);
-                    }
-                    let server = self.server_mut().unwrap();
-                    server.set_muted(mute);
-                    server.set_deafened(deafen);
-                    packet_sender.send(msg.into()).unwrap();
-                }
+    pub async fn set_disconnected(&self, reason: ConnectionError) {
+        self.channels.write().await.clear();
+        self.users.write().await.clear();
+        let _ = self.connection_broadcast.send(Err(reason));
+    }
 
-                now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
-            }
-            Command::InputVolumeSet(volume) => {
-                self.audio_input.set_volume(volume);
-                now!(Ok(None))
-            }
-            Command::MuteOther(string, toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
+    //TODO create an error type for state
+    pub async fn set_connected(&self, mut msg: Box<msgs::ServerSync>) -> Result<(), StateError>{
+        debug!("Connected to server: {:?}", msg);
+        if !msg.has_session() {
+            return Err(StateError::GenericError);
+        }
+        self.set_session_id(msg.get_session());
+        if msg.has_welcome_text() {
+            let message = msg.take_welcome_text();
+            info!("Welcome: {}", message);
+            *self.welcome_text.write().await = Some(message);
+        }
+        self.connected_send.lock().await.send(true).unwrap();
+        let _ = self.connection_broadcast.send(Ok(()));
+        Ok(())
+    }
 
-                let id = self
-                    .server_mut()
-                    .unwrap()
-                    .users_mut()
-                    .iter_mut()
-                    .find(|(_, user)| user.name() == string);
+    pub async fn set_server(&self, server: Option<Server>) {
+        debug!("State: new server received: {:?}", server);
+        self.server_send.lock().await.send(server).unwrap();
+    }
 
-                let (id, user) = match id {
-                    Some(id) => (*id.0, id.1),
-                    None => return now!(Err(Error::InvalidUsername(string))),
-                };
+    pub fn get_input_volume_state_recv(&self) -> watch::Receiver<f32> {
+        self.input_volume_state_recv.clone()
+    }
 
-                let action = match toggle {
-                    Some(state) => {
-                        if user.suppressed() != state {
-                            Some(state)
-                        } else {
-                            None
-                        }
-                    }
-                    None => Some(!user.suppressed()),
-                };
+    pub async fn set_input_volume(&self, volume: f32) {
+        debug!("State: new input volume: {}", volume);
+        self.input_volume_state_send.lock().await.send(volume).unwrap();
+    }
 
-                if let Some(action) = action {
-                    user.set_suppressed(action);
-                    self.audio_output.set_mute(id, action);
-                }
+    pub fn get_output_volume_state_recv(&self) -> watch::Receiver<f32> {
+        self.output_volume_state_recv.clone()
+    }
 
-                return now!(Ok(None));
-            }
-            Command::MuteSelf(toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
+    pub async fn set_output_volume(&self, volume: f32) {
+        debug!("State: new output volume: {}", volume);
+        self.output_volume_state_send.lock().await.send(volume).unwrap();
+    }
 
-                let server = self.server().unwrap();
-                let action = match (toggle, server.muted(), server.deafened()) {
-                    (Some(false), false, false) => None,
-                    (Some(false), false, true) => Some((false, false)),
-                    (Some(false), true, false) => Some((false, false)),
-                    (Some(false), true, true) => Some((false, false)),
-                    (Some(true), false, false) => Some((true, false)),
-                    (Some(true), false, true) => None,
-                    (Some(true), true, false) => None,
-                    (Some(true), true, true) => None,
-                    (None, false, false) => Some((true, false)),
-                    (None, false, true) => Some((false, false)),
-                    (None, true, false) => Some((false, false)),
-                    (None, true, true) => Some((false, false)),
-                };
+    pub fn get_audio_sink_sender(&self) -> mpsc::UnboundedSender<AudioOutputMessage> {
+        self.audio_sink_sender.clone()
+    }
 
-                let mut new_mute = None;
-                if let Some((mute, deafen)) = action {
-                    if server.deafened() != deafen {
-                        self.audio_output.play_effect(if deafen {
-                            NotificationEvents::Deafen
-                        } else {
-                            NotificationEvents::Undeafen
-                        });
-                    } else if server.muted() != mute {
-                        self.audio_output.play_effect(if mute {
-                            NotificationEvents::Mute
-                        } else {
-                            NotificationEvents::Unmute
-                        });
-                    }
-                    let mut msg = msgs::UserState::new();
-                    if server.muted() != mute {
-                        msg.set_self_mute(mute);
-                        new_mute = Some(mute)
-                    } else if !mute && !deafen && server.deafened() {
-                        msg.set_self_mute(false);
-                        new_mute = Some(false)
-                    }
-                    if server.deafened() != deafen {
-                        msg.set_self_deaf(deafen);
-                    }
-                    let server = self.server_mut().unwrap();
-                    server.set_muted(mute);
-                    server.set_deafened(deafen);
-                    packet_sender.send(msg.into()).unwrap();
-                }
+    pub async fn get_audio_sink_receiver(&self) -> Option<mpsc::UnboundedReceiver<AudioOutputMessage>> {
+        self.audio_sink_receiver.lock().await.take()
+    }
 
-                now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
-            }
-            Command::OutputVolumeSet(volume) => {
-                self.audio_output.set_volume(volume);
-                now!(Ok(None))
-            }
-            Command::Ping => {
-                now!(Ok(Some(CommandResponse::Pong)))
-            }
-            Command::ServerConnect {
-                host,
-                port,
-                username,
-                password,
-                accept_invalid_cert,
-            } => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
-                    return now!(Err(Error::AlreadyConnected));
-                }
-                let mut server = Server::new();
-                *server.username_mut() = Some(username);
-                *server.password_mut() = password;
-                *server.host_mut() = Some(format!("{}:{}", host, port));
-                self.server = Some(server);
-                self.phase_watcher
-                    .0
-                    .send(StatePhase::Connecting)
-                    .unwrap();
+    pub async fn set_audio_sink_receiver(&self, value: mpsc::UnboundedReceiver<AudioOutputMessage>) {
+        *self.audio_sink_receiver.lock().await = Some(value);
+    }
 
-                let socket_addr = match (host.as_ref(), port)
-                    .to_socket_addrs()
-                    .map(|mut e| e.next())
-                {
-                    Ok(Some(v)) => v,
-                    _ => {
-                        warn!("Error parsing server addr");
-                        return now!(Err(Error::InvalidServerAddr(host, port)));
-                    }
-                };
-                connection_info_sender
-                    .send(Some(ConnectionInfo::new(
-                        socket_addr,
-                        host,
-                        accept_invalid_cert,
-                    )))
-                    .unwrap();
-                at!(TcpEvent::Connected, |res| {
-                    //runs the closure when the client is connected
-                    if let TcpEventData::Connected(res) = res {
-                        res.map(|msg| {
-                            Some(CommandResponse::ServerConnect {
-                                welcome_message: if msg.has_welcome_text() {
-                                    Some(msg.get_welcome_text().to_string())
-                                } else {
-                                    None
-                                },
-                            })
-                        })
-                    } else {
-                        unreachable!("callback should be provided with a TcpEventData::Connected");
-                    }
-                })
-            }
-            Command::ServerDisconnect => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-
-                self.server = None;
-
-                self.phase_watcher
-                    .0
-                    .send(StatePhase::Disconnected)
-                    .unwrap();
-                self.audio_output.play_effect(NotificationEvents::ServerDisconnect);
-                now!(Ok(None))
-            }
-            Command::ServerStatus { host, port } => ExecutionContext::Ping(
-                Box::new(move || {
-                    match (host.as_str(), port)
-                        .to_socket_addrs()
-                        .map(|mut e| e.next())
-                    {
-                        Ok(Some(v)) => Ok(v),
-                        _ => Err(Error::InvalidServerAddr(host, port)),
-                    }
-                }),
-                Box::new(move |pong| {
-                    Ok(pong.map(|pong| CommandResponse::ServerStatus {
-                        version: pong.version,
-                        users: pong.users,
-                        max_users: pong.max_users,
-                        bandwidth: pong.bandwidth,
-                    }))
-                }),
-            ),
-            Command::Status => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-                let state = self.server.as_ref().unwrap().into();
-                now!(Ok(Some(CommandResponse::Status {
-                    server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
-                })))
-            }
-            Command::UserVolumeSet(string, volume) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-                let user_id = match self
-                    .server()
-                    .unwrap()
-                    .users()
-                    .iter()
-                    .find(|e| e.1.name() == string)
-                    .map(|e| *e.0)
-                {
-                    None => return now!(Err(Error::InvalidUsername(string))),
-                    Some(v) => v,
-                };
-
-                self.audio_output.set_user_volume(user_id, volume);
-                now!(Ok(None))
+    pub async fn channel_parse(&self, msg: Box<msgs::ChannelState>) -> Result<(), StateError> {
+        debug!("State: parse channel: {:?}", msg);
+        if !msg.has_channel_id() {
+            //TODO panic?
+            warn!("Can't parse channel state without channel id");
+            return Err(StateError::GenericError);
+        }
+        //carefull with the deadlock here
+        let channels_lock = self.channels.read().await;
+        let channel = channels_lock.get(&msg.get_channel_id());
+        match channel {
+            Some(channel) => {
+                //get a write lock so we can update the channel
+                channel.write().await.parse_state(msg);
+                Ok(())
+            },
+            None => {
+                //get a write lock to create a new entry
+                drop(channel);
+                drop(channels_lock);
+                let mut channels = self.channels.write().await;
+                channels.insert(msg.get_channel_id(), RwLock::new(Channel::new(msg)));
+                Ok(())
             }
         }
     }
 
-    pub fn parse_user_state(&mut self, msg: msgs::UserState) {
+    pub async fn channel_remove(&self, id: u32) {
+        debug!("State: remove channel: {}", id);
+        //TODO: remove our own channel?
+        if let None = self.channels.write().await.remove(&id) {
+            warn!("Attempted to remove channel that doesn't exist");
+        }
+    }
+
+    pub async fn user_parse(&self, msg: Box<msgs::UserState>) -> Result<(), StateError>{
+        debug!("State: parse user: {:?}", msg);
         if !msg.has_session() {
             warn!("Can't parse user state without session");
-            return;
+            return Err(StateError::GenericError);
         }
-        let session = msg.get_session();
-        // check if this is initial state
-        if !self.server().unwrap().users().contains_key(&session) {
-            self.create_user(msg);
-        } else {
-            self.update_user(msg);
-        }
-    }
-
-    fn create_user(&mut self, msg: msgs::UserState) {
-        if !msg.has_name() {
-            warn!("Missing name in initial user state");
-            return;
-        }
-
-        let session = msg.get_session();
-
-        if msg.get_name() == self.server().unwrap().username().unwrap() {
-            // this is us
-            *self.server_mut().unwrap().session_id_mut() = Some(session);
-        } else {
-            // this is someone else
-            // send notification only if we've passed the connecting phase
-            if matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                let channel_id = msg.get_channel_id();
-
-                if channel_id
-                    == self.get_users_channel(self.server().unwrap().session_id().unwrap())
-                {
-                    if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                        notifications::send(format!(
-                            "{} connected and joined {}",
-                            &msg.get_name(),
-                            channel.name()
-                        ));
-                    }
-
-                    self.audio_output.play_effect(NotificationEvents::UserConnected);
+        let id = msg.get_session();
+        //carefull with the deadlock here
+        let users_lock = self.users.read().await;
+        let user = users_lock.get(&id);
+        match user {
+            Some(user) => {
+                //get a write lock so we can update the user
+                user.write().await.parse_state(msg);
+            },
+            None => {
+                drop(user);
+                drop(users_lock);
+                //get a write lock to create a new entry
+                self.users.write().await.insert(id, RwLock::new(User::new(msg)));
+                if *self.connected_recv().borrow() {
+                    //only notify if connected, during the connection process
+                    //we will receive all the users, we only want to make the
+                    //notification after the connection is finished
+                    self.audio_sink_sender.send(AudioOutputMessage::Effects(
+                        NotificationEvents::UserConnected
+                    )).map_err(|_| StateError::GenericError)?;
+                    //notifications::send(format!(
+                    //    "{} connected and joined {}",
+                    //    &msg.get_name(),
+                    //    channel.name()
+                    //));
                 }
             }
         }
-
-        self.server_mut()
-            .unwrap()
-            .users_mut()
-            .insert(session, user::User::new(msg));
+        Ok(())
     }
 
-    fn update_user(&mut self, msg: msgs::UserState) {
-        let session = msg.get_session();
+    pub async fn user_remove(&self, id: u32) -> Result<(), StateError> {
+        //let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
+        //let other_channel = self.get_users_channel(msg.get_session());
+        //if this_channel == other_channel {
+        //    self.audio_output.play_effect(NotificationEvents::UserDisconnected);
+        //    if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
+        //        notifications::send(format!("{} disconnected", &user.name()));
+        //    }
+        //}
 
-        let from_channel = self.get_users_channel(session);
-
-        let user = self
-            .server_mut()
-            .unwrap()
-            .users_mut()
-            .get_mut(&session)
-            .unwrap();
-
-        let mute = if msg.has_self_mute() && user.self_mute() != msg.get_self_mute() {
-            Some(msg.get_self_mute())
-        } else {
-            None
-        };
-        let deaf = if msg.has_self_deaf() && user.self_deaf() != msg.get_self_deaf() {
-            Some(msg.get_self_deaf())
-        } else {
-            None
-        };
-
-        let diff = UserDiff::from(msg);
-        user.apply_user_diff(&diff);
-
-        let user = self.server().unwrap().users().get(&session).unwrap();
-
-        if Some(session) != self.server().unwrap().session_id() {
-            //send notification if the user moved to or from any channel
-            if let Some(to_channel) = diff.channel_id {
-                let this_channel =
-                    self.get_users_channel(self.server().unwrap().session_id().unwrap());
-                if from_channel == this_channel || to_channel == this_channel {
-                    if let Some(channel) = self.server().unwrap().channels().get(&to_channel) {
-                        notifications::send(format!(
-                            "{} moved to channel {}",
-                            user.name(),
-                            channel.name()
-                        ));
-                    } else {
-                        warn!("{} moved to invalid channel {}", user.name(), to_channel);
-                    }
-                    self.audio_output.play_effect(if from_channel == this_channel {
-                        NotificationEvents::UserJoinedChannel
-                    } else {
-                        NotificationEvents::UserLeftChannel
-                    });
-                }
-            }
-
-            //send notification if a user muted/unmuted
-            if mute != None || deaf != None {
-                let mut s = user.name().to_string();
-                if let Some(mute) = mute {
-                    s += if mute { " muted" } else { " unmuted" };
-                }
-                if mute.is_some() && deaf.is_some() {
-                    s += " and";
-                }
-                if let Some(deaf) = deaf {
-                    s += if deaf { " deafened" } else { " undeafened" };
-                }
-                s += " themselves";
-                notifications::send(s);
-            }
+        debug!("State: remove user: {}", id);
+        //TODO: remove yourself?
+        if let None = self.users.write().await.remove(&id) {
+            return Err(StateError::GenericError);
         }
+        info!("User {} disconnected", id);
+        Ok(())
     }
 
-    pub fn remove_client(&mut self, msg: msgs::UserRemove) {
-        if !msg.has_session() {
-            warn!("Tried to remove user state without session");
-            return;
+    pub fn session_id(&self) -> u32 {
+        self.session_id.load(Ordering::SeqCst)
+    }
+
+    pub fn set_session_id(&self, id: u32) {
+        self.session_id.store(id, Ordering::SeqCst)
+    }
+
+    pub fn deaf_recv(&self) -> watch::Receiver<bool> {
+        self.deaf_recv.clone()
+    }
+
+    pub async fn set_deaf(&self, deaf: bool) {
+        self.deaf_send.lock().await.send(deaf).unwrap()
+    }
+
+    pub fn connected_recv(&self) -> watch::Receiver<bool> {
+        self.connected_recv.clone()
+    }
+
+    pub fn is_connected(&self) -> bool {
+        *self.connected_recv.borrow()
+    }
+
+    pub fn muted_recv(&self) -> watch::Receiver<bool> {
+        self.muted_recv.clone()
+    }
+
+    pub async fn set_mute(&self, muted: bool) {
+        self.muted_send.lock().await.send(muted).unwrap()
+    }
+
+    pub fn link_udp_recv(&self) -> watch::Receiver<bool> {
+        self.link_udp_recv.clone()
+    }
+
+    pub async fn set_link_udp(&self, value: bool) {
+        self.link_udp_send.lock().await.send(value).unwrap()
+    }
+
+    pub fn crypt_recv(&self) -> watch::Receiver<Option<Box<CryptSetup>>> {
+        self.crypt_recv.clone()
+    }
+
+    pub async fn set_crypt(&self, value: Option<Box<CryptSetup>>) {
+        self.crypt_send.lock().await.send(value).unwrap()
+    }
+
+    pub fn get_tcp_sink_sender(&self) -> mpsc::UnboundedSender<ControlPacket<Serverbound>> {
+        self.tcp_sink_sender.clone()
+    }
+
+    pub async fn get_tcp_sink_receiver(&self) -> Option<mpsc::UnboundedReceiver<ControlPacket<Serverbound>>> {
+        self.tcp_sink_receiver.lock().await.take()
+    }
+
+    pub async fn set_tcp_sink_receiver(&self, value: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>) {
+        *self.tcp_sink_receiver.lock().await = Some(value);
+    }
+
+    pub fn get_udp_sink_sender(&self) -> mpsc::UnboundedSender<VoicePacket<Serverbound>> {
+        self.udp_sink_sender.clone()
+    }
+
+    pub async fn get_udp_sink_receiver(&self) -> Option<mpsc::UnboundedReceiver<VoicePacket<Serverbound>>> {
+        self.udp_sink_receiver.lock().await.take()
+    }
+
+    pub async fn set_udp_sink_receiver(&self, value: mpsc::UnboundedReceiver<VoicePacket<Serverbound>>) {
+        *self.udp_sink_receiver.lock().await = Some(value)
+    }
+
+    pub fn connection_broadcast_receiver(&self)
+    -> broadcast::Receiver<Result<(), ConnectionError>> {
+        self.connection_broadcast.subscribe()
+    }
+
+    pub fn tcp_ping_broadcast_send(&self, ping: Box<msgs::Ping>) {
+        let _ = self.tcp_ping_broadcast.send(ping);
+    }
+
+    pub fn tcp_ping_broadcast_receiver(&self)
+    -> broadcast::Receiver<Box<msgs::Ping>> {
+        self.tcp_ping_broadcast.subscribe()
+    }
+
+    pub fn tcp_tunnel_ping_broadcast_send(&self, ping: u64) {
+        let _ = self.tcp_tunnel_ping_broadcast.send(ping);
+    }
+
+    pub fn tcp_tunnel_ping_broadcast_receiver(&self)
+    -> broadcast::Receiver<u64> {
+        self.tcp_tunnel_ping_broadcast.subscribe()
+    }
+
+    pub fn udp_ping_broadcast_send(&self, ping: u64) {
+        let _ = self.udp_ping_broadcast.send(ping);
+    }
+
+    pub fn udp_ping_broadcast_receiver(&self)
+    -> broadcast::Receiver<u64> {
+        self.udp_ping_broadcast.subscribe()
+    }
+
+    pub async fn reload_config(&self) -> Result<(), StateError> {
+        debug!("State: reload config");
+        let config = mumlib::config::read_default_cfg().map_err(|_| StateError::GenericError)?;
+
+        if let Some(input_volume) = config.audio.input_volume {
+            self.set_input_volume(input_volume).await;
+        }
+        if let Some(output_volume) = config.audio.output_volume {
+            self.set_output_volume(output_volume).await;
+        }
+        if let Some(sound_effects) = &config.audio.sound_effects {
+            self.audio_sink_sender.send(
+                AudioOutputMessage::LoadSoundEffects(sound_effects.to_owned())
+            ).unwrap();
         }
 
-        let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
-        let other_channel = self.get_users_channel(msg.get_session());
-        if this_channel == other_channel {
-            self.audio_output.play_effect(NotificationEvents::UserDisconnected);
-            if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
-                notifications::send(format!("{} disconnected", &user.name()));
-            }
-        }
-
-        self.server_mut()
-            .unwrap()
-            .users_mut()
-            .remove(&msg.get_session());
-        info!("User {} disconnected", msg.get_session());
-    }
-
-    pub fn reload_config(&mut self) {
-        match mumlib::config::read_default_cfg() {
-            Ok(config) => {
-                self.config = config;
-            }
-            Err(e) => error!("Couldn't read config: {}", e),
-        }
-        if let Some(input_volume) = self.config.audio.input_volume {
-            self.audio_input.set_volume(input_volume);
-        }
-        if let Some(output_volume) = self.config.audio.output_volume {
-            self.audio_output.set_volume(output_volume);
-        }
-        if let Some(sound_effects) = &self.config.audio.sound_effects {
-            self.audio_output.load_sound_effects(sound_effects);
-        }
-    }
-
-    pub fn broadcast_phase(&self, phase: StatePhase) {
-        self.phase_watcher
-            .0
-            .send(phase)
-            .unwrap();
-    }
-
-    pub fn initialized(&self) {
-        self.broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
-        self.audio_output.play_effect(NotificationEvents::ServerConnect);
-    }
-
-    pub fn audio_input(&self) -> &AudioInput {
-        &self.audio_input
-    }
-    pub fn audio_output(&self) -> &AudioOutput {
-        &self.audio_output
-    }
-    pub fn audio_input_mut(&mut self) -> &mut AudioInput {
-        &mut self.audio_input
-    }
-    pub fn audio_output_mut(&mut self) -> &mut AudioOutput {
-        &mut self.audio_output
-    }
-    pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
-        self.phase_watcher.1.clone()
-    }
-    pub fn server(&self) -> Option<&Server> {
-        self.server.as_ref()
-    }
-    pub fn server_mut(&mut self) -> Option<&mut Server> {
-        self.server.as_mut()
-    }
-    pub fn username(&self) -> Option<&str> {
-        self.server.as_ref().map(|e| e.username()).flatten()
-    }
-    pub fn password(&self) -> Option<&str> {
-        self.server.as_ref().map(|e| e.password()).flatten()
-    }
-    fn get_users_channel(&self, user_id: u32) -> u32 {
-        self.server()
-            .unwrap()
-            .users()
-            .iter()
-            .find(|e| *e.0 == user_id)
-            .unwrap()
-            .1
-            .channel()
+        *self.config.write().await = config;
+        Ok(())
     }
 }
