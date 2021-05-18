@@ -59,6 +59,7 @@ pub struct State {
     server: Option<Server>,
     audio_input: AudioInput,
     audio_output: AudioOutput,
+    message_buffer: Vec<(String, u32)>,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
 }
@@ -79,6 +80,7 @@ impl State {
             server: None,
             audio_input,
             audio_output,
+            message_buffer: Vec::new(),
             phase_watcher,
         };
         state.reload_config();
@@ -426,6 +428,16 @@ impl State {
                 self.audio_output.set_user_volume(user_id, volume);
                 now!(Ok(None))
             }
+            Command::PastMessages => {
+                let server = match self.server.as_ref() {
+                    Some(s) => s,
+                    None => return now!(Err(Error::Disconnected)),
+                };
+                let messages = std::mem::take(&mut self.message_buffer).into_iter()
+                    .map(|(msg, user)| (msg, server.users().get(&user).unwrap().name().to_string())).collect();
+                
+                now!(Ok(Some(CommandResponse::PastMessages { messages })))
+            }
         }
     }
 
@@ -590,6 +602,10 @@ impl State {
             self.audio_output.load_sound_effects(sound_effects);
         }
     }
+    
+    pub fn register_message(&mut self, msg: (String, u32)) {
+        self.message_buffer.push(msg);
+    }
 
     pub fn broadcast_phase(&self, phase: StatePhase) {
         self.phase_watcher
@@ -608,12 +624,6 @@ impl State {
     }
     pub fn audio_output(&self) -> &AudioOutput {
         &self.audio_output
-    }
-    pub fn audio_input_mut(&mut self) -> &mut AudioInput {
-        &mut self.audio_input
-    }
-    pub fn audio_output_mut(&mut self) -> &mut AudioOutput {
-        &mut self.audio_output
     }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
         self.phase_watcher.1.clone()

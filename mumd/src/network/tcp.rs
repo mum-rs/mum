@@ -269,12 +269,9 @@ async fn listen(
             }
         };
         match packet {
-            ControlPacket::TextMessage(msg) => {
-                info!(
-                    "Got message from user with session ID {}: {}",
-                    msg.get_actor(),
-                    msg.get_message()
-                );
+            ControlPacket::TextMessage(mut msg) => {
+                let mut state = state.write().unwrap();
+                state.register_message((msg.take_message(), msg.get_actor()));
             }
             ControlPacket::CryptSetup(msg) => {
                 debug!("Crypt setup");

@@ -29,6 +29,7 @@ pub enum Command {
     },
     Status,
     UserVolumeSet(String, f32),
+    PastMessages,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -55,4 +56,7 @@ pub enum CommandResponse {
     Status {
         server_state: Server,
     },
+    PastMessages {
+        messages: Vec<(String, String)>,
+    }
 }
