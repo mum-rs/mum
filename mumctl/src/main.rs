@@ -88,6 +88,8 @@ enum Command {
     Deafen,
     /// Undeafen yourself
     Undeafen,
+    /// Get messages
+    Messages,
 }
 
 #[derive(Debug, StructOpt)]
@@ -348,6 +350,16 @@ fn match_opt() -> Result<(), Error> {
         }
         Command::Undeafen => {
             send_command(MumCommand::DeafenSelf(Some(false)))??;
+        }
+        Command::Messages => {
+            match send_command(MumCommand::PastMessages)?? {
+                Some(CommandResponse::PastMessages { messages }) => {
+                    for (msg, sender) in messages {
+                        println!("{}: {}", sender, msg);
+                    }
+                }
+                _ => unreachable!("Response should only be a PastMessages"),
+            }
         }
     }
 
