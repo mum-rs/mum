@@ -1,4 +1,4 @@
-use crate::error::{ServerSendError, TcpError};
+use crate::{error::{ServerSendError, TcpError}, notifications};
 use crate::network::ConnectionInfo;
 use crate::state::{State, StatePhase};
 use log::*;
@@ -271,6 +271,12 @@ async fn listen(
         match packet {
             ControlPacket::TextMessage(mut msg) => {
                 let mut state = state.write().unwrap();
+                let user = state.server()
+                    .and_then(|server| server.users().get(&msg.get_actor()))
+                    .map(|user| user.name());
+                if let Some(user) = user {
+                    notifications::send(format!("{}: {}", user, msg.get_message())); //TODO: probably want a config flag for this
+                }
                 state.register_message((msg.take_message(), msg.get_actor()));
             }
             ControlPacket::CryptSetup(msg) => {
