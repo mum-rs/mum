@@ -14,9 +14,8 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
-use mumlib::command::{Command, CommandResponse};
+use mumlib::command::{Command, CommandResponse, MessageTarget};
 use mumlib::config::Config;
-use mumlib::error::ChannelIdentifierError;
 use mumlib::Error;
 use crate::state::user::UserDiff;
 use std::net::{SocketAddr, ToSocketAddrs};
@@ -99,43 +98,9 @@ impl State {
                     return now!(Err(Error::Disconnected));
                 }
 
-                let channels = self.server().unwrap().channels();
-
-                let matches = channels
-                    .iter()
-                    .map(|e| (e.0, e.1.path(channels)))
-                    .filter(|e| e.1.ends_with(&channel_identifier))
-                    .collect::<Vec<_>>();
-                let id = match matches.len() {
-                    0 => {
-                        let soft_matches = channels
-                            .iter()
-                            .map(|e| (e.0, e.1.path(channels).to_lowercase()))
-                            .filter(|e| e.1.ends_with(&channel_identifier.to_lowercase()))
-                            .collect::<Vec<_>>();
-                        match soft_matches.len() {
-                            0 => {
-                                return now!(Err(Error::ChannelIdentifierError(
-                                    channel_identifier,
-                                    ChannelIdentifierError::Invalid
-                                )))
-                            }
-                            1 => *soft_matches.get(0).unwrap().0,
-                            _ => {
-                                return now!(Err(Error::ChannelIdentifierError(
-                                    channel_identifier,
-                                    ChannelIdentifierError::Invalid
-                                )))
-                            }
-                        }
-                    }
-                    1 => *matches.get(0).unwrap().0,
-                    _ => {
-                        return now!(Err(Error::ChannelIdentifierError(
-                            channel_identifier,
-                            ChannelIdentifierError::Ambiguous
-                        )))
-                    }
+                let id = match self.server().unwrap().channel_name(&channel_identifier) {
+                    Ok((id, _)) => id,
+                    Err(e) => return now!(Err(Error::ChannelIdentifierError(channel_identifier, e))),
                 };
 
                 let mut msg = msgs::UserState::new();
@@ -437,6 +402,57 @@ impl State {
                     .map(|(msg, user)| (msg, server.users().get(&user).unwrap().name().to_string())).collect();
                 
                 now!(Ok(Some(CommandResponse::PastMessages { messages })))
+            }
+            Command::SendMessage { message, targets } => {
+                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                    return now!(Err(Error::Disconnected));
+                }
+                
+                let mut msg = msgs::TextMessage::new();
+
+                msg.set_message(message);
+
+                for target in targets {
+                    match target {
+                        MessageTarget::Channel { recursive, name } => {
+                            let channel_id = self
+                                .server()
+                                .unwrap()
+                                .channel_name(&name);
+                            
+                            let channel_id = match channel_id {
+                                Ok(id) => id,
+                                Err(e) => return now!(Err(Error::ChannelIdentifierError(name, e))),
+                            }.0;
+                            
+                            if recursive {
+                                msg.mut_tree_id()
+                            } else {
+                                msg.mut_channel_id()
+                            }.push(channel_id);
+                        }
+                        MessageTarget::User { name } => {
+                            let id = self
+                                .server()
+                                .unwrap()
+                                .users()
+                                .iter()
+                                .find(|(_, user)| user.name() == &name)
+                                .map(|(e, _)| *e);
+
+                            let id = match id {
+                                Some(id) => id,
+                                None => return now!(Err(Error::InvalidUsername(name))),
+                            };
+
+                            msg.mut_session().push(id);
+                        }
+                    }
+                }
+
+                packet_sender.send(msg.into()).unwrap();
+
+                now!(Ok(None))
             }
         }
     }
