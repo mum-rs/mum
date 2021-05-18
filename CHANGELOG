@@ -21,6 +21,7 @@ Added
  * Added tunneling audio through TCP if UDP connection goes down.
  * --version now includes the current commit hash.
  * Server passwords. Thanks @rbran!
+ * Added support for sending and receiving text messages
 
 Changed
 ~~~~~~~
