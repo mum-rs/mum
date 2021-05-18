@@ -1,6 +1,6 @@
 use colored::Colorize;
 use log::*;
-use mumlib::command::{Command as MumCommand, CommandResponse};
+use mumlib::command::{Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
 use std::fmt;
@@ -90,6 +90,27 @@ enum Command {
     Undeafen,
     /// Get messages
     Messages,
+    /// Send a message to a channel or a user
+    Message(Target),
+}
+
+#[derive(Debug, StructOpt)]
+enum Target {
+    Channel {
+        /// The message to send
+        message: String,
+        /// If the message should be sent recursivley to sub-channels
+        #[structopt(short = "r", long = "recursive")]
+        recursive: bool,
+        /// Which channels to send to
+        names: Vec<String>,
+    },
+    User {
+        /// The message to send
+        message: String,
+        /// Which channels to send to
+        names: Vec<String>,
+    },
 }
 
 #[derive(Debug, StructOpt)]
@@ -359,6 +380,31 @@ fn match_opt() -> Result<(), Error> {
                     }
                 }
                 _ => unreachable!("Response should only be a PastMessages"),
+            }
+        }
+        Command::Message(target) => {
+            match target {
+                Target::Channel {
+                    message,
+                    recursive,
+                    names,
+                } => {
+                    let msg = MumCommand::SendMessage {
+                        message,
+                        targets: names.into_iter().map(|name| MessageTarget::Channel { name, recursive }).collect(),
+                    };
+                    send_command(msg)??;
+                },
+                Target::User {
+                    message,
+                    names
+                } => {
+                    let msg = MumCommand::SendMessage {
+                        message,
+                        targets: names.into_iter().map(|name| MessageTarget::User { name }).collect(),
+                    };
+                    send_command(msg)??;
+                },
             }
         }
     }
