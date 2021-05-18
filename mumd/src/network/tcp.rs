@@ -54,22 +54,22 @@ impl<'a> From<&TcpEventData<'a>> for TcpEvent {
 
 #[derive(Clone)]
 struct TcpEventQueue {
-    handlers: Arc<Mutex<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
+    handlers: Arc<RwLock<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
 }
 
 impl TcpEventQueue {
     fn new() -> Self {
         Self {
-            handlers: Arc::new(Mutex::new(HashMap::new())),
+            handlers: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    async fn register(&self, at: TcpEvent, callback: TcpEventCallback) {
-        self.handlers.lock().await.entry(at).or_default().push(callback);
+    fn register(&self, at: TcpEvent, callback: TcpEventCallback) {
+        self.handlers.write().unwrap().entry(at).or_default().push(callback);
     }
 
-    async fn resolve<'a>(&self, data: TcpEventData<'a>) {
-        if let Some(vec) = self.handlers.lock().await.get_mut(&TcpEvent::from(&data)) {
+    fn resolve<'a>(&self, data: TcpEventData<'a>) {
+        if let Some(vec) = self.handlers.write().unwrap().get_mut(&TcpEvent::from(&data)) {
             let old = std::mem::take(vec);
             for handler in old {
                 handler(data.clone());
@@ -143,7 +143,7 @@ pub async fn handle(
             phase_watcher,
         ).await.unwrap_or(Ok(()))?;
 
-        event_queue.resolve(TcpEventData::Disconnected).await;
+        event_queue.resolve(TcpEventData::Disconnected);
 
         debug!("Fully disconnected TCP stream, waiting for new connection info");
     }
@@ -305,7 +305,7 @@ async fn listen(
                         )
                         .await;
                 }
-                event_queue.resolve(TcpEventData::Connected(Ok(&msg))).await;
+                event_queue.resolve(TcpEventData::Connected(Ok(&msg)));
                 let mut state = state.write().unwrap();
                 let server = state.server_mut().unwrap();
                 server.parse_server_sync(*msg);
@@ -322,7 +322,7 @@ async fn listen(
                 debug!("Login rejected: {:?}", msg);
                 match msg.get_field_type() {
                     msgs::Reject_RejectType::WrongServerPW => {
-                        event_queue.resolve(TcpEventData::Connected(Err(mumlib::Error::InvalidServerPassword))).await;
+                        event_queue.resolve(TcpEventData::Connected(Err(mumlib::Error::InvalidServerPassword)));
                     }
                     ty => {
                         warn!("Unhandled reject type: {:?}", ty);
@@ -387,6 +387,6 @@ async fn register_events(
 ) {
     loop {
         let (event, handler) = tcp_event_register_receiver.recv().await.unwrap();
-        event_queue.register(event, handler).await;
+        event_queue.register(event, handler);
     }
 }
