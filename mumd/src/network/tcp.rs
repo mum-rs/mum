@@ -57,14 +57,14 @@ impl<'a> From<&TcpEventData<'a>> for TcpEvent {
 }
 
 #[derive(Clone)]
-struct TcpEventQueue {
+pub struct TcpEventQueue {
     callbacks: Arc<RwLock<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
     subscribers: Arc<RwLock<HashMap<TcpEvent, Vec<TcpEventSubscriber>>>>,
 }
 
 impl TcpEventQueue {
     /// Creates a new `TcpEventQueue`.
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             callbacks: Arc::new(RwLock::new(HashMap::new())),
             subscribers: Arc::new(RwLock::new(HashMap::new())),
@@ -72,18 +72,18 @@ impl TcpEventQueue {
     }
 
     /// Registers a new callback to be triggered when an event is fired.
-    fn register_callback(&self, at: TcpEvent, callback: TcpEventCallback) {
+    pub fn register_callback(&self, at: TcpEvent, callback: TcpEventCallback) {
         self.callbacks.write().unwrap().entry(at).or_default().push(callback);
     }
 
     /// Registers a new callback to be triggered when an event is fired.
-    fn register_subscriber(&self, at: TcpEvent, callback: TcpEventSubscriber) {
+    pub fn register_subscriber(&self, at: TcpEvent, callback: TcpEventSubscriber) {
         self.subscribers.write().unwrap().entry(at).or_default().push(callback);
     }
 
     /// Fires all callbacks related to a specific TCP event and removes them from the event queue.
     /// Also calls all event subscribers, but keeps them in the queue
-    fn resolve<'a>(&self, data: TcpEventData<'a>) {
+    pub fn resolve<'a>(&self, data: TcpEventData<'a>) {
         if let Some(vec) = self.callbacks.write().unwrap().get_mut(&TcpEvent::from(&data)) {
             let old = std::mem::take(vec);
             for handler in old {
@@ -107,7 +107,7 @@ pub async fn handle(
     crypt_state_sender: mpsc::Sender<ClientCryptState>,
     packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
     mut packet_receiver: mpsc::UnboundedReceiver<ControlPacket<Serverbound>>,
-    mut tcp_event_register_receiver: mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
+    event_queue: TcpEventQueue,
 ) -> Result<(), TcpError> {
     loop {
         let connection_info = 'data: loop {
@@ -137,7 +137,6 @@ pub async fn handle(
             (state_lock.phase_receiver(),
                 state_lock.audio_input().receiver())
         };
-        let event_queue = TcpEventQueue::new();
 
         info!("Logging in...");
 
@@ -160,7 +159,6 @@ pub async fn handle(
                         phase_watcher_inner,
                     ).fuse() => r,
                     r = send_packets(sink, &mut packet_receiver).fuse() => r,
-                    _ = register_events(&mut tcp_event_register_receiver, event_queue.clone()).fuse() => Ok(()),
                 }
             },
             phase_watcher,
@@ -402,14 +400,4 @@ async fn listen(
         }
     }
     Ok(())
-}
-
-async fn register_events(
-    tcp_event_register_receiver: &mut mpsc::UnboundedReceiver<(TcpEvent, TcpEventCallback)>,
-    event_queue: TcpEventQueue,
-) {
-    loop {
-        let (event, handler) = tcp_event_register_receiver.recv().await.unwrap();
-        event_queue.register_callback(event, handler);
-    }
 }

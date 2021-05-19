@@ -29,7 +29,9 @@ pub enum Command {
     },
     Status,
     UserVolumeSet(String, f32),
-    PastMessages,
+    PastMessages {
+        block: bool,
+    },
     SendMessage {
         message: String,
         targets: Vec<MessageTarget>,

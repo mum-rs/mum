@@ -393,7 +393,7 @@ impl State {
                 self.audio_output.set_user_volume(user_id, volume);
                 now!(Ok(None))
             }
-            Command::PastMessages => {
+            Command::PastMessages { block } => {
                 let server = match self.server.as_ref() {
                     Some(s) => s,
                     None => return now!(Err(Error::Disconnected)),

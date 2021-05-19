@@ -373,7 +373,7 @@ fn match_opt() -> Result<(), Error> {
             send_command(MumCommand::DeafenSelf(Some(false)))??;
         }
         Command::Messages => {
-            match send_command(MumCommand::PastMessages)?? {
+            match send_command(MumCommand::PastMessages { block: false })?? {
                 Some(CommandResponse::PastMessages { messages }) => {
                     for (msg, sender) in messages {
                         println!("{}: {}", sender, msg);

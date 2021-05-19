@@ -1,8 +1,4 @@
-use crate::network::{
-    ConnectionInfo,
-    tcp::{TcpEvent, TcpEventCallback},
-    udp::PingRequest
-};
+use crate::network::{ConnectionInfo, tcp::TcpEventQueue, udp::PingRequest};
 use crate::state::{ExecutionContext, State};
 
 use log::*;
@@ -17,7 +13,7 @@ pub async fn handle(
         Command,
         oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
-    tcp_event_register_sender: mpsc::UnboundedSender<(TcpEvent, TcpEventCallback)>,
+    tcp_event_queue: TcpEventQueue,
     ping_request_sender: mpsc::UnboundedSender<PingRequest>,
     mut packet_sender: mpsc::UnboundedSender<ControlPacket<Serverbound>>,
     mut connection_info_sender: watch::Sender<Option<ConnectionInfo>>,
@@ -33,14 +29,14 @@ pub async fn handle(
             ExecutionContext::TcpEvent(event, generator) => {
                 let (tx, rx) = oneshot::channel();
                 //TODO handle this error
-                let _ = tcp_event_register_sender.send((
-                    event,
+                tcp_event_queue.register_callback(
+                    event, 
                     Box::new(move |e| {
                         let response = generator(e);
                         response_sender.send(response).unwrap();
                         tx.send(()).unwrap();
                     }),
-                ));
+                );
 
                 rx.await.unwrap();
             }
