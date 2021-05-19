@@ -27,18 +27,13 @@ pub async fn handle(
         drop(state);
         match event {
             ExecutionContext::TcpEvent(event, generator) => {
-                let (tx, rx) = oneshot::channel();
-                //TODO handle this error
                 tcp_event_queue.register_callback(
                     event, 
                     Box::new(move |e| {
                         let response = generator(e);
                         response_sender.send(response).unwrap();
-                        tx.send(()).unwrap();
                     }),
                 );
-
-                rx.await.unwrap();
             }
             ExecutionContext::Now(generator) => {
                 response_sender.send(generator()).unwrap();
