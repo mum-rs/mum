@@ -23,7 +23,7 @@ use tokio::sync::{mpsc, watch};
 
 macro_rules! at {
     ($event:expr, $generator:expr) => {
-        ExecutionContext::TcpEvent($event, Box::new($generator))
+        ExecutionContext::TcpEventCallback($event, Box::new($generator))
     };
 }
 
@@ -35,9 +35,13 @@ macro_rules! now {
 
 //TODO give me a better name
 pub enum ExecutionContext {
-    TcpEvent(
+    TcpEventCallback(
         TcpEvent,
         Box<dyn FnOnce(TcpEventData) -> mumlib::error::Result<Option<CommandResponse>>>,
+    ),
+    TcpEventSubscriber(
+        TcpEvent,
+        Box<dyn FnMut(TcpEventData, &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>) -> bool>,
     ),
     Now(Box<dyn FnOnce() -> mumlib::error::Result<Option<CommandResponse>>>),
     Ping(

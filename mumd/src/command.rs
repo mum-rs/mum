@@ -5,13 +5,13 @@ use log::*;
 use mumble_protocol::{Serverbound, control::ControlPacket};
 use mumlib::command::{Command, CommandResponse};
 use std::sync::{atomic::{AtomicU64, Ordering}, Arc, RwLock};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, watch};
 
 pub async fn handle(
     state: Arc<RwLock<State>>,
     mut command_receiver: mpsc::UnboundedReceiver<(
         Command,
-        oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
+        mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
     tcp_event_queue: TcpEventQueue,
     ping_request_sender: mpsc::UnboundedSender<PingRequest>,
@@ -20,13 +20,13 @@ pub async fn handle(
 ) {
     debug!("Begin listening for commands");
     let ping_count = AtomicU64::new(0);
-    while let Some((command, response_sender)) = command_receiver.recv().await {
+    while let Some((command, mut response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
         let mut state = state.write().unwrap();
         let event = state.handle_command(command, &mut packet_sender, &mut connection_info_sender);
         drop(state);
         match event {
-            ExecutionContext::TcpEvent(event, generator) => {
+            ExecutionContext::TcpEventCallback(event, generator) => {
                 tcp_event_queue.register_callback(
                     event, 
                     Box::new(move |e| {
@@ -34,6 +34,14 @@ pub async fn handle(
                         response_sender.send(response).unwrap();
                     }),
                 );
+            }
+            ExecutionContext::TcpEventSubscriber(event, mut handler) => {
+                tcp_event_queue.register_subscriber(
+                    event,
+                    Box::new(move |event| {
+                        handler(event, &mut response_sender)
+                    }),
+                )
             }
             ExecutionContext::Now(generator) => {
                 response_sender.send(generator()).unwrap();

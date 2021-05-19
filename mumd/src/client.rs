@@ -7,13 +7,13 @@ use futures_util::{select, FutureExt};
 use mumble_protocol::{Serverbound, control::ControlPacket, crypt::ClientCryptState};
 use mumlib::command::{Command, CommandResponse};
 use std::sync::{Arc, RwLock};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, watch};
 
 pub async fn handle(
     state: State,
     command_receiver: mpsc::UnboundedReceiver<(
         Command,
-        oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
+        mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
 ) -> Result<(), ClientError> {
     let (connection_info_sender, connection_info_receiver) =
