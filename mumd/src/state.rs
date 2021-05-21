@@ -300,6 +300,13 @@ impl State {
             .1
             .channel()
     }
+    fn get_user_name(&self, user: u32) -> String {
+        self.server()
+            .unwrap()
+            .users()
+            .get(&user).map(|e| e.name().to_string())
+            .unwrap_or(format!("Unknown user {}", user))
+    }
 }
 
 pub fn handle_command(
@@ -619,13 +626,7 @@ pub fn handle_command(
                         if let TcpEventData::TextMessage(a) = data {
                             let message = (
                                 a.get_message().to_owned(), 
-                                ref_state.read()
-                                    .unwrap()
-                                    .server()
-                                    .unwrap()
-                                    .users()
-                                    .get(&a.get_actor()).map(|e| e.name().to_string())
-                                    .unwrap_or(format!("Unknown user {}", a.get_actor()))
+                                ref_state.read().unwrap().get_user_name(a.get_actor())
                             );
                             sender.send(Ok(Some(CommandResponse::PastMessage { message }))).is_ok()
                         } else {
@@ -635,18 +636,8 @@ pub fn handle_command(
                 )
             } else {
                 let messages = std::mem::take(&mut state.message_buffer);
-                let server = match state.server.as_ref() {
-                    Some(s) => s,
-                    None => return now!(Err(Error::Disconnected)),
-                };
                 let messages = messages.into_iter()
-                    .map(|(msg, user)| (msg, server
-                        .users()
-                        .get(&user)
-                        .map(|e| e
-                            .name()
-                            .to_string())
-                            .unwrap_or(format!("Unknown user {}", user))))
+                    .map(|(msg, user)| (msg, state.get_user_name(user)))
                     .collect();
                 
                 now!(Ok(Some(CommandResponse::PastMessages { messages })))
