@@ -299,6 +299,8 @@ async fn listen(
                     notifications::send(format!("{}: {}", user, msg.get_message())); //TODO: probably want a config flag for this
                 }
                 state.register_message((msg.get_message().to_owned(), msg.get_actor()));
+                drop(state);
+                event_queue.resolve(TcpEventData::TextMessage(&*msg));
             }
             ControlPacket::CryptSetup(msg) => {
                 debug!("Crypt setup");

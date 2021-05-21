@@ -612,16 +612,6 @@ pub fn handle_command(
         }
         Command::PastMessages { block } => {
             if block {
-                let messages = std::mem::take(&mut state.message_buffer);
-                let server = match state.server.as_ref() {
-                    Some(s) => s,
-                    None => return now!(Err(Error::Disconnected)),
-                };
-                let messages = messages.into_iter()
-                    .map(|(msg, user)| (msg, server.users().get(&user).unwrap().name().to_string())).collect();
-                
-                now!(Ok(Some(CommandResponse::PastMessages { messages })))
-            } else {
                 let ref_state = Arc::clone(&og_state);
                 ExecutionContext::TcpEventSubscriber(
                     TcpEvent::TextMessage,
@@ -637,6 +627,16 @@ pub fn handle_command(
                         }
                     }),
                 )
+            } else {
+                let messages = std::mem::take(&mut state.message_buffer);
+                let server = match state.server.as_ref() {
+                    Some(s) => s,
+                    None => return now!(Err(Error::Disconnected)),
+                };
+                let messages = messages.into_iter()
+                    .map(|(msg, user)| (msg, server.users().get(&user).unwrap().name().to_string())).collect();
+                
+                now!(Ok(Some(CommandResponse::PastMessages { messages })))
             }
         }
         Command::SendMessage { message, targets } => {
