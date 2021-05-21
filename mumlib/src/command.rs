@@ -62,9 +62,6 @@ pub enum CommandResponse {
     Status {
         server_state: Server,
     },
-    PastMessages {
-        messages: Vec<(String, String)>,
-    },
     PastMessage {
         message: (String, String),
     }

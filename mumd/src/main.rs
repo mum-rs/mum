@@ -8,13 +8,14 @@ mod state;
 
 use crate::state::State;
 
+use bytes::{BufMut, BytesMut};
 use futures_util::{select, FutureExt, SinkExt, StreamExt};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
+use std::io::ErrorKind;
 use tokio::{net::{UnixListener, UnixStream}, sync::mpsc};
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
-use bytes::{BufMut, BytesMut};
 
 #[tokio::main]
 async fn main() {
@@ -114,7 +115,10 @@ async fn receive_commands(
                         bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
 
                         if let Err(e) = writer.send(serialized.freeze()).await {
-                            error!("Error sending response: {:?}", e);
+                            if e.kind() != ErrorKind::BrokenPipe { //if the client closed the connection, ignore logging the error
+                                                                   //we just assume that they just don't want any more packets
+                                error!("Error sending response: {:?}", e);
+                            }
                             break;
                         }
                     }

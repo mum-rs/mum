@@ -29,7 +29,9 @@ pub async fn handle(
                     event, 
                     Box::new(move |e| {
                         let response = generator(e);
-                        response_sender.send(response).unwrap();
+                        for response in response {
+                            response_sender.send(response).unwrap();
+                        }
                     }),
                 );
             }
@@ -42,7 +44,10 @@ pub async fn handle(
                 )
             }
             ExecutionContext::Now(generator) => {
-                response_sender.send(generator()).unwrap();
+                for response in generator() {
+                    response_sender.send(response).unwrap(); 
+                }
+                drop(response_sender);
             }
             ExecutionContext::Ping(generator, converter) => {
                 let ret = generator();

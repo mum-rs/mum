@@ -18,7 +18,7 @@ use mumlib::command::{Command, CommandResponse, MessageTarget};
 use mumlib::config::Config;
 use mumlib::Error;
 use crate::state::user::UserDiff;
-use std::{net::{SocketAddr, ToSocketAddrs}, sync::{Arc, RwLock}};
+use std::{iter, net::{SocketAddr, ToSocketAddrs}, sync::{Arc, RwLock}};
 use tokio::sync::{mpsc, watch};
 
 macro_rules! at {
@@ -29,21 +29,23 @@ macro_rules! at {
 
 macro_rules! now {
     ($data:expr) => {
-        ExecutionContext::Now(Box::new(move || $data))
+        ExecutionContext::Now(Box::new(move || Box::new(iter::once($data))))
     };
 }
+
+type Responses = Box<dyn Iterator<Item = mumlib::error::Result<Option<CommandResponse>>>>;
 
 //TODO give me a better name
 pub enum ExecutionContext {
     TcpEventCallback(
         TcpEvent,
-        Box<dyn FnOnce(TcpEventData) -> mumlib::error::Result<Option<CommandResponse>>>,
+        Box<dyn FnOnce(TcpEventData) -> Responses>,
     ),
     TcpEventSubscriber(
         TcpEvent,
         Box<dyn FnMut(TcpEventData, &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>) -> bool>,
     ),
-    Now(Box<dyn FnOnce() -> mumlib::error::Result<Option<CommandResponse>>>),
+    Now(Box<dyn FnOnce() -> Responses>),
     Ping(
         Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
         Box<dyn FnOnce(Option<PongPacket>) -> mumlib::error::Result<Option<CommandResponse>> + Send>,
@@ -545,7 +547,7 @@ pub fn handle_command(
             at!(TcpEvent::Connected, |res| {
                 //runs the closure when the client is connected
                 if let TcpEventData::Connected(res) = res {
-                    res.map(|msg| {
+                    Box::new(iter::once(res.map(|msg| {
                         Some(CommandResponse::ServerConnect {
                             welcome_message: if msg.has_welcome_text() {
                                 Some(msg.get_welcome_text().to_string())
@@ -553,7 +555,7 @@ pub fn handle_command(
                                 None
                             },
                         })
-                    })
+                    })))
                 } else {
                     unreachable!("callback should be provided with a TcpEventData::Connected");
                 }
@@ -584,12 +586,12 @@ pub fn handle_command(
                 }
             }),
             Box::new(move |pong| {
-                Ok(pong.map(|pong| CommandResponse::ServerStatus {
+                Ok(pong.map(|pong| (CommandResponse::ServerStatus {
                     version: pong.version,
                     users: pong.users,
                     max_users: pong.max_users,
                     bandwidth: pong.bandwidth,
-                }))
+                })))
             }),
         ),
         Command::Status => {
@@ -643,11 +645,14 @@ pub fn handle_command(
                 )
             } else {
                 let messages = std::mem::take(&mut state.message_buffer);
-                let messages = messages.into_iter()
+                let messages: Vec<_> = messages.into_iter()
                     .map(|(msg, user)| (msg, state.get_user_name(user).unwrap()))
+                    .map(|e| Ok(Some(CommandResponse::PastMessage { message: e })))
                     .collect();
                 
-                now!(Ok(Some(CommandResponse::PastMessages { messages })))
+                ExecutionContext::Now(Box::new(move || {
+                    Box::new(messages.into_iter())
+                }))
             }
         }
         Command::SendMessage { message, targets } => {

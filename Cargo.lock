@@ -860,6 +860,7 @@ dependencies = [
  "colored",
  "log",
  "mumlib",
+ "serde",
  "structopt",
 ]
 
