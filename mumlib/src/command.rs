@@ -64,6 +64,9 @@ pub enum CommandResponse {
     },
     PastMessages {
         messages: Vec<(String, String)>,
+    },
+    PastMessage {
+        message: (String, String),
     }
 }
 

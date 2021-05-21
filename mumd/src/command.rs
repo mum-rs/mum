@@ -22,9 +22,7 @@ pub async fn handle(
     let ping_count = AtomicU64::new(0);
     while let Some((command, mut response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
-        let mut state = state.write().unwrap();
-        let event = state.handle_command(command, &mut packet_sender, &mut connection_info_sender);
-        drop(state);
+        let event = crate::state::handle_command(Arc::clone(&state), command, &mut packet_sender, &mut connection_info_sender);
         match event {
             ExecutionContext::TcpEventCallback(event, generator) => {
                 tcp_event_queue.register_callback(

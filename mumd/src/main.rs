@@ -115,6 +115,7 @@ async fn receive_commands(
 
                         if let Err(e) = writer.send(serialized.freeze()).await {
                             error!("Error sending response: {:?}", e);
+                            break;
                         }
                     }
                 }
