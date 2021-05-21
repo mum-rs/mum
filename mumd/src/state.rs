@@ -300,12 +300,15 @@ impl State {
             .1
             .channel()
     }
-    fn get_user_name(&self, user: u32) -> String {
+
+    /// Gets the username of a user with id `user` connected to the same server that we are connected to.
+    /// If we are connected to the server but the user with the id doesn't exist, the string "Unknown user {id}"
+    /// is returned instead. If we aren't connected to a server, None is returned instead.
+    fn get_user_name(&self, user: u32) -> Option<String> {
         self.server()
-            .unwrap()
-            .users()
-            .get(&user).map(|e| e.name().to_string())
-            .unwrap_or(format!("Unknown user {}", user))
+            .map(|e| e.users()
+                .get(&user).map(|e| e.name().to_string())
+                .unwrap_or(format!("Unknown user {}", user)))
     }
 }
 
