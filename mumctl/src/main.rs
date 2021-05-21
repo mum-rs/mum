@@ -645,6 +645,7 @@ fn parse_state(server_state: &mumlib::state::Server) {
     }
 }
 
+/// Tries to find a running mumd instance and tries to receive one response from it.
 fn send_command(
     command: MumCommand,
 ) -> Result<mumlib::error::Result<Option<CommandResponse>>, CliError> {
@@ -666,6 +667,8 @@ fn send_command(
     bincode::deserialize_from(&mut connection).map_err(|_| CliError::ConnectionError)
 }
 
+/// Tries to find a running mumd instance and sends a single command to it. Returns an iterator which
+/// yields all responses that mumd sends for that particular command.
 fn send_command_multi(
     command: MumCommand,
 ) -> Result<impl Iterator<Item = mumlib::error::Result<Option<CommandResponse>>>, CliError> {
@@ -687,12 +690,14 @@ fn send_command_multi(
     Ok(BincodeIter::new(connection))
 }
 
+/// A struct to represent an iterator that deserializes bincode-encoded data from a `Reader`.
 struct BincodeIter<R, I> {
     reader: R,
     phantom: PhantomData<*const I>,
 }
 
 impl<R, I> BincodeIter<R, I> {
+    /// Creates a new `BincodeIter` from a reader.
     fn new(reader: R) -> Self {
         Self {
             reader,
