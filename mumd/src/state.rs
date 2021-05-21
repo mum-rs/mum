@@ -621,6 +621,10 @@ pub fn handle_command(
             now!(Ok(None))
         }
         Command::PastMessages { block } => {
+            //does it make sense to wait for messages while not connected?
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) { 
+                return now!(Err(Error::Disconnected));
+            }
             if block {
                 let ref_state = Arc::clone(&og_state);
                 ExecutionContext::TcpEventSubscriber(
@@ -629,7 +633,7 @@ pub fn handle_command(
                         if let TcpEventData::TextMessage(a) = data {
                             let message = (
                                 a.get_message().to_owned(), 
-                                ref_state.read().unwrap().get_user_name(a.get_actor())
+                                ref_state.read().unwrap().get_user_name(a.get_actor()).unwrap()
                             );
                             sender.send(Ok(Some(CommandResponse::PastMessage { message }))).is_ok()
                         } else {
@@ -640,7 +644,7 @@ pub fn handle_command(
             } else {
                 let messages = std::mem::take(&mut state.message_buffer);
                 let messages = messages.into_iter()
-                    .map(|(msg, user)| (msg, state.get_user_name(user)))
+                    .map(|(msg, user)| (msg, state.get_user_name(user).unwrap()))
                     .collect();
                 
                 now!(Ok(Some(CommandResponse::PastMessages { messages })))
