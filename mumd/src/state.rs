@@ -619,7 +619,13 @@ pub fn handle_command(
                         if let TcpEventData::TextMessage(a) = data {
                             let message = (
                                 a.get_message().to_owned(), 
-                                ref_state.read().unwrap().server().unwrap().users().get(&a.get_actor()).unwrap().name().to_string()
+                                ref_state.read()
+                                    .unwrap()
+                                    .server()
+                                    .unwrap()
+                                    .users()
+                                    .get(&a.get_actor()).map(|e| e.name().to_string())
+                                    .unwrap_or(format!("Unknown user {}", a.get_actor()))
                             );
                             sender.send(Ok(Some(CommandResponse::PastMessage { message }))).is_ok()
                         } else {
@@ -634,7 +640,14 @@ pub fn handle_command(
                     None => return now!(Err(Error::Disconnected)),
                 };
                 let messages = messages.into_iter()
-                    .map(|(msg, user)| (msg, server.users().get(&user).unwrap().name().to_string())).collect();
+                    .map(|(msg, user)| (msg, server
+                        .users()
+                        .get(&user)
+                        .map(|e| e
+                            .name()
+                            .to_string())
+                            .unwrap_or(format!("Unknown user {}", user))))
+                    .collect();
                 
                 now!(Ok(Some(CommandResponse::PastMessages { messages })))
             }
