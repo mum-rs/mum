@@ -65,7 +65,7 @@ pub struct State {
 
 impl State {
     pub fn new() -> Result<Self, StateError> {
-        let config = mumlib::config::read_default_cfg()?;
+        let config = mumlib::config::read_cfg(&mumlib::config::default_cfg_path())?;
         let phase_watcher = watch::channel(StatePhase::Disconnected);
         let audio_input = AudioInput::new(
             config.audio.input_volume.unwrap_or(1.0),
@@ -574,7 +574,7 @@ impl State {
     }
 
     pub fn reload_config(&mut self) {
-        match mumlib::config::read_default_cfg() {
+        match mumlib::config::read_cfg(&mumlib::config::default_cfg_path()) {
             Ok(config) => {
                 self.config = config;
             }

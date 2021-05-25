@@ -23,9 +23,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn write_default_cfg(&self, create: bool) -> Result<(), ConfigError> {
-        let path = default_cfg_path();
-
+    pub fn write(&self, path: &Path, create: bool) -> Result<(), ConfigError> {
         // Possible race here. It's fine since it shows when:
         //   1) the file doesn't exist when checked and is then created
         //   2) the file exists when checked but is then removed
@@ -40,7 +38,7 @@ impl Config {
         }
 
         Ok(fs::write(
-            &path,
+            path,
             toml::to_string(&TOMLConfig::from(self.clone()))?,
         )?)
     }
@@ -91,24 +89,6 @@ pub fn default_cfg_path() -> PathBuf {
     }
 }
 
-pub fn cfg_exists() -> bool {
-    if let Ok(var) = std::env::var("XDG_CONFIG_HOME") {
-        let path = format!("{}/mumdrc", var);
-        if Path::new(&path).exists() {
-            return true;
-        }
-    } else if let Ok(var) = std::env::var("HOME") {
-        let path = format!("{}/.config/mumdrc", var);
-        if Path::new(&path).exists() {
-            return true;
-        }
-    } else if Path::new("/etc/mumdrc").exists() {
-        return true;
-    }
-
-    false
-}
-
 impl TryFrom<TOMLConfig> for Config {
     type Error = toml::de::Error;
 
@@ -149,9 +129,8 @@ impl From<Config> for TOMLConfig {
     }
 }
 
-pub fn read_default_cfg() -> Result<Config, ConfigError> {
-    let path = default_cfg_path();
-    match fs::read_to_string(&path) {
+pub fn read_cfg(path: &Path) -> Result<Config, ConfigError> {
+    match fs::read_to_string(path) {
         Ok(s) => {
             let toml_config: TOMLConfig = toml::from_str(&s)?;
             Ok(Config::try_from(toml_config)?)

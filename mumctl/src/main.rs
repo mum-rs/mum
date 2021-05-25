@@ -211,7 +211,7 @@ fn main() {
     }
 }
 fn match_opt() -> Result<(), Error> {
-    let mut config = config::read_default_cfg()?;
+    let mut config = config::read_cfg(&config::default_cfg_path())?;
 
     let opt = Mum::from_args();
     match opt.command {
@@ -351,18 +351,19 @@ fn match_opt() -> Result<(), Error> {
         }
     }
 
-    if !config::cfg_exists() {
+    let config_path = config::default_cfg_path();
+    if !config_path.exists() {
         println!(
             "Config file not found. Create one in {}? [Y/n]",
-            config::default_cfg_path().display(),
+            config_path.display(),
         );
         let stdin = std::io::stdin();
         let response = stdin.lock().lines().next();
         if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
-            config.write_default_cfg(true)?;
+            config.write(&config_path, true)?;
         }
     } else {
-        config.write_default_cfg(false)?;
+        config.write(&config_path, false)?;
     }
     Ok(())
 }
