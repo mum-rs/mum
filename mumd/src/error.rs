@@ -1,4 +1,4 @@
-use mumble_protocol::{Serverbound, control::ControlPacket};
+use mumble_protocol::{control::ControlPacket, Serverbound};
 use mumlib::error::ConfigError;
 use std::fmt;
 use tokio::sync::mpsc;
@@ -17,12 +17,11 @@ pub enum TcpError {
 impl fmt::Display for TcpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TcpError::NoConnectionInfoReceived
-                => write!(f, "No connection info received"),
-            TcpError::TlsConnectorBuilderError(e)
-                => write!(f, "Error building TLS connector: {}", e),
-            TcpError::TlsConnectError(e)
-                => write!(f, "TLS error when connecting: {}", e),
+            TcpError::NoConnectionInfoReceived => write!(f, "No connection info received"),
+            TcpError::TlsConnectorBuilderError(e) => {
+                write!(f, "Error building TLS connector: {}", e)
+            }
+            TcpError::TlsConnectError(e) => write!(f, "TLS error when connecting: {}", e),
             TcpError::SendError(e) => write!(f, "Couldn't send packet: {}", e),
             TcpError::IOError(e) => write!(f, "IO error: {}", e),
         }
@@ -44,7 +43,7 @@ impl From<ServerSendError> for TcpError {
 pub enum UdpError {
     NoConnectionInfoReceived,
     DisconnectBeforeCryptSetup,
-    
+
     IOError(std::io::Error),
 }
 

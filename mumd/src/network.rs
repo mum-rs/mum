@@ -4,7 +4,10 @@ pub mod udp;
 use futures_util::FutureExt;
 use log::*;
 use std::{future::Future, net::SocketAddr};
-use tokio::{select, sync::{oneshot, watch}};
+use tokio::{
+    select,
+    sync::{oneshot, watch},
+};
 
 use crate::state::StatePhase;
 
@@ -36,7 +39,8 @@ async fn run_until<F, R>(
     fut: F,
     mut phase_watcher: watch::Receiver<StatePhase>,
 ) -> Option<R>
-    where F: Future<Output = R>,
+where
+    F: Future<Output = R>,
 {
     let (tx, rx) = oneshot::channel();
     let phase_transition_block = async {

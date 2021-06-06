@@ -18,14 +18,14 @@ impl std::error::Error for Error {}
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Disconnected=> write!(f, "Not connected to a server"),
-            Error::AlreadyConnected=> write!(f, "Already connected to a server"),
+            Error::Disconnected => write!(f, "Not connected to a server"),
+            Error::AlreadyConnected => write!(f, "Already connected to a server"),
             Error::ChannelIdentifierError(id, kind) => write!(f, "{}: {}", kind, id),
             Error::InvalidServerAddr(addr, port) => {
                 write!(f, "Invalid server address: {}: {}", addr, port)
             }
             Error::InvalidUsername(username) => write!(f, "Invalid username: {}", username),
-            Error::InvalidServerPassword => write!(f, "Invalid server password")
+            Error::InvalidServerPassword => write!(f, "Invalid server password"),
         }
     }
 }
@@ -65,7 +65,9 @@ impl fmt::Display for ConfigError {
             ConfigError::InvalidConfig => write!(f, "Invalid configuration"),
             ConfigError::TOMLErrorSer(e) => write!(f, "Invalid TOML when serializing: {}", e),
             ConfigError::TOMLErrorDe(e) => write!(f, "Invalid TOML when deserializing: {}", e),
-            ConfigError::WontCreateFile => write!(f, "File does not exist but caller didn't allow creation"),
+            ConfigError::WontCreateFile => {
+                write!(f, "File does not exist but caller didn't allow creation")
+            }
             ConfigError::IOError(e) => write!(f, "IO error: {}", e),
         }
     }

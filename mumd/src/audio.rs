@@ -1,10 +1,12 @@
 pub mod input;
-pub mod output;
 mod noise_gate;
+pub mod output;
 
-use crate::audio::input::{DefaultAudioInputDevice, AudioInputDevice};
-use crate::audio::output::{DefaultAudioOutputDevice, AudioOutputDevice, ClientStream};
-use crate::audio::noise_gate::{from_interleaved_samples_stream, OpusEncoder, StreamingNoiseGate, StreamingSignalExt};
+use crate::audio::input::{AudioInputDevice, DefaultAudioInputDevice};
+use crate::audio::noise_gate::{
+    from_interleaved_samples_stream, OpusEncoder, StreamingNoiseGate, StreamingSignalExt,
+};
+use crate::audio::output::{AudioOutputDevice, ClientStream, DefaultAudioOutputDevice};
 use crate::error::AudioError;
 use crate::network::VoiceStreamType;
 use crate::state::StatePhase;
@@ -15,8 +17,8 @@ use dasp_signal::{self as signal, Signal};
 use futures_util::stream::Stream;
 use futures_util::StreamExt;
 use log::*;
+use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
 use mumble_protocol::Serverbound;
-use mumble_protocol::voice::{VoicePacketPayload, VoicePacket};
 use mumlib::config::SoundEffect;
 use std::borrow::Cow;
 use std::collections::{hash_map::Entry, HashMap};
@@ -70,34 +72,36 @@ impl TryFrom<&str> for NotificationEvents {
 pub struct AudioInput {
     device: DefaultAudioInputDevice,
 
-    channel_receiver: Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
+    channel_receiver:
+        Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
 }
 
 impl AudioInput {
-    pub fn new(input_volume: f32, phase_watcher: watch::Receiver<StatePhase>) -> Result<Self, AudioError> {
+    pub fn new(
+        input_volume: f32,
+        phase_watcher: watch::Receiver<StatePhase>,
+    ) -> Result<Self, AudioError> {
         let mut default = DefaultAudioInputDevice::new(input_volume, phase_watcher)?;
         let sample_rate = SampleRate(SAMPLE_RATE);
 
         let opus_stream = OpusEncoder::new(
-                4,
-                sample_rate.0,
-                default.num_channels(),
-                StreamingSignalExt::into_interleaved_samples(
-                    StreamingNoiseGate::new(
-                        from_interleaved_samples_stream::<_, f32>(default.sample_receiver()), //TODO group frames correctly
-                        10_000
-                    )
-                )
-            ).enumerate()
-            .map(|(i, e)| VoicePacket::Audio {
-                _dst: std::marker::PhantomData,
-                target: 0,      // normal speech
-                session_id: (), // unused for server-bound packets
-                seq_num: i as u64,
-                payload: VoicePacketPayload::Opus(e.into(), false),
-                position_info: None,
-            }
-        );
+            4,
+            sample_rate.0,
+            default.num_channels(),
+            StreamingSignalExt::into_interleaved_samples(StreamingNoiseGate::new(
+                from_interleaved_samples_stream::<_, f32>(default.sample_receiver()), //TODO group frames correctly
+                10_000,
+            )),
+        )
+        .enumerate()
+        .map(|(i, e)| VoicePacket::Audio {
+            _dst: std::marker::PhantomData,
+            target: 0,      // normal speech
+            session_id: (), // unused for server-bound packets
+            seq_num: i as u64,
+            payload: VoicePacketPayload::Opus(e.into(), false),
+            position_info: None,
+        });
 
         default.play()?;
 
@@ -108,7 +112,9 @@ impl AudioInput {
         Ok(res)
     }
 
-    pub fn receiver(&self) -> Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
+    pub fn receiver(
+        &self,
+    ) -> Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>> {
         Arc::clone(&self.channel_receiver)
     }
 
@@ -130,10 +136,7 @@ impl AudioOutput {
     pub fn new(output_volume: f32) -> Result<Self, AudioError> {
         let user_volumes = Arc::new(std::sync::Mutex::new(HashMap::new()));
 
-        let default = DefaultAudioOutputDevice::new(
-            output_volume,
-            Arc::clone(&user_volumes),
-        )?;
+        let default = DefaultAudioOutputDevice::new(output_volume, Arc::clone(&user_volumes))?;
         default.play()?;
 
         let client_streams = default.client_streams();
@@ -163,7 +166,8 @@ impl AudioOutput {
 
         self.sounds = NotificationEvents::iter()
             .map(|event| {
-                let bytes = overrides.get(&event)
+                let bytes = overrides
+                    .get(&event)
                     .map(|file| get_sfx(file))
                     .unwrap_or_else(get_default_sfx);
                 let reader = hound::WavReader::new(bytes.as_ref()).unwrap();
@@ -181,7 +185,7 @@ impl AudioOutput {
                 let iter: Box<dyn Iterator<Item = f32>> = match spec.channels {
                     1 => Box::new(samples.into_iter().flat_map(|e| vec![e, e])),
                     2 => Box::new(samples.into_iter()),
-                    _ => unimplemented!("Only mono and stereo sound is supported. See #80.")
+                    _ => unimplemented!("Only mono and stereo sound is supported. See #80."),
                 };
                 let mut signal = signal::from_interleaved_samples_iter::<_, [f32; 2]>(iter);
                 let interp = Linear::new(Signal::next(&mut signal), Signal::next(&mut signal));
@@ -189,24 +193,29 @@ impl AudioOutput {
                     .from_hz_to_hz(interp, spec.sample_rate as f64, SAMPLE_RATE as f64)
                     .until_exhausted()
                     // if the source audio is stereo and is being played as mono, discard the right audio
-                    .flat_map(
-                        |e| if self.device.num_channels() == 1 {
+                    .flat_map(|e| {
+                        if self.device.num_channels() == 1 {
                             vec![e[0]]
                         } else {
                             e.to_vec()
                         }
-                    )
+                    })
                     .collect::<Vec<f32>>();
                 (event, samples)
             })
             .collect();
     }
 
-    pub fn decode_packet_payload(&self, stream_type: VoiceStreamType, session_id: u32, payload: VoicePacketPayload) {
-        self.client_streams.lock().unwrap().decode_packet(
-            (stream_type, session_id),
-            payload,
-        );
+    pub fn decode_packet_payload(
+        &self,
+        stream_type: VoiceStreamType,
+        session_id: u32,
+        payload: VoicePacketPayload,
+    ) {
+        self.client_streams
+            .lock()
+            .unwrap()
+            .decode_packet((stream_type, session_id), payload);
     }
 
     pub fn set_volume(&self, output_volume: f32) {

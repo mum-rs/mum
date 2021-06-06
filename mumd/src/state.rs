@@ -4,11 +4,12 @@ pub mod user;
 
 use crate::audio::{AudioInput, AudioOutput, NotificationEvents};
 use crate::error::StateError;
-use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::network::tcp::{TcpEvent, TcpEventData};
+use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::notifications;
 use crate::state::server::Server;
 
+use crate::state::user::UserDiff;
 use log::*;
 use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
@@ -17,8 +18,11 @@ use mumble_protocol::voice::Serverbound;
 use mumlib::command::{Command, CommandResponse, MessageTarget};
 use mumlib::config::Config;
 use mumlib::Error;
-use crate::state::user::UserDiff;
-use std::{iter, net::{SocketAddr, ToSocketAddrs}, sync::{Arc, RwLock}};
+use std::{
+    iter,
+    net::{SocketAddr, ToSocketAddrs},
+    sync::{Arc, RwLock},
+};
 use tokio::sync::{mpsc, watch};
 
 macro_rules! at {
@@ -37,18 +41,22 @@ type Responses = Box<dyn Iterator<Item = mumlib::error::Result<Option<CommandRes
 
 //TODO give me a better name
 pub enum ExecutionContext {
-    TcpEventCallback(
-        TcpEvent,
-        Box<dyn FnOnce(TcpEventData) -> Responses>,
-    ),
+    TcpEventCallback(TcpEvent, Box<dyn FnOnce(TcpEventData) -> Responses>),
     TcpEventSubscriber(
         TcpEvent,
-        Box<dyn FnMut(TcpEventData, &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>) -> bool>,
+        Box<
+            dyn FnMut(
+                TcpEventData,
+                &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
+            ) -> bool,
+        >,
     ),
     Now(Box<dyn FnOnce() -> Responses>),
     Ping(
         Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
-        Box<dyn FnOnce(Option<PongPacket>) -> mumlib::error::Result<Option<CommandResponse>> + Send>,
+        Box<
+            dyn FnOnce(Option<PongPacket>) -> mumlib::error::Result<Option<CommandResponse>> + Send,
+        >,
     ),
 }
 
@@ -76,10 +84,10 @@ impl State {
         let audio_input = AudioInput::new(
             config.audio.input_volume.unwrap_or(1.0),
             phase_watcher.1.clone(),
-        ).map_err(|e| StateError::AudioError(e))?;
-        let audio_output = AudioOutput::new(
-            config.audio.output_volume.unwrap_or(1.0),
-        ).map_err(|e| StateError::AudioError(e))?;
+        )
+        .map_err(|e| StateError::AudioError(e))?;
+        let audio_output = AudioOutput::new(config.audio.output_volume.unwrap_or(1.0))
+            .map_err(|e| StateError::AudioError(e))?;
         let mut state = Self {
             config,
             server: None,
@@ -91,7 +99,6 @@ impl State {
         state.reload_config();
         Ok(state)
     }
-
 
     pub fn parse_user_state(&mut self, msg: msgs::UserState) {
         if !msg.has_session() {
@@ -135,7 +142,8 @@ impl State {
                         ));
                     }
 
-                    self.audio_output.play_effect(NotificationEvents::UserConnected);
+                    self.audio_output
+                        .play_effect(NotificationEvents::UserConnected);
                 }
             }
         }
@@ -189,11 +197,12 @@ impl State {
                     } else {
                         warn!("{} moved to invalid channel {}", user.name(), to_channel);
                     }
-                    self.audio_output.play_effect(if from_channel == this_channel {
-                        NotificationEvents::UserJoinedChannel
-                    } else {
-                        NotificationEvents::UserLeftChannel
-                    });
+                    self.audio_output
+                        .play_effect(if from_channel == this_channel {
+                            NotificationEvents::UserJoinedChannel
+                        } else {
+                            NotificationEvents::UserLeftChannel
+                        });
                 }
             }
 
@@ -224,7 +233,8 @@ impl State {
         let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
         let other_channel = self.get_users_channel(msg.get_session());
         if this_channel == other_channel {
-            self.audio_output.play_effect(NotificationEvents::UserDisconnected);
+            self.audio_output
+                .play_effect(NotificationEvents::UserDisconnected);
             if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
                 notifications::send(format!("{} disconnected", &user.name()));
             }
@@ -254,21 +264,19 @@ impl State {
             self.audio_output.load_sound_effects(sound_effects);
         }
     }
-    
+
     pub fn register_message(&mut self, msg: (String, u32)) {
         self.message_buffer.push(msg);
     }
 
     pub fn broadcast_phase(&self, phase: StatePhase) {
-        self.phase_watcher
-            .0
-            .send(phase)
-            .unwrap();
+        self.phase_watcher.0.send(phase).unwrap();
     }
 
     pub fn initialized(&self) {
         self.broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
-        self.audio_output.play_effect(NotificationEvents::ServerConnect);
+        self.audio_output
+            .play_effect(NotificationEvents::ServerConnect);
     }
 
     pub fn audio_input(&self) -> &AudioInput {
@@ -307,10 +315,12 @@ impl State {
     /// If we are connected to the server but the user with the id doesn't exist, the string "Unknown user {id}"
     /// is returned instead. If we aren't connected to a server, None is returned instead.
     fn get_user_name(&self, user: u32) -> Option<String> {
-        self.server()
-            .map(|e| e.users()
-                .get(&user).map(|e| e.name().to_string())
-                .unwrap_or(format!("Unknown user {}", user)))
+        self.server().map(|e| {
+            e.users()
+                .get(&user)
+                .map(|e| e.name().to_string())
+                .unwrap_or(format!("Unknown user {}", user))
+        })
     }
 }
 
@@ -404,7 +414,9 @@ pub fn handle_command(
                 packet_sender.send(msg.into()).unwrap();
             }
 
-            now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
+            now!(Ok(
+                new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })
+            ))
         }
         Command::InputVolumeSet(volume) => {
             state.audio_input.set_volume(volume);
@@ -498,7 +510,9 @@ pub fn handle_command(
                 packet_sender.send(msg.into()).unwrap();
             }
 
-            now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
+            now!(Ok(
+                new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })
+            ))
         }
         Command::OutputVolumeSet(volume) => {
             state.audio_output.set_volume(volume);
@@ -522,10 +536,7 @@ pub fn handle_command(
             *server.password_mut() = password;
             *server.host_mut() = Some(format!("{}:{}", host, port));
             state.server = Some(server);
-            state.phase_watcher
-                .0
-                .send(StatePhase::Connecting)
-                .unwrap();
+            state.phase_watcher.0.send(StatePhase::Connecting).unwrap();
 
             let socket_addr = match (host.as_ref(), port)
                 .to_socket_addrs()
@@ -568,11 +579,14 @@ pub fn handle_command(
 
             state.server = None;
 
-            state.phase_watcher
+            state
+                .phase_watcher
                 .0
                 .send(StatePhase::Disconnected)
                 .unwrap();
-            state.audio_output.play_effect(NotificationEvents::ServerDisconnect);
+            state
+                .audio_output
+                .play_effect(NotificationEvents::ServerDisconnect);
             now!(Ok(None))
         }
         Command::ServerStatus { host, port } => ExecutionContext::Ping(
@@ -586,12 +600,14 @@ pub fn handle_command(
                 }
             }),
             Box::new(move |pong| {
-                Ok(pong.map(|pong| (CommandResponse::ServerStatus {
-                    version: pong.version,
-                    users: pong.users,
-                    max_users: pong.max_users,
-                    bandwidth: pong.bandwidth,
-                })))
+                Ok(pong.map(|pong| {
+                    (CommandResponse::ServerStatus {
+                        version: pong.version,
+                        users: pong.users,
+                        max_users: pong.max_users,
+                        bandwidth: pong.bandwidth,
+                    })
+                }))
             }),
         ),
         Command::Status => {
@@ -624,7 +640,7 @@ pub fn handle_command(
         }
         Command::PastMessages { block } => {
             //does it make sense to wait for messages while not connected?
-            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) { 
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
                 return now!(Err(Error::Disconnected));
             }
             if block {
@@ -634,10 +650,16 @@ pub fn handle_command(
                     Box::new(move |data, sender| {
                         if let TcpEventData::TextMessage(a) = data {
                             let message = (
-                                a.get_message().to_owned(), 
-                                ref_state.read().unwrap().get_user_name(a.get_actor()).unwrap()
+                                a.get_message().to_owned(),
+                                ref_state
+                                    .read()
+                                    .unwrap()
+                                    .get_user_name(a.get_actor())
+                                    .unwrap(),
                             );
-                            sender.send(Ok(Some(CommandResponse::PastMessage { message }))).is_ok()
+                            sender
+                                .send(Ok(Some(CommandResponse::PastMessage { message })))
+                                .is_ok()
                         } else {
                             unreachable!("Should only receive a TextMessage data when listening to TextMessage events");
                         }
@@ -645,21 +667,20 @@ pub fn handle_command(
                 )
             } else {
                 let messages = std::mem::take(&mut state.message_buffer);
-                let messages: Vec<_> = messages.into_iter()
+                let messages: Vec<_> = messages
+                    .into_iter()
                     .map(|(msg, user)| (msg, state.get_user_name(user).unwrap()))
                     .map(|e| Ok(Some(CommandResponse::PastMessage { message: e })))
                     .collect();
-                
-                ExecutionContext::Now(Box::new(move || {
-                    Box::new(messages.into_iter())
-                }))
+
+                ExecutionContext::Now(Box::new(move || Box::new(messages.into_iter())))
             }
         }
         Command::SendMessage { message, targets } => {
             if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
                 return now!(Err(Error::Disconnected));
             }
-            
+
             let mut msg = msgs::TextMessage::new();
 
             msg.set_message(message);
@@ -667,21 +688,20 @@ pub fn handle_command(
             for target in targets {
                 match target {
                     MessageTarget::Channel { recursive, name } => {
-                        let channel_id = state
-                            .server()
-                            .unwrap()
-                            .channel_name(&name);
-                        
+                        let channel_id = state.server().unwrap().channel_name(&name);
+
                         let channel_id = match channel_id {
                             Ok(id) => id,
                             Err(e) => return now!(Err(Error::ChannelIdentifierError(name, e))),
-                        }.0;
-                        
+                        }
+                        .0;
+
                         if recursive {
                             msg.mut_tree_id()
                         } else {
                             msg.mut_channel_id()
-                        }.push(channel_id);
+                        }
+                        .push(channel_id);
                     }
                     MessageTarget::User { name } => {
                         let id = state

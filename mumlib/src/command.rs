@@ -35,7 +35,7 @@ pub enum Command {
     SendMessage {
         message: String,
         targets: Vec<MessageTarget>,
-    }
+    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -64,16 +64,11 @@ pub enum CommandResponse {
     },
     PastMessage {
         message: (String, String),
-    }
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MessageTarget {
-    Channel {
-        recursive: bool,
-        name: String,
-    },
-    User {
-        name: String,
-    }
+    Channel { recursive: bool, name: String },
+    User { name: String },
 }

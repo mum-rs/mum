@@ -1,11 +1,11 @@
-use cpal::{InputCallbackInfo, Sample, SampleFormat, SampleRate, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use tokio::sync::watch;
+use cpal::{InputCallbackInfo, Sample, SampleFormat, SampleRate, StreamConfig};
 use log::*;
+use tokio::sync::watch;
 
-use crate::state::StatePhase;
 use crate::audio::SAMPLE_RATE;
 use crate::error::{AudioError, AudioStream};
+use crate::state::StatePhase;
 
 pub fn callback<T: Sample>(
     mut input_sender: futures_channel::mpsc::Sender<f32>,
@@ -17,10 +17,7 @@ pub fn callback<T: Sample>(
             return;
         }
         let input_volume = *input_volume_receiver.borrow();
-        for sample in data
-            .iter()
-            .map(|e| e.to_f32())
-            .map(|e| e * input_volume) {
+        for sample in data.iter().map(|e| e.to_f32()).map(|e| e * input_volume) {
             if let Err(_e) = input_sender.try_send(sample) {
                 warn!("Error sending audio: {}", _e);
             }
@@ -44,7 +41,10 @@ pub struct DefaultAudioInputDevice {
 }
 
 impl DefaultAudioInputDevice {
-    pub fn new(input_volume: f32, phase_watcher: watch::Receiver<StatePhase>) -> Result<Self, AudioError> {
+    pub fn new(
+        input_volume: f32,
+        phase_watcher: watch::Receiver<StatePhase>,
+    ) -> Result<Self, AudioError> {
         let sample_rate = SampleRate(SAMPLE_RATE);
 
         let host = cpal::default_host();
@@ -76,29 +76,17 @@ impl DefaultAudioInputDevice {
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
                 &input_config,
-                callback::<f32>(
-                    sample_sender,
-                    input_volume_receiver,
-                    phase_watcher,
-                ),
+                callback::<f32>(sample_sender, input_volume_receiver, phase_watcher),
                 err_fn,
             ),
             SampleFormat::I16 => input_device.build_input_stream(
                 &input_config,
-                callback::<i16>(
-                    sample_sender,
-                    input_volume_receiver,
-                    phase_watcher,
-                ),
+                callback::<i16>(sample_sender, input_volume_receiver, phase_watcher),
                 err_fn,
             ),
             SampleFormat::U16 => input_device.build_input_stream(
                 &input_config,
-                callback::<u16>(
-                    sample_sender,
-                    input_volume_receiver,
-                    phase_watcher,
-                ),
+                callback::<u16>(sample_sender, input_volume_receiver, phase_watcher),
                 err_fn,
             ),
         }
@@ -116,10 +104,14 @@ impl DefaultAudioInputDevice {
 
 impl AudioInputDevice for DefaultAudioInputDevice {
     fn play(&self) -> Result<(), AudioError> {
-        self.stream.play().map_err(|e| AudioError::InputPlayError(e))
+        self.stream
+            .play()
+            .map_err(|e| AudioError::InputPlayError(e))
     }
     fn pause(&self) -> Result<(), AudioError> {
-        self.stream.pause().map_err(|e| AudioError::InputPauseError(e))
+        self.stream
+            .pause()
+            .map_err(|e| AudioError::InputPauseError(e))
     }
     fn set_volume(&self, volume: f32) {
         self.volume_sender.send(volume).unwrap();

@@ -14,12 +14,18 @@ use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
 use std::io::ErrorKind;
-use tokio::{net::{UnixListener, UnixStream}, sync::mpsc};
+use tokio::{
+    net::{UnixListener, UnixStream},
+    sync::mpsc,
+};
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[tokio::main]
 async fn main() {
-    if std::env::args().find(|s| s.as_str() == "--version").is_some() {
+    if std::env::args()
+        .find(|s| s.as_str() == "--version")
+        .is_some()
+    {
         println!("mumd {}", env!("VERSION"));
         return;
     }
@@ -38,7 +44,10 @@ async fn main() {
             bincode::serialize_into((&mut command).writer(), &Command::Ping).unwrap();
             if let Ok(()) = writer.send(command.freeze()).await {
                 if let Some(Ok(buf)) = reader.next().await {
-                    if let Ok(Ok::<Option<CommandResponse>, mumlib::Error>(Some(CommandResponse::Pong))) = bincode::deserialize(&buf) {
+                    if let Ok(Ok::<Option<CommandResponse>, mumlib::Error>(Some(
+                        CommandResponse::Pong,
+                    ))) = bincode::deserialize(&buf)
+                    {
                         error!("Another instance of mumd is already running");
                         return;
                     }
@@ -94,7 +103,7 @@ async fn receive_commands(
                 let (reader, writer) = incoming.into_split();
                 let mut reader = FramedRead::new(reader, LengthDelimitedCodec::new());
                 let mut writer = FramedWrite::new(writer, LengthDelimitedCodec::new());
-                
+
                 while let Some(next) = reader.next().await {
                     let buf = match next {
                         Ok(buf) => buf,
@@ -115,8 +124,9 @@ async fn receive_commands(
                         bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
 
                         if let Err(e) = writer.send(serialized.freeze()).await {
-                            if e.kind() != ErrorKind::BrokenPipe { //if the client closed the connection, ignore logging the error
-                                                                   //we just assume that they just don't want any more packets
+                            if e.kind() != ErrorKind::BrokenPipe {
+                                //if the client closed the connection, ignore logging the error
+                                //we just assume that they just don't want any more packets
                                 error!("Error sending response: {:?}", e);
                             }
                             break;

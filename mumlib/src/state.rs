@@ -40,11 +40,7 @@ impl Channel {
             } else {
                 Some(0)
             },
-            user: if self.users.is_empty() {
-                None
-            } else {
-                Some(0)
-            },
+            user: if self.users.is_empty() { None } else { Some(0) },
             users: &self.users,
         }
     }

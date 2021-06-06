@@ -1,10 +1,10 @@
-use crate::network::VoiceStreamType;
 use crate::audio::SAMPLE_RATE;
 use crate::error::{AudioError, AudioStream};
+use crate::network::VoiceStreamType;
 
-use log::*;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, SampleRate, StreamConfig, OutputCallbackInfo, Sample};
+use cpal::{OutputCallbackInfo, Sample, SampleFormat, SampleRate, StreamConfig};
+use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use std::collections::{HashMap, VecDeque};
 use std::ops::AddAssign;
@@ -39,10 +39,7 @@ impl ClientStream {
         let sample_rate = self.sample_rate;
         let channels = self.channels;
         self.buffer_clients.entry(client).or_insert_with(|| {
-            let opus_decoder = opus::Decoder::new(
-                sample_rate,
-                channels
-            ).unwrap();
+            let opus_decoder = opus::Decoder::new(sample_rate, channels).unwrap();
             (VecDeque::new(), opus_decoder)
         })
     }
@@ -139,7 +136,10 @@ impl DefaultAudioOutputDevice {
             .with_sample_rate(sample_rate);
         let output_supported_sample_format = output_supported_config.sample_format();
         let output_config: StreamConfig = output_supported_config.into();
-        let client_streams = Arc::new(std::sync::Mutex::new(ClientStream::new(sample_rate.0, output_config.channels)));
+        let client_streams = Arc::new(std::sync::Mutex::new(ClientStream::new(
+            sample_rate.0,
+            output_config.channels,
+        )));
 
         let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
 
@@ -187,11 +187,15 @@ impl DefaultAudioOutputDevice {
 
 impl AudioOutputDevice for DefaultAudioOutputDevice {
     fn play(&self) -> Result<(), AudioError> {
-        self.stream.play().map_err(|e| AudioError::OutputPlayError(e))
+        self.stream
+            .play()
+            .map_err(|e| AudioError::OutputPlayError(e))
     }
 
     fn pause(&self) -> Result<(), AudioError> {
-        self.stream.pause().map_err(|e| AudioError::OutputPauseError(e))
+        self.stream
+            .pause()
+            .map_err(|e| AudioError::OutputPauseError(e))
     }
 
     fn set_volume(&self, volume: f32) {

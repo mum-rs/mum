@@ -3,14 +3,14 @@ use log::*;
 use mumlib::command::{Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
+use serde::de::DeserializeOwned;
 use std::fmt;
-use std::marker::PhantomData;
 use std::io::{self, BufRead, Read, Write};
 use std::iter;
+use std::marker::PhantomData;
 use std::os::unix::net::UnixStream;
 use std::thread;
 use structopt::{clap::Shell, StructOpt};
-use serde::de::DeserializeOwned;
 
 const INDENTATION: &str = "  ";
 
@@ -65,27 +65,17 @@ enum Command {
     /// Show current status
     Status,
     /// Change config values
-    Config {
-        key: String,
-        value: String,
-    },
+    Config { key: String, value: String },
     /// Reload the config file
     ConfigReload,
     /// Output CLI completions
     Completions(Completions),
     /// Change volume of either you or someone else
-    Volume {
-        user: String,
-        volume: Option<f32>,
-    },
+    Volume { user: String, volume: Option<f32> },
     /// Mute someone/yourself
-    Mute {
-        user: Option<String>,
-    },
+    Mute { user: Option<String> },
     /// Unmute someone/yourself
-    Unmute {
-        user: Option<String>,
-    },
+    Unmute { user: Option<String> },
     /// Deafen yourself
     Deafen,
     /// Undeafen yourself
@@ -127,10 +117,7 @@ enum Server {
         value: Option<String>,
     },
     /// Rename a saved server
-    Rename {
-        old_name: String,
-        new_name: String
-    },
+    Rename { old_name: String, new_name: String },
     /// Add a new saved server
     Add {
         name: String,
@@ -142,9 +129,7 @@ enum Server {
         password: Option<String>,
     },
     /// Remove a saved server
-    Remove {
-        name: String,
-    },
+    Remove { name: String },
     /// List saved servers and number of people connected
     List,
 }
@@ -377,42 +362,43 @@ fn match_opt() -> Result<(), Error> {
         Command::Undeafen => {
             send_command(MumCommand::DeafenSelf(Some(false)))??;
         }
-        Command::Messages {
-            follow
-        } => {
+        Command::Messages { follow } => {
             for response in send_command_multi(MumCommand::PastMessages { block: follow })? {
                 match response {
-                    Ok(Some(CommandResponse::PastMessage { message })) => println!("{}: {}", message.1, message.0),
+                    Ok(Some(CommandResponse::PastMessage { message })) => {
+                        println!("{}: {}", message.1, message.0)
+                    }
                     Ok(_) => unreachable!("Response should only be a Some(PastMessages)"),
                     Err(e) => error!("{}", e),
                 }
             }
         }
-        Command::Message(target) => {
-            match target {
-                Target::Channel {
+        Command::Message(target) => match target {
+            Target::Channel {
+                message,
+                recursive,
+                names,
+            } => {
+                let msg = MumCommand::SendMessage {
                     message,
-                    recursive,
-                    names,
-                } => {
-                    let msg = MumCommand::SendMessage {
-                        message,
-                        targets: names.into_iter().map(|name| MessageTarget::Channel { name, recursive }).collect(),
-                    };
-                    send_command(msg)??;
-                },
-                Target::User {
-                    message,
-                    names
-                } => {
-                    let msg = MumCommand::SendMessage {
-                        message,
-                        targets: names.into_iter().map(|name| MessageTarget::User { name }).collect(),
-                    };
-                    send_command(msg)??;
-                },
+                    targets: names
+                        .into_iter()
+                        .map(|name| MessageTarget::Channel { name, recursive })
+                        .collect(),
+                };
+                send_command(msg)??;
             }
-        }
+            Target::User { message, names } => {
+                let msg = MumCommand::SendMessage {
+                    message,
+                    targets: names
+                        .into_iter()
+                        .map(|name| MessageTarget::User { name })
+                        .collect(),
+                };
+                send_command(msg)??;
+            }
+        },
     }
 
     let config_path = config::default_cfg_path();
@@ -582,9 +568,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                         host: s.host.clone(),
                         port: s.port.unwrap_or(mumlib::DEFAULT_PORT),
                     };
-                    thread::spawn(move || {
-                        send_command(query)
-                    })
+                    thread::spawn(move || send_command(query))
                 })
                 .collect();
 
@@ -592,12 +576,13 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                 match response.join().unwrap() {
                     Ok(Ok(Some(response))) => {
                         if let CommandResponse::ServerStatus {
-                            users,
-                            max_users,
-                            ..
+                            users, max_users, ..
                         } = response
                         {
-                            println!("{0:<1$} [{2:}/{3:}]", server.name, longest, users, max_users);
+                            println!(
+                                "{0:<1$} [{2:}/{3:}]",
+                                server.name, longest, users, max_users
+                            );
                         } else {
                             unreachable!();
                         }
@@ -685,7 +670,8 @@ fn send_command_multi(
         .write(&serialized)
         .map_err(|_| CliError::ConnectionError)?;
 
-    connection.shutdown(std::net::Shutdown::Write)
+    connection
+        .shutdown(std::net::Shutdown::Write)
         .map_err(|_| CliError::ConnectionError)?;
 
     Ok(BincodeIter::new(connection))
@@ -708,14 +694,15 @@ impl<R, I> BincodeIter<R, I> {
 }
 
 impl<R, I> Iterator for BincodeIter<R, I>
-    where R: Read, I: DeserializeOwned {
+where
+    R: Read,
+    I: DeserializeOwned,
+{
     type Item = I;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.reader
-            .read_exact(&mut [0; 4])
-            .ok()?;
+        self.reader.read_exact(&mut [0; 4]).ok()?;
         bincode::deserialize_from(&mut self.reader).ok()
     }
 }

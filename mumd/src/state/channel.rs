@@ -157,10 +157,7 @@ pub fn into_channel(
     let mut proto_tree = ProtoTree {
         channel: Some(channels.get(&0).unwrap()),
         children: HashMap::new(),
-        users: channel_lookup
-            .get(&0)
-            .cloned()
-            .unwrap_or_default(),
+        users: channel_lookup.get(&0).cloned().unwrap_or_default(),
     };
 
     for (walk, channel) in walks {

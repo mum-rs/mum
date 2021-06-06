@@ -1,10 +1,13 @@
-use crate::network::{ConnectionInfo, tcp::TcpEventQueue, udp::PingRequest};
+use crate::network::{tcp::TcpEventQueue, udp::PingRequest, ConnectionInfo};
 use crate::state::{ExecutionContext, State};
 
 use log::*;
-use mumble_protocol::{Serverbound, control::ControlPacket};
+use mumble_protocol::{control::ControlPacket, Serverbound};
 use mumlib::command::{Command, CommandResponse};
-use std::sync::{atomic::{AtomicU64, Ordering}, Arc, RwLock};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc, RwLock,
+};
 use tokio::sync::{mpsc, watch};
 
 pub async fn handle(
@@ -22,11 +25,16 @@ pub async fn handle(
     let ping_count = AtomicU64::new(0);
     while let Some((command, mut response_sender)) = command_receiver.recv().await {
         debug!("Received command {:?}", command);
-        let event = crate::state::handle_command(Arc::clone(&state), command, &mut packet_sender, &mut connection_info_sender);
+        let event = crate::state::handle_command(
+            Arc::clone(&state),
+            command,
+            &mut packet_sender,
+            &mut connection_info_sender,
+        );
         match event {
             ExecutionContext::TcpEventCallback(event, generator) => {
                 tcp_event_queue.register_callback(
-                    event, 
+                    event,
                     Box::new(move |e| {
                         let response = generator(e);
                         for response in response {
@@ -35,17 +43,14 @@ pub async fn handle(
                     }),
                 );
             }
-            ExecutionContext::TcpEventSubscriber(event, mut handler) => {
-                tcp_event_queue.register_subscriber(
+            ExecutionContext::TcpEventSubscriber(event, mut handler) => tcp_event_queue
+                .register_subscriber(
                     event,
-                    Box::new(move |event| {
-                        handler(event, &mut response_sender)
-                    }),
-                )
-            }
+                    Box::new(move |event| handler(event, &mut response_sender)),
+                ),
             ExecutionContext::Now(generator) => {
                 for response in generator() {
-                    response_sender.send(response).unwrap(); 
+                    response_sender.send(response).unwrap();
                 }
                 drop(response_sender);
             }

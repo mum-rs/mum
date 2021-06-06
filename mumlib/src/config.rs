@@ -85,7 +85,7 @@ pub fn default_cfg_path() -> PathBuf {
             p
         }
         //TODO This isn't cross platform.
-        None => PathBuf::from("/etc/mumdrc")
+        None => PathBuf::from("/etc/mumdrc"),
     }
 }
 
@@ -134,7 +134,7 @@ pub fn read_cfg(path: &Path) -> Result<Config, ConfigError> {
         Ok(s) => {
             let toml_config: TOMLConfig = toml::from_str(&s)?;
             Ok(Config::try_from(toml_config)?)
-        },
+        }
         Err(e) => {
             if matches!(e.kind(), std::io::ErrorKind::NotFound) && !path.exists() {
                 warn!("Config file not found");

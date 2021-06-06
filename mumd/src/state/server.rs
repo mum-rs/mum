@@ -103,15 +103,20 @@ impl Server {
     /// server.channels.insert(0, channel.clone);
     /// assert_eq!(server.channel_name("Foobar"), Ok((0, &channel)));
     /// ```
-    pub fn channel_name(&self, channel_name: &str) -> Result<(u32, &Channel), ChannelIdentifierError> {
-        let matches = self.channels
+    pub fn channel_name(
+        &self,
+        channel_name: &str,
+    ) -> Result<(u32, &Channel), ChannelIdentifierError> {
+        let matches = self
+            .channels
             .iter()
             .map(|e| ((*e.0, e.1), e.1.path(&self.channels)))
             .filter(|e| e.1.ends_with(channel_name))
             .collect::<Vec<_>>();
         Ok(match matches.len() {
             0 => {
-                let soft_matches = self.channels
+                let soft_matches = self
+                    .channels
                     .iter()
                     .map(|e| ((*e.0, e.1), e.1.path(&self.channels).to_lowercase()))
                     .filter(|e| e.1.ends_with(&channel_name.to_lowercase()))
