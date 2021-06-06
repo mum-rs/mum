@@ -1,6 +1,26 @@
 use crate::state::{Channel, Server};
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Event {
+    UserConnected(String, Option<String>),
+    UserDisconnected(String, Option<String>),
+}
+
+impl fmt::Display for Event {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Event::UserConnected(user, channel) => {
+                write!(f, "{} connected to {}", user, channel.as_deref().unwrap_or("unknown channel"))
+            }
+            Event::UserDisconnected(user, channel) => {
+                write!(f, "{} disconnected from {}", user, channel.as_deref().unwrap_or("unknown channel"))
+            }
+        }
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Command {
@@ -10,11 +30,21 @@ pub enum Command {
     ChannelList,
     ConfigReload,
     DeafenSelf(Option<bool>),
+    Events {
+        block: bool
+    },
     InputVolumeSet(f32),
     MuteOther(String, Option<bool>),
     MuteSelf(Option<bool>),
     OutputVolumeSet(f32),
+    PastMessages {
+        block: bool,
+    },
     Ping,
+    SendMessage {
+        message: String,
+        targets: Vec<MessageTarget>,
+    },
     ServerConnect {
         host: String,
         port: u16,
@@ -29,13 +59,6 @@ pub enum Command {
     },
     Status,
     UserVolumeSet(String, f32),
-    PastMessages {
-        block: bool,
-    },
-    SendMessage {
-        message: String,
-        targets: Vec<MessageTarget>,
-    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -46,8 +69,14 @@ pub enum CommandResponse {
     DeafenStatus {
         is_deafened: bool,
     },
+    Event {
+        event: Event,
+    },
     MuteStatus {
         is_muted: bool,
+    },
+    PastMessage {
+        message: (String, String),
     },
     Pong,
     ServerConnect {
@@ -61,9 +90,6 @@ pub enum CommandResponse {
     },
     Status {
         server_state: Server,
-    },
-    PastMessage {
-        message: (String, String),
     },
 }
 

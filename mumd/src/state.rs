@@ -15,7 +15,7 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
-use mumlib::command::{Command, CommandResponse, MessageTarget};
+use mumlib::command::{Command, CommandResponse, Event, MessageTarget};
 use mumlib::config::Config;
 use mumlib::Error;
 use std::{
@@ -58,11 +58,6 @@ pub enum ExecutionContext {
             dyn FnOnce(Option<PongPacket>) -> mumlib::error::Result<Option<CommandResponse>> + Send,
         >,
     ),
-}
-
-pub enum Event {
-    UserConnected(String, Option<String>),
-    UserDisconnected(String, Option<String>),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -435,6 +430,19 @@ pub fn handle_command(
                 new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })
             ))
         }
+        Command::Events { block } => {
+            if block {
+                warn!("Blocking event list is unimplemented");
+                now!(Ok(None))
+            } else {
+                let events: Vec<_> = state
+                    .events
+                    .iter()
+                    .map(|event| Ok(Some(CommandResponse::Event { event: event.clone() })))
+                    .collect();
+                ExecutionContext::Now(Box::new(move || Box::new(events.into_iter())))
+            }
+        }
         Command::InputVolumeSet(volume) => {
             state.audio_input.set_volume(volume);
             now!(Ok(None))
@@ -618,12 +626,12 @@ pub fn handle_command(
             }),
             Box::new(move |pong| {
                 Ok(pong.map(|pong| {
-                    (CommandResponse::ServerStatus {
+                    CommandResponse::ServerStatus {
                         version: pong.version,
                         users: pong.users,
                         max_users: pong.max_users,
                         bandwidth: pong.bandwidth,
-                    })
+                    }
                 }))
             }),
         ),

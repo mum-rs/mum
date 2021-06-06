@@ -87,6 +87,10 @@ enum Command {
     },
     /// Send a message to a channel or a user
     Message(Target),
+    Events {
+        #[structopt(short = "f", long = "follow")]
+        follow: bool,
+    },
 }
 
 #[derive(Debug, StructOpt)]
@@ -399,6 +403,17 @@ fn match_opt() -> Result<(), Error> {
                 send_command(msg)??;
             }
         },
+        Command::Events { follow } => {
+            for response in send_command_multi(MumCommand::Events { block: follow })? {
+                match response {
+                    Ok(Some(CommandResponse::Event { event })) => {
+                        println!("{}", event)
+                    }
+                    Ok(_) => unreachable!("Response should only be a Some(Event)"),
+                    Err(e) => error!("{}", e),
+                }
+            }
+        }
     }
 
     let config_path = config::default_cfg_path();
