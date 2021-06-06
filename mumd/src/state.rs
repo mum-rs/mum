@@ -14,33 +14,38 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
-use mumlib::command::{Command, CommandResponse};
+use mumlib::command::{Command, CommandResponse, MessageTarget};
 use mumlib::config::Config;
-use mumlib::error::ChannelIdentifierError;
 use mumlib::Error;
 use crate::state::user::UserDiff;
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::{iter, net::{SocketAddr, ToSocketAddrs}, sync::{Arc, RwLock}};
 use tokio::sync::{mpsc, watch};
 
 macro_rules! at {
     ($event:expr, $generator:expr) => {
-        ExecutionContext::TcpEvent($event, Box::new($generator))
+        ExecutionContext::TcpEventCallback($event, Box::new($generator))
     };
 }
 
 macro_rules! now {
     ($data:expr) => {
-        ExecutionContext::Now(Box::new(move || $data))
+        ExecutionContext::Now(Box::new(move || Box::new(iter::once($data))))
     };
 }
 
+type Responses = Box<dyn Iterator<Item = mumlib::error::Result<Option<CommandResponse>>>>;
+
 //TODO give me a better name
 pub enum ExecutionContext {
-    TcpEvent(
+    TcpEventCallback(
         TcpEvent,
-        Box<dyn FnOnce(TcpEventData) -> mumlib::error::Result<Option<CommandResponse>>>,
+        Box<dyn FnOnce(TcpEventData) -> Responses>,
     ),
-    Now(Box<dyn FnOnce() -> mumlib::error::Result<Option<CommandResponse>>>),
+    TcpEventSubscriber(
+        TcpEvent,
+        Box<dyn FnMut(TcpEventData, &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>) -> bool>,
+    ),
+    Now(Box<dyn FnOnce() -> Responses>),
     Ping(
         Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
         Box<dyn FnOnce(Option<PongPacket>) -> mumlib::error::Result<Option<CommandResponse>> + Send>,
@@ -59,6 +64,7 @@ pub struct State {
     server: Option<Server>,
     audio_input: AudioInput,
     audio_output: AudioOutput,
+    message_buffer: Vec<(String, u32)>,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
 }
@@ -79,355 +85,13 @@ impl State {
             server: None,
             audio_input,
             audio_output,
+            message_buffer: Vec::new(),
             phase_watcher,
         };
         state.reload_config();
         Ok(state)
     }
 
-    pub fn handle_command(
-        &mut self,
-        command: Command,
-        packet_sender: &mut mpsc::UnboundedSender<ControlPacket<Serverbound>>,
-        connection_info_sender: &mut watch::Sender<Option<ConnectionInfo>>,
-    ) -> ExecutionContext {
-        match command {
-            Command::ChannelJoin { channel_identifier } => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-
-                let channels = self.server().unwrap().channels();
-
-                let matches = channels
-                    .iter()
-                    .map(|e| (e.0, e.1.path(channels)))
-                    .filter(|e| e.1.ends_with(&channel_identifier))
-                    .collect::<Vec<_>>();
-                let id = match matches.len() {
-                    0 => {
-                        let soft_matches = channels
-                            .iter()
-                            .map(|e| (e.0, e.1.path(channels).to_lowercase()))
-                            .filter(|e| e.1.ends_with(&channel_identifier.to_lowercase()))
-                            .collect::<Vec<_>>();
-                        match soft_matches.len() {
-                            0 => {
-                                return now!(Err(Error::ChannelIdentifierError(
-                                    channel_identifier,
-                                    ChannelIdentifierError::Invalid
-                                )))
-                            }
-                            1 => *soft_matches.get(0).unwrap().0,
-                            _ => {
-                                return now!(Err(Error::ChannelIdentifierError(
-                                    channel_identifier,
-                                    ChannelIdentifierError::Invalid
-                                )))
-                            }
-                        }
-                    }
-                    1 => *matches.get(0).unwrap().0,
-                    _ => {
-                        return now!(Err(Error::ChannelIdentifierError(
-                            channel_identifier,
-                            ChannelIdentifierError::Ambiguous
-                        )))
-                    }
-                };
-
-                let mut msg = msgs::UserState::new();
-                msg.set_session(self.server.as_ref().unwrap().session_id().unwrap());
-                msg.set_channel_id(id);
-                packet_sender.send(msg.into()).unwrap();
-                now!(Ok(None))
-            }
-            Command::ChannelList => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-                let list = channel::into_channel(
-                    self.server.as_ref().unwrap().channels(),
-                    self.server.as_ref().unwrap().users(),
-                );
-                now!(Ok(Some(CommandResponse::ChannelList { channels: list })))
-            }
-            Command::ConfigReload => {
-                self.reload_config();
-                now!(Ok(None))
-            }
-            Command::DeafenSelf(toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-
-                let server = self.server().unwrap();
-                let action = match (toggle, server.muted(), server.deafened()) {
-                    (Some(false), false, false) => None,
-                    (Some(false), false, true) => Some((false, false)),
-                    (Some(false), true, false) => None,
-                    (Some(false), true, true) => Some((true, false)),
-                    (Some(true), false, false) => Some((false, true)),
-                    (Some(true), false, true) => None,
-                    (Some(true), true, false) => Some((true, true)),
-                    (Some(true), true, true) => None,
-                    (None, false, false) => Some((false, true)),
-                    (None, false, true) => Some((false, false)),
-                    (None, true, false) => Some((true, true)),
-                    (None, true, true) => Some((true, false)),
-                };
-
-                let mut new_deaf = None;
-                if let Some((mute, deafen)) = action {
-                    if server.deafened() != deafen {
-                        self.audio_output.play_effect(if deafen {
-                            NotificationEvents::Deafen
-                        } else {
-                            NotificationEvents::Undeafen
-                        });
-                    } else if server.muted() != mute {
-                        self.audio_output.play_effect(if mute {
-                            NotificationEvents::Mute
-                        } else {
-                            NotificationEvents::Unmute
-                        });
-                    }
-                    let mut msg = msgs::UserState::new();
-                    if server.muted() != mute {
-                        msg.set_self_mute(mute);
-                    } else if !mute && !deafen && server.deafened() {
-                        msg.set_self_mute(false);
-                    }
-                    if server.deafened() != deafen {
-                        msg.set_self_deaf(deafen);
-                        new_deaf = Some(deafen);
-                    }
-                    let server = self.server_mut().unwrap();
-                    server.set_muted(mute);
-                    server.set_deafened(deafen);
-                    packet_sender.send(msg.into()).unwrap();
-                }
-
-                now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
-            }
-            Command::InputVolumeSet(volume) => {
-                self.audio_input.set_volume(volume);
-                now!(Ok(None))
-            }
-            Command::MuteOther(string, toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-
-                let id = self
-                    .server_mut()
-                    .unwrap()
-                    .users_mut()
-                    .iter_mut()
-                    .find(|(_, user)| user.name() == string);
-
-                let (id, user) = match id {
-                    Some(id) => (*id.0, id.1),
-                    None => return now!(Err(Error::InvalidUsername(string))),
-                };
-
-                let action = match toggle {
-                    Some(state) => {
-                        if user.suppressed() != state {
-                            Some(state)
-                        } else {
-                            None
-                        }
-                    }
-                    None => Some(!user.suppressed()),
-                };
-
-                if let Some(action) = action {
-                    user.set_suppressed(action);
-                    self.audio_output.set_mute(id, action);
-                }
-
-                return now!(Ok(None));
-            }
-            Command::MuteSelf(toggle) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-
-                let server = self.server().unwrap();
-                let action = match (toggle, server.muted(), server.deafened()) {
-                    (Some(false), false, false) => None,
-                    (Some(false), false, true) => Some((false, false)),
-                    (Some(false), true, false) => Some((false, false)),
-                    (Some(false), true, true) => Some((false, false)),
-                    (Some(true), false, false) => Some((true, false)),
-                    (Some(true), false, true) => None,
-                    (Some(true), true, false) => None,
-                    (Some(true), true, true) => None,
-                    (None, false, false) => Some((true, false)),
-                    (None, false, true) => Some((false, false)),
-                    (None, true, false) => Some((false, false)),
-                    (None, true, true) => Some((false, false)),
-                };
-
-                let mut new_mute = None;
-                if let Some((mute, deafen)) = action {
-                    if server.deafened() != deafen {
-                        self.audio_output.play_effect(if deafen {
-                            NotificationEvents::Deafen
-                        } else {
-                            NotificationEvents::Undeafen
-                        });
-                    } else if server.muted() != mute {
-                        self.audio_output.play_effect(if mute {
-                            NotificationEvents::Mute
-                        } else {
-                            NotificationEvents::Unmute
-                        });
-                    }
-                    let mut msg = msgs::UserState::new();
-                    if server.muted() != mute {
-                        msg.set_self_mute(mute);
-                        new_mute = Some(mute)
-                    } else if !mute && !deafen && server.deafened() {
-                        msg.set_self_mute(false);
-                        new_mute = Some(false)
-                    }
-                    if server.deafened() != deafen {
-                        msg.set_self_deaf(deafen);
-                    }
-                    let server = self.server_mut().unwrap();
-                    server.set_muted(mute);
-                    server.set_deafened(deafen);
-                    packet_sender.send(msg.into()).unwrap();
-                }
-
-                now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
-            }
-            Command::OutputVolumeSet(volume) => {
-                self.audio_output.set_volume(volume);
-                now!(Ok(None))
-            }
-            Command::Ping => {
-                now!(Ok(Some(CommandResponse::Pong)))
-            }
-            Command::ServerConnect {
-                host,
-                port,
-                username,
-                password,
-                accept_invalid_cert,
-            } => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Disconnected) {
-                    return now!(Err(Error::AlreadyConnected));
-                }
-                let mut server = Server::new();
-                *server.username_mut() = Some(username);
-                *server.password_mut() = password;
-                *server.host_mut() = Some(format!("{}:{}", host, port));
-                self.server = Some(server);
-                self.phase_watcher
-                    .0
-                    .send(StatePhase::Connecting)
-                    .unwrap();
-
-                let socket_addr = match (host.as_ref(), port)
-                    .to_socket_addrs()
-                    .map(|mut e| e.next())
-                {
-                    Ok(Some(v)) => v,
-                    _ => {
-                        warn!("Error parsing server addr");
-                        return now!(Err(Error::InvalidServerAddr(host, port)));
-                    }
-                };
-                connection_info_sender
-                    .send(Some(ConnectionInfo::new(
-                        socket_addr,
-                        host,
-                        accept_invalid_cert,
-                    )))
-                    .unwrap();
-                at!(TcpEvent::Connected, |res| {
-                    //runs the closure when the client is connected
-                    if let TcpEventData::Connected(res) = res {
-                        res.map(|msg| {
-                            Some(CommandResponse::ServerConnect {
-                                welcome_message: if msg.has_welcome_text() {
-                                    Some(msg.get_welcome_text().to_string())
-                                } else {
-                                    None
-                                },
-                            })
-                        })
-                    } else {
-                        unreachable!("callback should be provided with a TcpEventData::Connected");
-                    }
-                })
-            }
-            Command::ServerDisconnect => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-
-                self.server = None;
-
-                self.phase_watcher
-                    .0
-                    .send(StatePhase::Disconnected)
-                    .unwrap();
-                self.audio_output.play_effect(NotificationEvents::ServerDisconnect);
-                now!(Ok(None))
-            }
-            Command::ServerStatus { host, port } => ExecutionContext::Ping(
-                Box::new(move || {
-                    match (host.as_str(), port)
-                        .to_socket_addrs()
-                        .map(|mut e| e.next())
-                    {
-                        Ok(Some(v)) => Ok(v),
-                        _ => Err(Error::InvalidServerAddr(host, port)),
-                    }
-                }),
-                Box::new(move |pong| {
-                    Ok(pong.map(|pong| CommandResponse::ServerStatus {
-                        version: pong.version,
-                        users: pong.users,
-                        max_users: pong.max_users,
-                        bandwidth: pong.bandwidth,
-                    }))
-                }),
-            ),
-            Command::Status => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-                let state = self.server.as_ref().unwrap().into();
-                now!(Ok(Some(CommandResponse::Status {
-                    server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
-                })))
-            }
-            Command::UserVolumeSet(string, volume) => {
-                if !matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                    return now!(Err(Error::Disconnected));
-                }
-                let user_id = match self
-                    .server()
-                    .unwrap()
-                    .users()
-                    .iter()
-                    .find(|e| e.1.name() == string)
-                    .map(|e| *e.0)
-                {
-                    None => return now!(Err(Error::InvalidUsername(string))),
-                    Some(v) => v,
-                };
-
-                self.audio_output.set_user_volume(user_id, volume);
-                now!(Ok(None))
-            }
-        }
-    }
 
     pub fn parse_user_state(&mut self, msg: msgs::UserState) {
         if !msg.has_session() {
@@ -590,6 +254,10 @@ impl State {
             self.audio_output.load_sound_effects(sound_effects);
         }
     }
+    
+    pub fn register_message(&mut self, msg: (String, u32)) {
+        self.message_buffer.push(msg);
+    }
 
     pub fn broadcast_phase(&self, phase: StatePhase) {
         self.phase_watcher
@@ -608,12 +276,6 @@ impl State {
     }
     pub fn audio_output(&self) -> &AudioOutput {
         &self.audio_output
-    }
-    pub fn audio_input_mut(&mut self) -> &mut AudioInput {
-        &mut self.audio_input
-    }
-    pub fn audio_output_mut(&mut self) -> &mut AudioOutput {
-        &mut self.audio_output
     }
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
         self.phase_watcher.1.clone()
@@ -639,5 +301,410 @@ impl State {
             .unwrap()
             .1
             .channel()
+    }
+
+    /// Gets the username of a user with id `user` connected to the same server that we are connected to.
+    /// If we are connected to the server but the user with the id doesn't exist, the string "Unknown user {id}"
+    /// is returned instead. If we aren't connected to a server, None is returned instead.
+    fn get_user_name(&self, user: u32) -> Option<String> {
+        self.server()
+            .map(|e| e.users()
+                .get(&user).map(|e| e.name().to_string())
+                .unwrap_or(format!("Unknown user {}", user)))
+    }
+}
+
+pub fn handle_command(
+    og_state: Arc<RwLock<State>>,
+    command: Command,
+    packet_sender: &mut mpsc::UnboundedSender<ControlPacket<Serverbound>>,
+    connection_info_sender: &mut watch::Sender<Option<ConnectionInfo>>,
+) -> ExecutionContext {
+    let mut state = og_state.write().unwrap();
+    match command {
+        Command::ChannelJoin { channel_identifier } => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+
+            let id = match state.server().unwrap().channel_name(&channel_identifier) {
+                Ok((id, _)) => id,
+                Err(e) => return now!(Err(Error::ChannelIdentifierError(channel_identifier, e))),
+            };
+
+            let mut msg = msgs::UserState::new();
+            msg.set_session(state.server.as_ref().unwrap().session_id().unwrap());
+            msg.set_channel_id(id);
+            packet_sender.send(msg.into()).unwrap();
+            now!(Ok(None))
+        }
+        Command::ChannelList => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+            let list = channel::into_channel(
+                state.server.as_ref().unwrap().channels(),
+                state.server.as_ref().unwrap().users(),
+            );
+            now!(Ok(Some(CommandResponse::ChannelList { channels: list })))
+        }
+        Command::ConfigReload => {
+            state.reload_config();
+            now!(Ok(None))
+        }
+        Command::DeafenSelf(toggle) => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+
+            let server = state.server().unwrap();
+            let action = match (toggle, server.muted(), server.deafened()) {
+                (Some(false), false, false) => None,
+                (Some(false), false, true) => Some((false, false)),
+                (Some(false), true, false) => None,
+                (Some(false), true, true) => Some((true, false)),
+                (Some(true), false, false) => Some((false, true)),
+                (Some(true), false, true) => None,
+                (Some(true), true, false) => Some((true, true)),
+                (Some(true), true, true) => None,
+                (None, false, false) => Some((false, true)),
+                (None, false, true) => Some((false, false)),
+                (None, true, false) => Some((true, true)),
+                (None, true, true) => Some((true, false)),
+            };
+
+            let mut new_deaf = None;
+            if let Some((mute, deafen)) = action {
+                if server.deafened() != deafen {
+                    state.audio_output.play_effect(if deafen {
+                        NotificationEvents::Deafen
+                    } else {
+                        NotificationEvents::Undeafen
+                    });
+                } else if server.muted() != mute {
+                    state.audio_output.play_effect(if mute {
+                        NotificationEvents::Mute
+                    } else {
+                        NotificationEvents::Unmute
+                    });
+                }
+                let mut msg = msgs::UserState::new();
+                if server.muted() != mute {
+                    msg.set_self_mute(mute);
+                } else if !mute && !deafen && server.deafened() {
+                    msg.set_self_mute(false);
+                }
+                if server.deafened() != deafen {
+                    msg.set_self_deaf(deafen);
+                    new_deaf = Some(deafen);
+                }
+                let server = state.server_mut().unwrap();
+                server.set_muted(mute);
+                server.set_deafened(deafen);
+                packet_sender.send(msg.into()).unwrap();
+            }
+
+            now!(Ok(new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })))
+        }
+        Command::InputVolumeSet(volume) => {
+            state.audio_input.set_volume(volume);
+            now!(Ok(None))
+        }
+        Command::MuteOther(string, toggle) => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+
+            let id = state
+                .server_mut()
+                .unwrap()
+                .users_mut()
+                .iter_mut()
+                .find(|(_, user)| user.name() == string);
+
+            let (id, user) = match id {
+                Some(id) => (*id.0, id.1),
+                None => return now!(Err(Error::InvalidUsername(string))),
+            };
+
+            let action = match toggle {
+                Some(state) => {
+                    if user.suppressed() != state {
+                        Some(state)
+                    } else {
+                        None
+                    }
+                }
+                None => Some(!user.suppressed()),
+            };
+
+            if let Some(action) = action {
+                user.set_suppressed(action);
+                state.audio_output.set_mute(id, action);
+            }
+
+            return now!(Ok(None));
+        }
+        Command::MuteSelf(toggle) => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+
+            let server = state.server().unwrap();
+            let action = match (toggle, server.muted(), server.deafened()) {
+                (Some(false), false, false) => None,
+                (Some(false), false, true) => Some((false, false)),
+                (Some(false), true, false) => Some((false, false)),
+                (Some(false), true, true) => Some((false, false)),
+                (Some(true), false, false) => Some((true, false)),
+                (Some(true), false, true) => None,
+                (Some(true), true, false) => None,
+                (Some(true), true, true) => None,
+                (None, false, false) => Some((true, false)),
+                (None, false, true) => Some((false, false)),
+                (None, true, false) => Some((false, false)),
+                (None, true, true) => Some((false, false)),
+            };
+
+            let mut new_mute = None;
+            if let Some((mute, deafen)) = action {
+                if server.deafened() != deafen {
+                    state.audio_output.play_effect(if deafen {
+                        NotificationEvents::Deafen
+                    } else {
+                        NotificationEvents::Undeafen
+                    });
+                } else if server.muted() != mute {
+                    state.audio_output.play_effect(if mute {
+                        NotificationEvents::Mute
+                    } else {
+                        NotificationEvents::Unmute
+                    });
+                }
+                let mut msg = msgs::UserState::new();
+                if server.muted() != mute {
+                    msg.set_self_mute(mute);
+                    new_mute = Some(mute)
+                } else if !mute && !deafen && server.deafened() {
+                    msg.set_self_mute(false);
+                    new_mute = Some(false)
+                }
+                if server.deafened() != deafen {
+                    msg.set_self_deaf(deafen);
+                }
+                let server = state.server_mut().unwrap();
+                server.set_muted(mute);
+                server.set_deafened(deafen);
+                packet_sender.send(msg.into()).unwrap();
+            }
+
+            now!(Ok(new_mute.map(|b| CommandResponse::MuteStatus { is_muted: b })))
+        }
+        Command::OutputVolumeSet(volume) => {
+            state.audio_output.set_volume(volume);
+            now!(Ok(None))
+        }
+        Command::Ping => {
+            now!(Ok(Some(CommandResponse::Pong)))
+        }
+        Command::ServerConnect {
+            host,
+            port,
+            username,
+            password,
+            accept_invalid_cert,
+        } => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Disconnected) {
+                return now!(Err(Error::AlreadyConnected));
+            }
+            let mut server = Server::new();
+            *server.username_mut() = Some(username);
+            *server.password_mut() = password;
+            *server.host_mut() = Some(format!("{}:{}", host, port));
+            state.server = Some(server);
+            state.phase_watcher
+                .0
+                .send(StatePhase::Connecting)
+                .unwrap();
+
+            let socket_addr = match (host.as_ref(), port)
+                .to_socket_addrs()
+                .map(|mut e| e.next())
+            {
+                Ok(Some(v)) => v,
+                _ => {
+                    warn!("Error parsing server addr");
+                    return now!(Err(Error::InvalidServerAddr(host, port)));
+                }
+            };
+            connection_info_sender
+                .send(Some(ConnectionInfo::new(
+                    socket_addr,
+                    host,
+                    accept_invalid_cert,
+                )))
+                .unwrap();
+            at!(TcpEvent::Connected, |res| {
+                //runs the closure when the client is connected
+                if let TcpEventData::Connected(res) = res {
+                    Box::new(iter::once(res.map(|msg| {
+                        Some(CommandResponse::ServerConnect {
+                            welcome_message: if msg.has_welcome_text() {
+                                Some(msg.get_welcome_text().to_string())
+                            } else {
+                                None
+                            },
+                        })
+                    })))
+                } else {
+                    unreachable!("callback should be provided with a TcpEventData::Connected");
+                }
+            })
+        }
+        Command::ServerDisconnect => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+
+            state.server = None;
+
+            state.phase_watcher
+                .0
+                .send(StatePhase::Disconnected)
+                .unwrap();
+            state.audio_output.play_effect(NotificationEvents::ServerDisconnect);
+            now!(Ok(None))
+        }
+        Command::ServerStatus { host, port } => ExecutionContext::Ping(
+            Box::new(move || {
+                match (host.as_str(), port)
+                    .to_socket_addrs()
+                    .map(|mut e| e.next())
+                {
+                    Ok(Some(v)) => Ok(v),
+                    _ => Err(Error::InvalidServerAddr(host, port)),
+                }
+            }),
+            Box::new(move |pong| {
+                Ok(pong.map(|pong| (CommandResponse::ServerStatus {
+                    version: pong.version,
+                    users: pong.users,
+                    max_users: pong.max_users,
+                    bandwidth: pong.bandwidth,
+                })))
+            }),
+        ),
+        Command::Status => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+            let state = state.server.as_ref().unwrap().into();
+            now!(Ok(Some(CommandResponse::Status {
+                server_state: state, //guaranteed not to panic because if we are connected, server is guaranteed to be Some
+            })))
+        }
+        Command::UserVolumeSet(string, volume) => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+            let user_id = match state
+                .server()
+                .unwrap()
+                .users()
+                .iter()
+                .find(|e| e.1.name() == string)
+                .map(|e| *e.0)
+            {
+                None => return now!(Err(Error::InvalidUsername(string))),
+                Some(v) => v,
+            };
+
+            state.audio_output.set_user_volume(user_id, volume);
+            now!(Ok(None))
+        }
+        Command::PastMessages { block } => {
+            //does it make sense to wait for messages while not connected?
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) { 
+                return now!(Err(Error::Disconnected));
+            }
+            if block {
+                let ref_state = Arc::clone(&og_state);
+                ExecutionContext::TcpEventSubscriber(
+                    TcpEvent::TextMessage,
+                    Box::new(move |data, sender| {
+                        if let TcpEventData::TextMessage(a) = data {
+                            let message = (
+                                a.get_message().to_owned(), 
+                                ref_state.read().unwrap().get_user_name(a.get_actor()).unwrap()
+                            );
+                            sender.send(Ok(Some(CommandResponse::PastMessage { message }))).is_ok()
+                        } else {
+                            unreachable!("Should only receive a TextMessage data when listening to TextMessage events");
+                        }
+                    }),
+                )
+            } else {
+                let messages = std::mem::take(&mut state.message_buffer);
+                let messages: Vec<_> = messages.into_iter()
+                    .map(|(msg, user)| (msg, state.get_user_name(user).unwrap()))
+                    .map(|e| Ok(Some(CommandResponse::PastMessage { message: e })))
+                    .collect();
+                
+                ExecutionContext::Now(Box::new(move || {
+                    Box::new(messages.into_iter())
+                }))
+            }
+        }
+        Command::SendMessage { message, targets } => {
+            if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {
+                return now!(Err(Error::Disconnected));
+            }
+            
+            let mut msg = msgs::TextMessage::new();
+
+            msg.set_message(message);
+
+            for target in targets {
+                match target {
+                    MessageTarget::Channel { recursive, name } => {
+                        let channel_id = state
+                            .server()
+                            .unwrap()
+                            .channel_name(&name);
+                        
+                        let channel_id = match channel_id {
+                            Ok(id) => id,
+                            Err(e) => return now!(Err(Error::ChannelIdentifierError(name, e))),
+                        }.0;
+                        
+                        if recursive {
+                            msg.mut_tree_id()
+                        } else {
+                            msg.mut_channel_id()
+                        }.push(channel_id);
+                    }
+                    MessageTarget::User { name } => {
+                        let id = state
+                            .server()
+                            .unwrap()
+                            .users()
+                            .iter()
+                            .find(|(_, user)| user.name() == &name)
+                            .map(|(e, _)| *e);
+
+                        let id = match id {
+                            Some(id) => id,
+                            None => return now!(Err(Error::InvalidUsername(name))),
+                        };
+
+                        msg.mut_session().push(id);
+                    }
+                }
+            }
+
+            packet_sender.send(msg.into()).unwrap();
+
+            now!(Ok(None))
+        }
     }
 }

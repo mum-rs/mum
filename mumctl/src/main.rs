@@ -1,14 +1,16 @@
 use colored::Colorize;
 use log::*;
-use mumlib::command::{Command as MumCommand, CommandResponse};
+use mumlib::command::{Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
 use std::fmt;
+use std::marker::PhantomData;
 use std::io::{self, BufRead, Read, Write};
 use std::iter;
 use std::os::unix::net::UnixStream;
 use std::thread;
 use structopt::{clap::Shell, StructOpt};
+use serde::de::DeserializeOwned;
 
 const INDENTATION: &str = "  ";
 
@@ -88,6 +90,32 @@ enum Command {
     Deafen,
     /// Undeafen yourself
     Undeafen,
+    /// Get messages sent to the server you're currently connected to
+    Messages {
+        #[structopt(short = "f", long = "follow")]
+        follow: bool,
+    },
+    /// Send a message to a channel or a user
+    Message(Target),
+}
+
+#[derive(Debug, StructOpt)]
+enum Target {
+    Channel {
+        /// The message to send
+        message: String,
+        /// If the message should be sent recursivley to sub-channels
+        #[structopt(short = "r", long = "recursive")]
+        recursive: bool,
+        /// Which channels to send to
+        names: Vec<String>,
+    },
+    User {
+        /// The message to send
+        message: String,
+        /// Which channels to send to
+        names: Vec<String>,
+    },
 }
 
 #[derive(Debug, StructOpt)]
@@ -349,6 +377,42 @@ fn match_opt() -> Result<(), Error> {
         Command::Undeafen => {
             send_command(MumCommand::DeafenSelf(Some(false)))??;
         }
+        Command::Messages {
+            follow
+        } => {
+            for response in send_command_multi(MumCommand::PastMessages { block: follow })? {
+                match response {
+                    Ok(Some(CommandResponse::PastMessage { message })) => println!("{}: {}", message.1, message.0),
+                    Ok(_) => unreachable!("Response should only be a Some(PastMessages)"),
+                    Err(e) => error!("{}", e),
+                }
+            }
+        }
+        Command::Message(target) => {
+            match target {
+                Target::Channel {
+                    message,
+                    recursive,
+                    names,
+                } => {
+                    let msg = MumCommand::SendMessage {
+                        message,
+                        targets: names.into_iter().map(|name| MessageTarget::Channel { name, recursive }).collect(),
+                    };
+                    send_command(msg)??;
+                },
+                Target::User {
+                    message,
+                    names
+                } => {
+                    let msg = MumCommand::SendMessage {
+                        message,
+                        targets: names.into_iter().map(|name| MessageTarget::User { name }).collect(),
+                    };
+                    send_command(msg)??;
+                },
+            }
+        }
     }
 
     let config_path = config::default_cfg_path();
@@ -582,6 +646,7 @@ fn parse_state(server_state: &mumlib::state::Server) {
     }
 }
 
+/// Tries to find a running mumd instance and receive one response from it.
 fn send_command(
     command: MumCommand,
 ) -> Result<mumlib::error::Result<Option<CommandResponse>>, CliError> {
@@ -601,6 +666,58 @@ fn send_command(
         .read_exact(&mut [0; 4])
         .map_err(|_| CliError::ConnectionError)?;
     bincode::deserialize_from(&mut connection).map_err(|_| CliError::ConnectionError)
+}
+
+/// Tries to find a running mumd instance and send a single command to it. Returns an iterator which
+/// yields all responses that mumd sends for that particular command.
+fn send_command_multi(
+    command: MumCommand,
+) -> Result<impl Iterator<Item = mumlib::error::Result<Option<CommandResponse>>>, CliError> {
+    let mut connection =
+        UnixStream::connect(mumlib::SOCKET_PATH).map_err(|_| CliError::ConnectionError)?;
+
+    let serialized = bincode::serialize(&command).unwrap();
+
+    connection
+        .write(&(serialized.len() as u32).to_be_bytes())
+        .map_err(|_| CliError::ConnectionError)?;
+    connection
+        .write(&serialized)
+        .map_err(|_| CliError::ConnectionError)?;
+
+    connection.shutdown(std::net::Shutdown::Write)
+        .map_err(|_| CliError::ConnectionError)?;
+
+    Ok(BincodeIter::new(connection))
+}
+
+/// A struct to represent an iterator that deserializes bincode-encoded data from a `Reader`.
+struct BincodeIter<R, I> {
+    reader: R,
+    phantom: PhantomData<*const I>,
+}
+
+impl<R, I> BincodeIter<R, I> {
+    /// Creates a new `BincodeIter` from a reader.
+    fn new(reader: R) -> Self {
+        Self {
+            reader,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<R, I> Iterator for BincodeIter<R, I>
+    where R: Read, I: DeserializeOwned {
+    type Item = I;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.reader
+            .read_exact(&mut [0; 4])
+            .ok()?;
+        bincode::deserialize_from(&mut self.reader).ok()
+    }
 }
 
 fn print_channel(channel: &MumChannel, depth: usize) {

@@ -3,6 +3,7 @@ use crate::state::user::User;
 
 use log::*;
 use mumble_protocol::control::msgs;
+use mumlib::error::ChannelIdentifierError;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -86,6 +87,44 @@ impl Server {
 
     pub fn channels(&self) -> &HashMap<u32, Channel> {
         &self.channels
+    }
+
+    /// Takes a channel name and returns either a tuple with the channel id and a reference to the
+    /// channel struct if the channel name unambiguosly refers to a channel, or an error describing
+    /// if the channel identifier was ambigous or invalid.
+    /// note that doctests currently aren't run in binary crates yet (see #50784)
+    /// ```
+    /// use crate::state::channel::Channel;
+    /// let mut server = Server::new();
+    /// let channel = Channel {
+    ///     name: "Foobar".to_owned(),
+    ///     ..Default::default(),
+    /// };
+    /// server.channels.insert(0, channel.clone);
+    /// assert_eq!(server.channel_name("Foobar"), Ok((0, &channel)));
+    /// ```
+    pub fn channel_name(&self, channel_name: &str) -> Result<(u32, &Channel), ChannelIdentifierError> {
+        let matches = self.channels
+            .iter()
+            .map(|e| ((*e.0, e.1), e.1.path(&self.channels)))
+            .filter(|e| e.1.ends_with(channel_name))
+            .collect::<Vec<_>>();
+        Ok(match matches.len() {
+            0 => {
+                let soft_matches = self.channels
+                    .iter()
+                    .map(|e| ((*e.0, e.1), e.1.path(&self.channels).to_lowercase()))
+                    .filter(|e| e.1.ends_with(&channel_name.to_lowercase()))
+                    .collect::<Vec<_>>();
+                match soft_matches.len() {
+                    0 => return Err(ChannelIdentifierError::Invalid),
+                    1 => soft_matches.get(0).unwrap().0,
+                    _ => return Err(ChannelIdentifierError::Ambiguous),
+                }
+            }
+            1 => matches.get(0).unwrap().0,
+            _ => return Err(ChannelIdentifierError::Ambiguous),
+        })
     }
 
     pub fn host_mut(&mut self) -> &mut Option<String> {

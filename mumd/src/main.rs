@@ -8,13 +8,14 @@ mod state;
 
 use crate::state::State;
 
+use bytes::{BufMut, BytesMut};
 use futures_util::{select, FutureExt, SinkExt, StreamExt};
 use log::*;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
-use tokio::{net::{UnixListener, UnixStream}, sync::{mpsc, oneshot}};
+use std::io::ErrorKind;
+use tokio::{net::{UnixListener, UnixStream}, sync::mpsc};
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
-use bytes::{BufMut, BytesMut};
 
 #[tokio::main]
 async fn main() {
@@ -81,7 +82,7 @@ async fn main() {
 async fn receive_commands(
     command_sender: mpsc::UnboundedSender<(
         Command,
-        oneshot::Sender<mumlib::error::Result<Option<CommandResponse>>>,
+        mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
     )>,
 ) {
     let socket = UnixListener::bind(mumlib::SOCKET_PATH).unwrap();
@@ -105,21 +106,22 @@ async fn receive_commands(
                         Err(_) => continue,
                     };
 
-                    let (tx, rx) = oneshot::channel();
+                    let (tx, mut rx) = mpsc::unbounded_channel();
 
                     sender.send((command, tx)).unwrap();
 
-                    let response = match rx.await {
-                        Ok(r) => r,
-                        Err(_) => {
-                            error!("Internal command response sender dropped");
-                            Ok(None)
-                        }
-                    };
-                    let mut serialized = BytesMut::new();
-                    bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
+                    while let Some(response) = rx.recv().await {
+                        let mut serialized = BytesMut::new();
+                        bincode::serialize_into((&mut serialized).writer(), &response).unwrap();
 
-                    let _ = writer.send(serialized.freeze()).await;
+                        if let Err(e) = writer.send(serialized.freeze()).await {
+                            if e.kind() != ErrorKind::BrokenPipe { //if the client closed the connection, ignore logging the error
+                                                                   //we just assume that they just don't want any more packets
+                                error!("Error sending response: {:?}", e);
+                            }
+                            break;
+                        }
+                    }
                 }
             });
         }

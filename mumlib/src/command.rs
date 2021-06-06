@@ -29,6 +29,13 @@ pub enum Command {
     },
     Status,
     UserVolumeSet(String, f32),
+    PastMessages {
+        block: bool,
+    },
+    SendMessage {
+        message: String,
+        targets: Vec<MessageTarget>,
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -55,4 +62,18 @@ pub enum CommandResponse {
     Status {
         server_state: Server,
     },
+    PastMessage {
+        message: (String, String),
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum MessageTarget {
+    Channel {
+        recursive: bool,
+        name: String,
+    },
+    User {
+        name: String,
+    }
 }

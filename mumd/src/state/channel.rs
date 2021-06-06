@@ -4,7 +4,7 @@ use mumble_protocol::control::msgs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Channel {
     description: Option<String>,
     links: Vec<u32>,
