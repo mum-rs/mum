@@ -60,6 +60,11 @@ pub enum ExecutionContext {
     ),
 }
 
+pub enum Event {
+    UserConnected(String, Option<String>),
+    UserDisconnected(String, Option<String>),
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StatePhase {
     Disconnected,
@@ -75,6 +80,8 @@ pub struct State {
     message_buffer: Vec<(String, u32)>,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
+
+    events: Vec<Event>,
 }
 
 impl State {
@@ -95,6 +102,7 @@ impl State {
             audio_output,
             message_buffer: Vec::new(),
             phase_watcher,
+            events: Vec::new(),
         };
         state.reload_config();
         Ok(state)
@@ -129,19 +137,21 @@ impl State {
             // this is someone else
             // send notification only if we've passed the connecting phase
             if matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                let channel_id = msg.get_channel_id();
+                let this_channel = msg.get_channel_id();
+                let other_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
+                //TODO can this fail?
+                let this_channel_name = self.server().unwrap().channels().get(&this_channel).map(|c| c.name());
 
-                if channel_id
-                    == self.get_users_channel(self.server().unwrap().session_id().unwrap())
-                {
-                    if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
+                if this_channel == other_channel {
+                    if let Some(this_channel_name) = this_channel_name {
                         notifications::send(format!(
                             "{} connected and joined {}",
-                            &msg.get_name(),
-                            channel.name()
+                            msg.get_name(),
+                            this_channel_name,
                         ));
                     }
-
+                    let this_channel_name = this_channel_name.map(|s| s.to_string());
+                    self.push_event(Event::UserConnected(msg.get_name().to_string(), this_channel_name));
                     self.audio_output
                         .play_effect(NotificationEvents::UserConnected);
                 }
@@ -233,10 +243,13 @@ impl State {
         let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
         let other_channel = self.get_users_channel(msg.get_session());
         if this_channel == other_channel {
+            let channel_name = self.server().unwrap().channels().get(&this_channel).map(|c| c.name().to_string());
             self.audio_output
                 .play_effect(NotificationEvents::UserDisconnected);
             if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
                 notifications::send(format!("{} disconnected", &user.name()));
+                let user_name = user.name().to_string();
+                self.push_event(Event::UserDisconnected(user_name, channel_name));
             }
         }
 
@@ -277,6 +290,10 @@ impl State {
         self.broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
         self.audio_output
             .play_effect(NotificationEvents::ServerConnect);
+    }
+
+    pub fn push_event(&mut self, event: Event) {
+        self.events.push(event);
     }
 
     pub fn audio_input(&self) -> &AudioInput {
