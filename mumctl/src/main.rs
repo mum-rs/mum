@@ -92,8 +92,8 @@ enum Command {
     Undeafen,
     /// Get messages sent to the server you're currently connected to
     Messages {
-        #[structopt(short = "i", long = "interactive")]
-        interactive: bool,
+        #[structopt(short = "f", long = "follow")]
+        follow: bool,
     },
     /// Send a message to a channel or a user
     Message(Target),
@@ -378,9 +378,9 @@ fn match_opt() -> Result<(), Error> {
             send_command(MumCommand::DeafenSelf(Some(false)))??;
         }
         Command::Messages {
-            interactive
+            follow
         } => {
-            for response in send_command_multi(MumCommand::PastMessages { block: interactive })? {
+            for response in send_command_multi(MumCommand::PastMessages { block: follow })? {
                 match response {
                     Ok(Some(CommandResponse::PastMessage { message })) => println!("{}: {}", message.1, message.0),
                     Ok(_) => unreachable!("Response should only be a Some(PastMessages)"),

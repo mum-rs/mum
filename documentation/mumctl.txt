@@ -98,10 +98,10 @@ mumctl volume <user> set <volume> ::
     Set the volume of another user's incoming audio.
     1.0 is the default.
 
-mumctl messages [-i|--interactive]
+mumctl messages [-f|--follow]
     Prints all received messages since mumd was started, or since this command last was issued,
     whichever happens first.
-    If the interactive flag is set, mumctl will instead wait for new messages to come in and print
+    If the follow flag is set, mumctl will instead wait for new messages to come in and print
     them as they come in. To exit this loop, issue a Ctrl-C.
 
 mumctl message user <message> <users>
