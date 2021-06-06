@@ -645,7 +645,7 @@ fn parse_state(server_state: &mumlib::state::Server) {
     }
 }
 
-/// Tries to find a running mumd instance and tries to receive one response from it.
+/// Tries to find a running mumd instance and receive one response from it.
 fn send_command(
     command: MumCommand,
 ) -> Result<mumlib::error::Result<Option<CommandResponse>>, CliError> {
@@ -667,7 +667,7 @@ fn send_command(
     bincode::deserialize_from(&mut connection).map_err(|_| CliError::ConnectionError)
 }
 
-/// Tries to find a running mumd instance and sends a single command to it. Returns an iterator which
+/// Tries to find a running mumd instance and send a single command to it. Returns an iterator which
 /// yields all responses that mumd sends for that particular command.
 fn send_command_multi(
     command: MumCommand,
