@@ -15,7 +15,7 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
-use mumlib::command::{Command, CommandResponse, Event, MessageTarget};
+use mumlib::command::{Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind};
 use mumlib::config::Config;
 use mumlib::Error;
 use std::{
@@ -76,7 +76,7 @@ pub struct State {
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
 
-    events: Vec<Event>,
+    events: Vec<MumbleEvent>,
 }
 
 impl State {
@@ -146,7 +146,7 @@ impl State {
                         ));
                     }
                     let this_channel_name = this_channel_name.map(|s| s.to_string());
-                    self.push_event(Event::UserConnected(msg.get_name().to_string(), this_channel_name));
+                    self.push_event(MumbleEventKind::UserConnected(msg.get_name().to_string(), this_channel_name));
                     self.audio_output
                         .play_effect(NotificationEvents::UserConnected);
                 }
@@ -244,7 +244,7 @@ impl State {
             if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
                 notifications::send(format!("{} disconnected", &user.name()));
                 let user_name = user.name().to_string();
-                self.push_event(Event::UserDisconnected(user_name, channel_name));
+                self.push_event(MumbleEventKind::UserDisconnected(user_name, channel_name));
             }
         }
 
@@ -287,8 +287,8 @@ impl State {
             .play_effect(NotificationEvents::ServerConnect);
     }
 
-    pub fn push_event(&mut self, event: Event) {
-        self.events.push(event);
+    pub fn push_event(&mut self, kind: MumbleEventKind) {
+        self.events.push(MumbleEvent { timestamp: chrono::Local::now().naive_local(), kind });
     }
 
     pub fn audio_input(&self) -> &AudioInput {

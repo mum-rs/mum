@@ -1,21 +1,34 @@
 use crate::state::{Channel, Server};
 
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Event {
+pub struct MumbleEvent {
+    pub timestamp: NaiveDateTime,
+    pub kind: MumbleEventKind
+}
+
+impl fmt::Display for MumbleEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}] {}", self.timestamp.format("%d %b %H:%M"), self.kind)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MumbleEventKind {
     UserConnected(String, Option<String>),
     UserDisconnected(String, Option<String>),
 }
 
-impl fmt::Display for Event {
+impl fmt::Display for MumbleEventKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Event::UserConnected(user, channel) => {
+            MumbleEventKind::UserConnected(user, channel) => {
                 write!(f, "{} connected to {}", user, channel.as_deref().unwrap_or("unknown channel"))
             }
-            Event::UserDisconnected(user, channel) => {
+            MumbleEventKind::UserDisconnected(user, channel) => {
                 write!(f, "{} disconnected from {}", user, channel.as_deref().unwrap_or("unknown channel"))
             }
         }
@@ -70,7 +83,7 @@ pub enum CommandResponse {
         is_deafened: bool,
     },
     Event {
-        event: Event,
+        event: MumbleEvent,
     },
     MuteStatus {
         is_muted: bool,
