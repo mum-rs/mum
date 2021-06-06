@@ -92,7 +92,7 @@ impl Server {
     /// Takes a channel name and returns either a tuple with the channel id and a reference to the
     /// channel struct if the channel name unambiguosly refers to a channel, or an error describing
     /// if the channel identifier was ambigous or invalid.
-    /*/// note that doctests currently aren't run in binary crates yet (see #50784)
+    /// note that doctests currently aren't run in binary crates yet (see #50784)
     /// ```
     /// use crate::state::channel::Channel;
     /// let mut server = Server::new();
@@ -102,7 +102,7 @@ impl Server {
     /// };
     /// server.channels.insert(0, channel.clone);
     /// assert_eq!(server.channel_name("Foobar"), Ok((0, &channel)));
-    /// ```*/
+    /// ```
     pub fn channel_name(&self, channel_name: &str) -> Result<(u32, &Channel), ChannelIdentifierError> {
         let matches = self.channels
             .iter()
