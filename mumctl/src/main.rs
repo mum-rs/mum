@@ -331,6 +331,11 @@ fn match_opt() -> Result<(), Error> {
                     config.audio.output_volume = Some(volume);
                 }
             }
+            "accept_all_invalid_certs" => {
+                if let Ok(b) = value.parse() {
+                    config.allow_invalid_server_cert = Some(b);
+                }
+            }
             _ => {
                 return Err(CliError::ConfigKeyNotFound(key).into());
             }
@@ -461,7 +466,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
             match (key.as_deref(), value) {
                 (None, _) => {
                     print!(
-                        "{}{}{}{}",
+                        "{}{}{}{}{}",
                         format!("host: {}\n", server.host.to_string()),
                         server
                             .port
@@ -476,6 +481,10 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                             .password
                             .as_ref()
                             .map(|s| format!("password: {}\n", s))
+                            .unwrap_or_else(|| "".to_string()),
+                        server
+                            .accept_invalid_cert
+                            .map(|b| format!("accept_invalid_cert: {}\n", if b { "true" } else { "false" }))
                             .unwrap_or_else(|| "".to_string()),
                     );
                 }
@@ -509,6 +518,15 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                             .ok_or(CliError::NotSet("password".to_string()))?
                     );
                 }
+                (Some("accept_invalid_cert"), None) => {
+                    println!(
+                        "{}",
+                        server
+                            .accept_invalid_cert
+                            .map(|b| if b { "true" } else { "false "})
+                            .ok_or(CliError::NotSet("accept_invalid_cert".to_string()))?
+                    );
+                }
                 (Some("name"), Some(_)) => {
                     return Err(CliError::UseServerRename)?;
                 }
@@ -524,6 +542,13 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                 (Some("password"), Some(value)) => {
                     server.password = Some(value);
                     //TODO ask stdin if empty
+                }
+                (Some("accept_invalid_cert"), Some(value)) => {
+                    match value.as_ref() {
+                        "true" => server.accept_invalid_cert = Some(true),
+                        "false" => server.accept_invalid_cert = Some(false),
+                        v => warn!("Couldn't parse '{}' as bool", v),
+                    }
                 }
                 (Some(_), _) => {
                     return Err(CliError::ConfigKeyNotFound(key.unwrap()))?;
