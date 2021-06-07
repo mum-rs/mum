@@ -1,5 +1,6 @@
 use crate::state::{Channel, Server};
 
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -63,7 +64,7 @@ pub enum CommandResponse {
         server_state: Server,
     },
     PastMessage {
-        message: (String, String),
+        message: (NaiveDateTime, String, String),
     },
 }
 

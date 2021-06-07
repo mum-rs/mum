@@ -8,8 +8,9 @@ use crate::network::tcp::{TcpEvent, TcpEventData};
 use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::notifications;
 use crate::state::server::Server;
-
 use crate::state::user::UserDiff;
+
+use chrono::NaiveDateTime;
 use log::*;
 use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
@@ -72,7 +73,7 @@ pub struct State {
     server: Option<Server>,
     audio_input: AudioInput,
     audio_output: AudioOutput,
-    message_buffer: Vec<(String, u32)>,
+    message_buffer: Vec<(NaiveDateTime, String, u32)>,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
 }
@@ -266,7 +267,7 @@ impl State {
     }
 
     pub fn register_message(&mut self, msg: (String, u32)) {
-        self.message_buffer.push(msg);
+        self.message_buffer.push((chrono::Local::now().naive_local(), msg.0, msg.1));
     }
 
     pub fn broadcast_phase(&self, phase: StatePhase) {
@@ -650,6 +651,7 @@ pub fn handle_command(
                     Box::new(move |data, sender| {
                         if let TcpEventData::TextMessage(a) = data {
                             let message = (
+                                chrono::Local::now().naive_local(),
                                 a.get_message().to_owned(),
                                 ref_state
                                     .read()
@@ -669,7 +671,7 @@ pub fn handle_command(
                 let messages = std::mem::take(&mut state.message_buffer);
                 let messages: Vec<_> = messages
                     .into_iter()
-                    .map(|(msg, user)| (msg, state.get_user_name(user).unwrap()))
+                    .map(|(timestamp, msg, user)| (timestamp, msg, state.get_user_name(user).unwrap()))
                     .map(|e| Ok(Some(CommandResponse::PastMessage { message: e })))
                     .collect();
 
