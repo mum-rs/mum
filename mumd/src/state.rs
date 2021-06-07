@@ -2,7 +2,7 @@ pub mod channel;
 pub mod server;
 pub mod user;
 
-use crate::audio::{AudioInput, AudioOutput, NotificationEvents};
+use crate::{audio::{AudioInput, AudioOutput, NotificationEvents}, network::tcp::DisconnectedReason};
 use crate::error::StateError;
 use crate::network::tcp::{TcpEvent, TcpEventData};
 use crate::network::{ConnectionInfo, VoiceStreamType};
@@ -26,8 +26,10 @@ use std::{
 use tokio::sync::{mpsc, watch};
 
 macro_rules! at {
-    ($event:expr, $generator:expr) => {
-        ExecutionContext::TcpEventCallback($event, Box::new($generator))
+    ( $( $event:expr => $generator:expr ),+ $(,)? ) => {
+        ExecutionContext::TcpEventCallback(vec![
+            $( ($event, Box::new($generator)), )*
+        ])
     };
 }
 
@@ -41,7 +43,7 @@ type Responses = Box<dyn Iterator<Item = mumlib::error::Result<Option<CommandRes
 
 //TODO give me a better name
 pub enum ExecutionContext {
-    TcpEventCallback(TcpEvent, Box<dyn FnOnce(TcpEventData) -> Responses>),
+    TcpEventCallback(Vec<(TcpEvent, Box<dyn FnOnce(TcpEventData) -> Responses>)>),
     TcpEventSubscriber(
         TcpEvent,
         Box<
@@ -555,22 +557,27 @@ pub fn handle_command(
                     accept_invalid_cert,
                 )))
                 .unwrap();
-            at!(TcpEvent::Connected, |res| {
-                //runs the closure when the client is connected
-                if let TcpEventData::Connected(res) = res {
-                    Box::new(iter::once(res.map(|msg| {
-                        Some(CommandResponse::ServerConnect {
-                            welcome_message: if msg.has_welcome_text() {
-                                Some(msg.get_welcome_text().to_string())
-                            } else {
-                                None
-                            },
-                        })
-                    })))
-                } else {
-                    unreachable!("callback should be provided with a TcpEventData::Connected");
+            at!(
+                TcpEvent::Connected => |res| {
+                    //runs the closure when the client is connected
+                    if let TcpEventData::Connected(res) = res {
+                        Box::new(iter::once(res.map(|msg| {
+                            Some(CommandResponse::ServerConnect {
+                                welcome_message: if msg.has_welcome_text() {
+                                    Some(msg.get_welcome_text().to_string())
+                                } else {
+                                    None
+                                },
+                            })
+                        })))
+                    } else {
+                        unreachable!("callback should be provided with a TcpEventData::Connected");
+                    }
+                },
+                TcpEvent::Disconnected(DisconnectedReason::InvalidTls) => |_| {
+                    Box::new(iter::once(Ok(Some(CommandResponse::ServerCertReject))))
                 }
-            })
+            )
         }
         Command::ServerDisconnect => {
             if !matches!(*state.phase_receiver().borrow(), StatePhase::Connected(_)) {

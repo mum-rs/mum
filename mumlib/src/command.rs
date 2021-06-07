@@ -53,6 +53,7 @@ pub enum CommandResponse {
     ServerConnect {
         welcome_message: Option<String>,
     },
+    ServerCertReject,
     ServerStatus {
         version: u32,
         users: u32,

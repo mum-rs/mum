@@ -32,16 +32,19 @@ pub async fn handle(
             &mut connection_info_sender,
         );
         match event {
-            ExecutionContext::TcpEventCallback(event, generator) => {
-                tcp_event_queue.register_callback(
-                    event,
-                    Box::new(move |e| {
-                        let response = generator(e);
-                        for response in response {
-                            response_sender.send(response).unwrap();
-                        }
-                    }),
-                );
+            ExecutionContext::TcpEventCallback(callbacks) => {
+                for (event, generator) in callbacks {
+                    let response_sender = response_sender.clone();
+                    tcp_event_queue.register_callback(
+                        event,
+                        Box::new(move |e| {
+                            let response = generator(e);
+                            for response in response {
+                                response_sender.send(response).unwrap();
+                            }
+                        }),
+                    );
+                }
             }
             ExecutionContext::TcpEventSubscriber(event, mut handler) => tcp_event_queue
                 .register_subscriber(

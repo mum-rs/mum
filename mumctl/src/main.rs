@@ -236,7 +236,7 @@ fn match_opt() -> Result<(), Error> {
         } => {
             let port = port.unwrap_or(mumlib::DEFAULT_PORT);
 
-            let (host, username, password, port) =
+            let (host, username, password, port, accept_invalid_cert) =
                 match config.servers.iter().find(|e| e.name == host) {
                     Some(server) => (
                         &server.host,
@@ -247,27 +247,45 @@ fn match_opt() -> Result<(), Error> {
                             .ok_or(CliError::NoUsername)?,
                         server.password.as_ref().or(password.as_ref()),
                         server.port.unwrap_or(port),
+                        server.accept_invalid_cert,
                     ),
                     None => (
                         &host,
                         username.as_ref().ok_or(CliError::NoUsername)?,
                         password.as_ref(),
                         port,
+                        None,
                     ),
                 };
+
+            let accept_invalid_cert = accept_invalid_cert
+                .or(config.allow_invalid_server_cert);
+            let specified_accept_invalid_cert = accept_invalid_cert.is_some();
 
             let response = send_command(MumCommand::ServerConnect {
                 host: host.to_string(),
                 port,
                 username: username.to_string(),
                 password: password.map(|x| x.to_string()),
-                accept_invalid_cert: true, //TODO
+                accept_invalid_cert: accept_invalid_cert.unwrap_or(false), //TODO force true/false via flags
             })??;
-            if let Some(CommandResponse::ServerConnect { welcome_message }) = response {
-                println!("Connected to {}", host);
-                if let Some(message) = welcome_message {
-                    println!("Welcome: {}", message);
+            match response {
+                Some(CommandResponse::ServerConnect { welcome_message }) => {
+                    println!("Connected to {}", host);
+                    if let Some(message) = welcome_message {
+                        println!("Welcome: {}", message);
+                    }
                 }
+                Some(CommandResponse::ServerCertReject) => {
+                    error!("Connection rejected since the server supplied an invalid certificate.");
+                    if !specified_accept_invalid_cert {
+                        eprintln!("help: If you trust this server anyway, you can do any of the following to connect:");
+                        // eprintln!("  1. Temporarily trust this server by passing --accept-invalid-cert when connecting.");
+                        eprintln!("  1. Permanently trust this server by setting accept_invalid_cert=true in the server's config.");
+                        eprintln!("  2. Permantently trust all invalid certificates by setting accept_all_invalid_certs=true globally");
+                    }
+                }
+                other => unreachable!("Response should only be a ServerConnect or ServerCertReject. Got {:?}", other)
             }
         }
         Command::Disconnect => {
@@ -536,6 +554,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     port,
                     username,
                     password,
+                    accept_invalid_cert: None, //TODO
                 });
             }
         }
