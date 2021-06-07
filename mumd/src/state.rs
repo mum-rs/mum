@@ -170,6 +170,7 @@ impl State {
             .users_mut()
             .get_mut(&session)
             .unwrap();
+        let username = user.name().to_string();
 
         let mute = if msg.has_self_mute() && user.self_mute() != msg.get_self_mute() {
             Some(msg.get_self_mute())
@@ -185,35 +186,43 @@ impl State {
         let diff = UserDiff::from(msg);
         user.apply_user_diff(&diff);
 
-        let user = self.server().unwrap().users().get(&session).unwrap();
 
         if Some(session) != self.server().unwrap().session_id() {
-            //send notification if the user moved to or from any channel
+            // Send notification if the user moved either to or from our channel
             if let Some(to_channel) = diff.channel_id {
                 let this_channel =
                     self.get_users_channel(self.server().unwrap().session_id().unwrap());
-                if from_channel == this_channel || to_channel == this_channel {
+
+                if from_channel == this_channel {
+                    // User moved from our channel to somewhere else
                     if let Some(channel) = self.server().unwrap().channels().get(&to_channel) {
+                        let channel = channel.name().to_string();
                         notifications::send(format!(
                             "{} moved to channel {}",
-                            user.name(),
-                            channel.name()
+                            &username,
+                            &channel,
                         ));
-                    } else {
-                        warn!("{} moved to invalid channel {}", user.name(), to_channel);
+                        self.push_event(MumbleEventKind::UserLeftChannel(username.clone(), channel));
                     }
-                    self.audio_output
-                        .play_effect(if from_channel == this_channel {
-                            NotificationEvents::UserJoinedChannel
-                        } else {
-                            NotificationEvents::UserLeftChannel
-                        });
+                    self.audio_output.play_effect(NotificationEvents::UserLeftChannel);
+                } else if to_channel == this_channel {
+                    // User moved from somewhere else to our channel
+                    if let Some(channel) = self.server().unwrap().channels().get(&from_channel) {
+                        let channel = channel.name().to_string();
+                        notifications::send(format!(
+                            "{} moved to your channel from {}",
+                            &username,
+                            &channel,
+                        ));
+                        self.push_event(MumbleEventKind::UserJoinedChannel(username.clone(), channel));
+                    }
+                    self.audio_output.play_effect(NotificationEvents::UserJoinedChannel);
                 }
             }
 
             //send notification if a user muted/unmuted
             if mute != None || deaf != None {
-                let mut s = user.name().to_string();
+                let mut s = username;
                 if let Some(mute) = mute {
                     s += if mute { " muted" } else { " unmuted" };
                 }
@@ -224,7 +233,8 @@ impl State {
                     s += if deaf { " deafened" } else { " undeafened" };
                 }
                 s += " themselves";
-                notifications::send(s);
+                notifications::send(s.clone());
+                self.push_event(MumbleEventKind::UserMuteStateChanged(s));
             }
         }
     }

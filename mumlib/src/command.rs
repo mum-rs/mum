@@ -20,8 +20,15 @@ impl fmt::Display for MumbleEvent {
 pub enum MumbleEventKind {
     UserConnected(String, Option<String>),
     UserDisconnected(String, Option<String>),
+    /// This logic is kinda weird so we only store the rendered message.
+    UserMuteStateChanged(String),
+    TextMessageReceived(String),
+    UserJoinedChannel(String, String),
+    UserLeftChannel(String, String),
 }
 
+//TODO These strings are (mostly) duplicated with their respective notifications.
+//     The only difference is that the text message event doesn't contain the text message.
 impl fmt::Display for MumbleEventKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -31,6 +38,19 @@ impl fmt::Display for MumbleEventKind {
             MumbleEventKind::UserDisconnected(user, channel) => {
                 write!(f, "{} disconnected from {}", user, channel.as_deref().unwrap_or("unknown channel"))
             }
+            MumbleEventKind::UserMuteStateChanged(message) => {
+                write!(f, "{}", message)
+            }
+            MumbleEventKind::TextMessageReceived(user) => {
+                write!(f, "{} sent a text message", user)
+            }
+            MumbleEventKind::UserJoinedChannel(name, from) => {
+                write!(f, "{} moved to your channel from {}", name, from)
+            }
+            MumbleEventKind::UserLeftChannel(name, to) => {
+                write!(f, "{} moved to {}", name, to)
+            }
+
         }
     }
 }
