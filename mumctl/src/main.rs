@@ -94,10 +94,10 @@ enum Target {
     Channel {
         /// The message to send
         message: String,
-        /// If the message should be sent recursivley to sub-channels
+        /// If the message should be sent recursively to sub-channels
         #[structopt(short = "r", long = "recursive")]
         recursive: bool,
-        /// Which channels to send to
+        /// Which channels to send to. Defaults to current channel if left empty
         names: Vec<String>,
     },
     User {
