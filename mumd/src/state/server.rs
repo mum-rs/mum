@@ -132,6 +132,12 @@ impl Server {
         })
     }
 
+    pub fn current_channel(&self) -> Option<(u32, &Channel)> {
+        let channel_id = self.users().get(&self.session_id()?)?.channel();
+        let channel = self.channels().get(&channel_id)?;
+        Some((channel_id, channel))
+    }
+
     pub fn host_mut(&mut self) -> &mut Option<String> {
         &mut self.host
     }

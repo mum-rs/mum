@@ -69,6 +69,7 @@ pub enum CommandResponse {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MessageTarget {
+    CurrentChannel {recursive: bool },
     Channel { recursive: bool, name: String },
     User { name: String },
 }

@@ -11,6 +11,7 @@ pub enum Error {
     InvalidServerAddr(String, u16),
     InvalidUsername(String),
     InvalidServerPassword,
+    NotConnectedToChannel,
 }
 
 impl std::error::Error for Error {}
@@ -26,6 +27,7 @@ impl fmt::Display for Error {
             }
             Error::InvalidUsername(username) => write!(f, "Invalid username: {}", username),
             Error::InvalidServerPassword => write!(f, "Invalid server password"),
+            Error::NotConnectedToChannel => write!(f, "Not connected to a channel"),
         }
     }
 }

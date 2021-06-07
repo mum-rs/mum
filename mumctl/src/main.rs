@@ -381,10 +381,14 @@ fn match_opt() -> Result<(), Error> {
             } => {
                 let msg = MumCommand::SendMessage {
                     message,
-                    targets: names
-                        .into_iter()
-                        .map(|name| MessageTarget::Channel { name, recursive })
-                        .collect(),
+                    targets: if !names.is_empty() {
+                        names
+                            .into_iter()
+                            .map(|name| MessageTarget::Channel { name, recursive })
+                            .collect()
+                    } else {
+                        vec![MessageTarget::CurrentChannel { recursive }]
+                    },
                 };
                 send_command(msg)??;
             }

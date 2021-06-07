@@ -687,14 +687,26 @@ pub fn handle_command(
 
             for target in targets {
                 match target {
-                    MessageTarget::Channel { recursive, name } => {
-                        let channel_id = state.server().unwrap().channel_name(&name);
+                    MessageTarget::CurrentChannel { recursive } => {
+                        let channel_id = match state.server().unwrap().current_channel() {
+                            Some(channel)=> channel.0,
+                            None => return now!(Err(Error::NotConnectedToChannel)),
+                        };
 
-                        let channel_id = match channel_id {
-                            Ok(id) => id,
-                            Err(e) => return now!(Err(Error::ChannelIdentifierError(name, e))),
+                        if recursive {
+                            msg.mut_tree_id()
+                        } else {
+                            msg.mut_channel_id()
                         }
-                        .0;
+                        .push(channel_id);
+                    }
+                    MessageTarget::Channel { recursive, name } => {
+                        let channel = state.server().unwrap().channel_name(&name);
+
+                        let channel_id = match channel {
+                            Ok(channel) => channel.0,
+                            Err(e) => return now!(Err(Error::ChannelIdentifierError(name, e))),
+                        };
 
                         if recursive {
                             msg.mut_tree_id()
