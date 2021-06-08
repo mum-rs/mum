@@ -58,6 +58,9 @@ mumctl deafen ::
 mumctl disconnect ::
     Disconnect from the currently connected server.
 
+mumctl events ::
+    Print all events that have occured since mumd was started.
+
 mumctl help ::
     Show a help message.
 
