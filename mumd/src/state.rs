@@ -134,21 +134,23 @@ impl State {
             if matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
                 let this_channel = msg.get_channel_id();
                 let other_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
-                //TODO can this fail?
-                let this_channel_name = self.server().unwrap().channels().get(&this_channel).map(|c| c.name());
+                let this_channel_name = self
+                    .server()
+                    .unwrap()
+                    .channels()
+                    .get(&this_channel)
+                    .map(|c| c.name())
+                    .unwrap_or("<unnamed channel>")
+                    .to_string();
 
                 if this_channel == other_channel {
-                    if let Some(this_channel_name) = this_channel_name {
-                        notifications::send(format!(
-                            "{} connected and joined {}",
-                            msg.get_name(),
-                            this_channel_name,
-                        ));
-                    }
-                    let this_channel_name = this_channel_name.map(|s| s.to_string());
+                    notifications::send(format!(
+                        "{} connected and joined {}",
+                        msg.get_name(),
+                        this_channel_name,
+                    ));
                     self.push_event(MumbleEventKind::UserConnected(msg.get_name().to_string(), this_channel_name));
-                    self.audio_output
-                        .play_effect(NotificationEvents::UserConnected);
+                    self.audio_output.play_effect(NotificationEvents::UserConnected);
                 }
             }
         }
@@ -248,14 +250,25 @@ impl State {
         let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
         let other_channel = self.get_users_channel(msg.get_session());
         if this_channel == other_channel {
-            let channel_name = self.server().unwrap().channels().get(&this_channel).map(|c| c.name().to_string());
-            self.audio_output
-                .play_effect(NotificationEvents::UserDisconnected);
-            if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
-                notifications::send(format!("{} disconnected", &user.name()));
-                let user_name = user.name().to_string();
-                self.push_event(MumbleEventKind::UserDisconnected(user_name, channel_name));
-            }
+            let channel_name = self
+                .server()
+                .unwrap()
+                .channels()
+                .get(&this_channel)
+                .map(|c| c.name())
+                .unwrap_or("<unnamed channel>")
+                .to_string();
+            let user_name = self
+                .server()
+                .unwrap()
+                .users()
+                .get(&msg.get_session())
+                .map(|u| u.name())
+                .unwrap_or("<unknown user>")
+                .to_string();
+            notifications::send(format!("{} disconnected", &user_name));
+            self.push_event(MumbleEventKind::UserDisconnected(user_name, channel_name));
+            self.audio_output.play_effect(NotificationEvents::UserDisconnected);
         }
 
         self.server_mut()

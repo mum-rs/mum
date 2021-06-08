@@ -20,8 +20,8 @@ impl fmt::Display for MumbleEvent {
 /// The different kinds of events that can happen.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MumbleEventKind {
-    UserConnected(String, Option<String>),
-    UserDisconnected(String, Option<String>),
+    UserConnected(String, String),
+    UserDisconnected(String, String),
     UserMuteStateChanged(String),  // This logic is kinda weird so we only store the rendered message.
     TextMessageReceived(String),
     UserJoinedChannel(String, String),
@@ -34,10 +34,10 @@ impl fmt::Display for MumbleEventKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MumbleEventKind::UserConnected(user, channel) => {
-                write!(f, "{} connected to {}", user, channel.as_deref().unwrap_or("unknown channel"))
+                write!(f, "{} connected to {}", user, channel)
             }
             MumbleEventKind::UserDisconnected(user, channel) => {
-                write!(f, "{} disconnected from {}", user, channel.as_deref().unwrap_or("unknown channel"))
+                write!(f, "{} disconnected from {}", user, channel)
             }
             MumbleEventKind::UserMuteStateChanged(message) => {
                 write!(f, "{}", message)
