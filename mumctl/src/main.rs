@@ -366,7 +366,7 @@ fn match_opt() -> Result<(), Error> {
             for response in send_command_multi(MumCommand::PastMessages { block: follow })? {
                 match response {
                     Ok(Some(CommandResponse::PastMessage { message })) => {
-                        println!("{}: {}", message.1, message.0)
+                        println!("[{}] {}: {}", message.0.format("%d %b %H:%M"), message.2, message.1)
                     }
                     Ok(_) => unreachable!("Response should only be a Some(PastMessages)"),
                     Err(e) => error!("{}", e),
