@@ -87,6 +87,7 @@ enum Command {
     },
     /// Send a message to a channel or a user
     Message(Target),
+    /// Get events that have happened since we connected
     Events {
         #[structopt(short = "f", long = "follow")]
         follow: bool,

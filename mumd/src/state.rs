@@ -297,6 +297,7 @@ impl State {
             .play_effect(NotificationEvents::ServerConnect);
     }
 
+    /// Store a new event
     pub fn push_event(&mut self, kind: MumbleEventKind) {
         self.events.push(MumbleEvent { timestamp: chrono::Local::now().naive_local(), kind });
     }

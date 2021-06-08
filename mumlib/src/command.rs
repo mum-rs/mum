@@ -4,6 +4,7 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Something that happened in our channel at a point in time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MumbleEvent {
     pub timestamp: NaiveDateTime,
@@ -16,12 +17,12 @@ impl fmt::Display for MumbleEvent {
     }
 }
 
+/// The different kinds of events that can happen.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MumbleEventKind {
     UserConnected(String, Option<String>),
     UserDisconnected(String, Option<String>),
-    /// This logic is kinda weird so we only store the rendered message.
-    UserMuteStateChanged(String),
+    UserMuteStateChanged(String),  // This logic is kinda weird so we only store the rendered message.
     TextMessageReceived(String),
     UserJoinedChannel(String, String),
     UserLeftChannel(String, String),
