@@ -444,7 +444,7 @@ pub fn handle_command(
         Command::Events { block } => {
             if block {
                 warn!("Blocking event list is unimplemented");
-                now!(Ok(None))
+                now!(Err(Error::Unimplemented))
             } else {
                 let events: Vec<_> = state
                     .events
