@@ -99,9 +99,11 @@ mumctl help
 Show a help message.
 .RE
 .sp
-mumctl message channel [\-r|\-\-recursive] <message> <channels>
+mumctl message channel [\-r|\-\-recursive] <message> [<channel>...]
 Sends a message to all channels specified in the list of channels.
 If the recursive flag is set, the message is also sent to all subchannels in a recursive manner.
+If no channels are given the message is sent to the channel currently
+connected to.
 .sp
 mumctl message user <message> <users>
 Sends a message to all users specified in the list of users.
