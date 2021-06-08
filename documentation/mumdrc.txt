@@ -14,6 +14,10 @@ using mumctl(1).
 
 The following configuration values are supported:
 
+accept_all_invalid_certs ::
+    Whether to connect to a server that supplies an invalid server certificate.
+    This is overriden by server-specific settings. Default false.
+
 audio.input_volume ::
     Default 1.0.
 
@@ -37,6 +41,11 @@ username ::
 
 password ::
     The password to supply to the server. (Optional)
+
+accept_invalid_cert ::
+    Whether to connect to this server even if it supplies an invalid server
+    certificate. This overrides the global accept_all_invalid_certs if set.
+    Default false.
 
 Authors
 -------

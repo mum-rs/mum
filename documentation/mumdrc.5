@@ -2,12 +2,12 @@
 .\"     Title: mumdrc
 .\"    Author: [see the "AUTHOR(S)" section]
 .\" Generator: Asciidoctor 2.0.15
-.\"      Date: 2021-04-10
+.\"      Date: 2021-06-08
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MUMDRC" "5" "2021-04-10" "\ \&" "\ \&"
+.TH "MUMDRC" "5" "2021-06-08" "\ \&" "\ \&"
 .ie \n(.g .ds Aq \(aq
 .el       .ds Aq '
 .ss \n[.ss] 0
@@ -35,6 +35,12 @@ This file contains persistent configuration for mumd(1). It can be written to
 using mumctl(1).
 .sp
 The following configuration values are supported:
+.sp
+accept_all_invalid_certs
+.RS 4
+Whether to connect to a server that supplies an invalid server certificate.
+This is overriden by server\-specific settings. Default false.
+.RE
 .sp
 audio.input_volume
 .RS 4
@@ -72,6 +78,13 @@ The username to connect with. (Optional)
 password
 .RS 4
 The password to supply to the server. (Optional)
+.RE
+.sp
+accept_invalid_cert
+.RS 4
+Whether to connect to this server even if it supplies an invalid server
+certificate. This overrides the global accept_all_invalid_certs if set.
+Default false.
 .RE
 .SH "AUTHORS"
 .sp
