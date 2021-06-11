@@ -13,6 +13,7 @@ use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPa
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::{Clientbound, Serverbound};
+use mumlib::command::MumbleEventKind;
 use std::collections::HashMap;
 use std::convert::{Into, TryInto};
 use std::net::SocketAddr;
@@ -337,6 +338,8 @@ async fn listen(
                 if let Some(user) = user {
                     notifications::send(format!("{}: {}", user, msg.get_message()));
                     //TODO: probably want a config flag for this
+                    let user = user.to_string();
+                    state.push_event(MumbleEventKind::TextMessageReceived(user)) //TODO also include message target
                 }
                 state.register_message((msg.get_message().to_owned(), msg.get_actor()));
                 drop(state);

@@ -16,7 +16,7 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
-use mumlib::command::{Command, CommandResponse, MessageTarget};
+use mumlib::command::{Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind};
 use mumlib::config::Config;
 use mumlib::Error;
 use std::{
@@ -76,6 +76,8 @@ pub struct State {
     message_buffer: Vec<(NaiveDateTime, String, u32)>,
 
     phase_watcher: (watch::Sender<StatePhase>, watch::Receiver<StatePhase>),
+
+    events: Vec<MumbleEvent>,
 }
 
 impl State {
@@ -96,6 +98,7 @@ impl State {
             audio_output,
             message_buffer: Vec::new(),
             phase_watcher,
+            events: Vec::new(),
         };
         state.reload_config();
         Ok(state)
@@ -130,21 +133,25 @@ impl State {
             // this is someone else
             // send notification only if we've passed the connecting phase
             if matches!(*self.phase_receiver().borrow(), StatePhase::Connected(_)) {
-                let channel_id = msg.get_channel_id();
+                let this_channel = msg.get_channel_id();
+                let other_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
+                let this_channel_name = self
+                    .server()
+                    .unwrap()
+                    .channels()
+                    .get(&this_channel)
+                    .map(|c| c.name())
+                    .unwrap_or("<unnamed channel>")
+                    .to_string();
 
-                if channel_id
-                    == self.get_users_channel(self.server().unwrap().session_id().unwrap())
-                {
-                    if let Some(channel) = self.server().unwrap().channels().get(&channel_id) {
-                        notifications::send(format!(
-                            "{} connected and joined {}",
-                            &msg.get_name(),
-                            channel.name()
-                        ));
-                    }
-
-                    self.audio_output
-                        .play_effect(NotificationEvents::UserConnected);
+                if this_channel == other_channel {
+                    notifications::send(format!(
+                        "{} connected and joined {}",
+                        msg.get_name(),
+                        this_channel_name,
+                    ));
+                    self.push_event(MumbleEventKind::UserConnected(msg.get_name().to_string(), this_channel_name));
+                    self.audio_output.play_effect(NotificationEvents::UserConnected);
                 }
             }
         }
@@ -166,6 +173,7 @@ impl State {
             .users_mut()
             .get_mut(&session)
             .unwrap();
+        let username = user.name().to_string();
 
         let mute = if msg.has_self_mute() && user.self_mute() != msg.get_self_mute() {
             Some(msg.get_self_mute())
@@ -181,35 +189,43 @@ impl State {
         let diff = UserDiff::from(msg);
         user.apply_user_diff(&diff);
 
-        let user = self.server().unwrap().users().get(&session).unwrap();
 
         if Some(session) != self.server().unwrap().session_id() {
-            //send notification if the user moved to or from any channel
+            // Send notification if the user moved either to or from our channel
             if let Some(to_channel) = diff.channel_id {
                 let this_channel =
                     self.get_users_channel(self.server().unwrap().session_id().unwrap());
-                if from_channel == this_channel || to_channel == this_channel {
+
+                if from_channel == this_channel {
+                    // User moved from our channel to somewhere else
                     if let Some(channel) = self.server().unwrap().channels().get(&to_channel) {
+                        let channel = channel.name().to_string();
                         notifications::send(format!(
                             "{} moved to channel {}",
-                            user.name(),
-                            channel.name()
+                            &username,
+                            &channel,
                         ));
-                    } else {
-                        warn!("{} moved to invalid channel {}", user.name(), to_channel);
+                        self.push_event(MumbleEventKind::UserLeftChannel(username.clone(), channel));
                     }
-                    self.audio_output
-                        .play_effect(if from_channel == this_channel {
-                            NotificationEvents::UserJoinedChannel
-                        } else {
-                            NotificationEvents::UserLeftChannel
-                        });
+                    self.audio_output.play_effect(NotificationEvents::UserLeftChannel);
+                } else if to_channel == this_channel {
+                    // User moved from somewhere else to our channel
+                    if let Some(channel) = self.server().unwrap().channels().get(&from_channel) {
+                        let channel = channel.name().to_string();
+                        notifications::send(format!(
+                            "{} moved to your channel from {}",
+                            &username,
+                            &channel,
+                        ));
+                        self.push_event(MumbleEventKind::UserJoinedChannel(username.clone(), channel));
+                    }
+                    self.audio_output.play_effect(NotificationEvents::UserJoinedChannel);
                 }
             }
 
             //send notification if a user muted/unmuted
             if mute != None || deaf != None {
-                let mut s = user.name().to_string();
+                let mut s = username;
                 if let Some(mute) = mute {
                     s += if mute { " muted" } else { " unmuted" };
                 }
@@ -220,7 +236,8 @@ impl State {
                     s += if deaf { " deafened" } else { " undeafened" };
                 }
                 s += " themselves";
-                notifications::send(s);
+                notifications::send(s.clone());
+                self.push_event(MumbleEventKind::UserMuteStateChanged(s));
             }
         }
     }
@@ -234,11 +251,25 @@ impl State {
         let this_channel = self.get_users_channel(self.server().unwrap().session_id().unwrap());
         let other_channel = self.get_users_channel(msg.get_session());
         if this_channel == other_channel {
-            self.audio_output
-                .play_effect(NotificationEvents::UserDisconnected);
-            if let Some(user) = self.server().unwrap().users().get(&msg.get_session()) {
-                notifications::send(format!("{} disconnected", &user.name()));
-            }
+            let channel_name = self
+                .server()
+                .unwrap()
+                .channels()
+                .get(&this_channel)
+                .map(|c| c.name())
+                .unwrap_or("<unnamed channel>")
+                .to_string();
+            let user_name = self
+                .server()
+                .unwrap()
+                .users()
+                .get(&msg.get_session())
+                .map(|u| u.name())
+                .unwrap_or("<unknown user>")
+                .to_string();
+            notifications::send(format!("{} disconnected", &user_name));
+            self.push_event(MumbleEventKind::UserDisconnected(user_name, channel_name));
+            self.audio_output.play_effect(NotificationEvents::UserDisconnected);
         }
 
         self.server_mut()
@@ -278,6 +309,11 @@ impl State {
         self.broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
         self.audio_output
             .play_effect(NotificationEvents::ServerConnect);
+    }
+
+    /// Store a new event
+    pub fn push_event(&mut self, kind: MumbleEventKind) {
+        self.events.push(MumbleEvent { timestamp: chrono::Local::now().naive_local(), kind });
     }
 
     pub fn audio_input(&self) -> &AudioInput {
@@ -418,6 +454,19 @@ pub fn handle_command(
             now!(Ok(
                 new_deaf.map(|b| CommandResponse::DeafenStatus { is_deafened: b })
             ))
+        }
+        Command::Events { block } => {
+            if block {
+                warn!("Blocking event list is unimplemented");
+                now!(Err(Error::Unimplemented))
+            } else {
+                let events: Vec<_> = state
+                    .events
+                    .iter()
+                    .map(|event| Ok(Some(CommandResponse::Event { event: event.clone() })))
+                    .collect();
+                ExecutionContext::Now(Box::new(move || Box::new(events.into_iter())))
+            }
         }
         Command::InputVolumeSet(volume) => {
             state.audio_input.set_volume(volume);
@@ -602,12 +651,12 @@ pub fn handle_command(
             }),
             Box::new(move |pong| {
                 Ok(pong.map(|pong| {
-                    (CommandResponse::ServerStatus {
+                    CommandResponse::ServerStatus {
                         version: pong.version,
                         users: pong.users,
                         max_users: pong.max_users,
                         bandwidth: pong.bandwidth,
-                    })
+                    }
                 }))
             }),
         ),

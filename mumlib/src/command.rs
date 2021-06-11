@@ -2,6 +2,59 @@ use crate::state::{Channel, Server};
 
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use std::fmt;
+
+/// Something that happened in our channel at a point in time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MumbleEvent {
+    pub timestamp: NaiveDateTime,
+    pub kind: MumbleEventKind
+}
+
+impl fmt::Display for MumbleEvent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}] {}", self.timestamp.format("%d %b %H:%M"), self.kind)
+    }
+}
+
+/// The different kinds of events that can happen.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MumbleEventKind {
+    UserConnected(String, String),
+    UserDisconnected(String, String),
+    UserMuteStateChanged(String),  // This logic is kinda weird so we only store the rendered message.
+    TextMessageReceived(String),
+    UserJoinedChannel(String, String),
+    UserLeftChannel(String, String),
+}
+
+//TODO These strings are (mostly) duplicated with their respective notifications.
+//     The only difference is that the text message event doesn't contain the text message.
+impl fmt::Display for MumbleEventKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MumbleEventKind::UserConnected(user, channel) => {
+                write!(f, "{} connected to {}", user, channel)
+            }
+            MumbleEventKind::UserDisconnected(user, channel) => {
+                write!(f, "{} disconnected from {}", user, channel)
+            }
+            MumbleEventKind::UserMuteStateChanged(message) => {
+                write!(f, "{}", message)
+            }
+            MumbleEventKind::TextMessageReceived(user) => {
+                write!(f, "{} sent a text message", user)
+            }
+            MumbleEventKind::UserJoinedChannel(name, from) => {
+                write!(f, "{} moved to your channel from {}", name, from)
+            }
+            MumbleEventKind::UserLeftChannel(name, to) => {
+                write!(f, "{} moved to {}", name, to)
+            }
+
+        }
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum Command {
@@ -11,11 +64,21 @@ pub enum Command {
     ChannelList,
     ConfigReload,
     DeafenSelf(Option<bool>),
+    Events {
+        block: bool
+    },
     InputVolumeSet(f32),
     MuteOther(String, Option<bool>),
     MuteSelf(Option<bool>),
     OutputVolumeSet(f32),
+    PastMessages {
+        block: bool,
+    },
     Ping,
+    SendMessage {
+        message: String,
+        targets: Vec<MessageTarget>,
+    },
     ServerConnect {
         host: String,
         port: u16,
@@ -30,13 +93,6 @@ pub enum Command {
     },
     Status,
     UserVolumeSet(String, f32),
-    PastMessages {
-        block: bool,
-    },
-    SendMessage {
-        message: String,
-        targets: Vec<MessageTarget>,
-    },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,8 +103,14 @@ pub enum CommandResponse {
     DeafenStatus {
         is_deafened: bool,
     },
+    Event {
+        event: MumbleEvent,
+    },
     MuteStatus {
         is_muted: bool,
+    },
+    PastMessage {
+        message: (NaiveDateTime, String, String),
     },
     Pong,
     ServerConnect {
@@ -62,9 +124,6 @@ pub enum CommandResponse {
     },
     Status {
         server_state: Server,
-    },
-    PastMessage {
-        message: (NaiveDateTime, String, String),
     },
 }
 
