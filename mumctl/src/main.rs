@@ -582,7 +582,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     port,
                     username,
                     password,
-                    accept_invalid_cert: None, //TODO
+                    accept_invalid_cert: None,
                 });
             }
         }
