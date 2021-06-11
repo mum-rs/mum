@@ -1,14 +1,12 @@
+use crate::error::{ServerSendError, TcpError};
 use crate::network::ConnectionInfo;
+use crate::notifications;
 use crate::state::{State, StatePhase};
-use crate::{
-    error::{ServerSendError, TcpError},
-    notifications,
-};
-use log::*;
 
 use futures_util::select;
 use futures_util::stream::{SplitSink, SplitStream, Stream};
 use futures_util::{FutureExt, SinkExt, StreamExt};
+use log::*;
 use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPacket};
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
@@ -35,12 +33,14 @@ type TcpReceiver =
 pub(crate) type TcpEventCallback = Box<dyn FnOnce(TcpEventData)>;
 pub(crate) type TcpEventSubscriber = Box<dyn FnMut(TcpEventData) -> bool>; //the bool indicates if it should be kept or not
 
+/// Why the TCP was disconnected.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum DisconnectedReason {
     InvalidTls,
     Other,
 }
 
+/// Something a callback can register to. Data is sent via a respective [TcpEventData].
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TcpEvent {
     Connected,    //fires when the client has connected to a server
@@ -48,6 +48,13 @@ pub enum TcpEvent {
     TextMessage,  //fires when a text message comes in
 }
 
+/// When a [TcpEvent] occurs, this contains the data for the event.
+/// 
+/// The events are picked up by a [crate::state::ExecutionContext].
+/// 
+/// Having two different types might feel a bit confusing. Essentially, a
+/// callback _registers_ to a [TcpEvent] but _takes_ a [TcpEventData] as
+/// parameter.
 #[derive(Clone)]
 pub enum TcpEventData<'a> {
     Connected(Result<&'a msgs::ServerSync, mumlib::Error>),
