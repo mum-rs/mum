@@ -527,7 +527,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                         "{}",
                         server
                             .accept_invalid_cert
-                            .map(|b| if b { "true" } else { "false "})
+                            .map(|b| b.to_string())
                             .ok_or(CliError::NotSet("accept_invalid_cert".to_string()))?
                     );
                 }
@@ -548,10 +548,9 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     //TODO ask stdin if empty
                 }
                 (Some("accept_invalid_cert"), Some(value)) => {
-                    match value.as_ref() {
-                        "true" => server.accept_invalid_cert = Some(true),
-                        "false" => server.accept_invalid_cert = Some(false),
-                        v => warn!("Couldn't parse '{}' as bool", v),
+                    match value.parse() {
+                        Ok(b) => server.accept_invalid_cert = Some(b),
+                        Err(e) => warn!("{}", e)
                     }
                 }
                 (Some(_), _) => {
