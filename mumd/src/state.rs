@@ -16,7 +16,7 @@ use mumble_protocol::control::msgs;
 use mumble_protocol::control::ControlPacket;
 use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
-use mumlib::command::{Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind};
+use mumlib::command::{ChannelTarget, Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind};
 use mumlib::config::Config;
 use mumlib::Error;
 use std::{
@@ -738,43 +738,45 @@ pub fn handle_command(
 
             msg.set_message(message);
 
-            for target in targets {
-                match target {
-                    MessageTarget::Channel { recursive, name } => {
-                        let channel_id = state.server().unwrap().channel_name(&name);
-
-                        let channel_id = match channel_id {
-                            Ok(id) => id,
+            match targets {
+                MessageTarget::Channel(channels) => for (channel, recursive) in channels {
+                    let channel_id = if let ChannelTarget::Named(name) = channel {
+                        let channel = state.server().unwrap().channel_name(&name);
+                        match channel {
+                            Ok(channel) => channel.0,
                             Err(e) => return now!(Err(Error::ChannelIdentifierError(name, e))),
                         }
-                        .0;
-
-                        if recursive {
-                            msg.mut_tree_id()
-                        } else {
-                            msg.mut_channel_id()
+                    } else {
+                        match state.server().unwrap().current_channel() {
+                            Some(channel) => channel.0,
+                            None => return now!(Err(Error::NotConnectedToChannel)),
                         }
-                        .push(channel_id);
-                    }
-                    MessageTarget::User { name } => {
-                        let id = state
-                            .server()
-                            .unwrap()
-                            .users()
-                            .iter()
-                            .find(|(_, user)| user.name() == &name)
-                            .map(|(e, _)| *e);
+                    };
 
-                        let id = match id {
-                            Some(id) => id,
-                            None => return now!(Err(Error::InvalidUsername(name))),
-                        };
+                    let ids = if recursive {
+                        msg.mut_tree_id()
+                    } else {
+                        msg.mut_channel_id()
+                    };
+                    ids.push(channel_id);
+                }
+                MessageTarget::User(names) => for name in names {
+                    let id = state
+                        .server()
+                        .unwrap()
+                        .users()
+                        .iter()
+                        .find(|(_, user)| user.name() == &name)
+                        .map(|(e, _)| *e);
 
-                        msg.mut_session().push(id);
-                    }
+                    let id = match id {
+                        Some(id) => id,
+                        None => return now!(Err(Error::InvalidUsername(name))),
+                    };
+
+                    msg.mut_session().push(id);
                 }
             }
-
             packet_sender.send(msg.into()).unwrap();
 
             now!(Ok(None))

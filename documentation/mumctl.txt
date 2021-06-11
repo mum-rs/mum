@@ -64,6 +64,21 @@ mumctl events ::
 mumctl help ::
     Show a help message.
 
+mumctl message channel [-r|--recursive] <message> [<channel>...]
+    Sends a message to all channels specified in the list of channels.
+    If the recursive flag is set, the message is also sent to all subchannels in a recursive manner.
+    If no channels are given the message is sent to the channel currently
+    connected to.
+
+mumctl message user <message> <users>
+    Sends a message to all users specified in the list of users.
+
+mumctl messages [-f|--follow]
+    Prints all received messages since mumd was started, or since this command last was issued,
+    whichever happens first.
+    If the follow flag is set, mumctl will instead wait for new messages to come in and print
+    them as they come in. To exit this loop, issue a Ctrl-C.
+
 mumctl mute [user] ::
     Mute yourself or someone else.
     If user is omitted, you mute yourself. Otherwise, the user with the username [user] is muted.
@@ -100,19 +115,6 @@ mumctl volume set <volume> ::
 mumctl volume <user> set <volume> ::
     Set the volume of another user's incoming audio.
     1.0 is the default.
-
-mumctl messages [-f|--follow]
-    Prints all received messages since mumd was started, or since this command last was issued,
-    whichever happens first.
-    If the follow flag is set, mumctl will instead wait for new messages to come in and print
-    them as they come in. To exit this loop, issue a Ctrl-C.
-
-mumctl message user <message> <users>
-    Sends a message to all users specified in the list of users.
-
-mumctl message channel [-r|--recursive] <message> <channels>
-    Sends a message to all channels specified in the list of channels.
-    If the recursive flag is set, the message is also sent to all subchannels in a recursive manner.
 
 Authors
 -------

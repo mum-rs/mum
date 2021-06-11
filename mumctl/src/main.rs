@@ -1,6 +1,6 @@
 use colored::Colorize;
 use log::*;
-use mumlib::command::{Command as MumCommand, CommandResponse, MessageTarget};
+use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
 use serde::de::DeserializeOwned;
@@ -99,10 +99,10 @@ enum Target {
     Channel {
         /// The message to send
         message: String,
-        /// If the message should be sent recursivley to sub-channels
+        /// If the message should be sent recursively to sub-channels
         #[structopt(short = "r", long = "recursive")]
         recursive: bool,
-        /// Which channels to send to
+        /// Which channels to send to. Defaults to current channel if left empty
         names: Vec<String>,
     },
     User {
@@ -386,20 +386,23 @@ fn match_opt() -> Result<(), Error> {
             } => {
                 let msg = MumCommand::SendMessage {
                     message,
-                    targets: names
-                        .into_iter()
-                        .map(|name| MessageTarget::Channel { name, recursive })
-                        .collect(),
+                    targets: if names.is_empty() {
+                        MessageTarget::Channel(vec![(ChannelTarget::Current, recursive)])
+                    } else {
+                        MessageTarget::Channel(
+                            names
+                                .into_iter()
+                                .map(|name| (ChannelTarget::Named(name), recursive))
+                                .collect()
+                        )
+                    },
                 };
                 send_command(msg)??;
             }
             Target::User { message, names } => {
                 let msg = MumCommand::SendMessage {
                     message,
-                    targets: names
-                        .into_iter()
-                        .map(|name| MessageTarget::User { name })
-                        .collect(),
+                    targets: MessageTarget::User(names),
                 };
                 send_command(msg)??;
             }

@@ -77,7 +77,7 @@ pub enum Command {
     Ping,
     SendMessage {
         message: String,
-        targets: Vec<MessageTarget>,
+        targets: MessageTarget,
     },
     ServerConnect {
         host: String,
@@ -128,8 +128,17 @@ pub enum CommandResponse {
     },
 }
 
+/// Messages sent to channels can be sent either to a named channel or the
+/// currently connected channel.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum ChannelTarget {
+    Current,
+    Named(String)
+}
+
+/// Messages can be sent to either channels or specific users.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MessageTarget {
-    Channel { recursive: bool, name: String },
-    User { name: String },
+    Channel(Vec<(ChannelTarget, bool)>),  // (target, recursive)
+    User(Vec<String>),
 }
