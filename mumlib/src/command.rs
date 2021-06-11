@@ -115,6 +115,7 @@ pub enum CommandResponse {
     Pong,
     ServerConnect {
         welcome_message: Option<String>,
+        server_state: Server,
     },
     ServerStatus {
         version: u32,

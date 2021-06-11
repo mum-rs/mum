@@ -605,7 +605,8 @@ pub fn handle_command(
                     accept_invalid_cert,
                 )))
                 .unwrap();
-            at!(TcpEvent::Connected, |res| {
+            let state = Arc::clone(&og_state);
+            at!(TcpEvent::Connected, move |res| {
                 //runs the closure when the client is connected
                 if let TcpEventData::Connected(res) = res {
                     Box::new(iter::once(res.map(|msg| {
@@ -615,6 +616,7 @@ pub fn handle_command(
                             } else {
                                 None
                             },
+                            server_state: state.read().unwrap().server.as_ref().unwrap().into(),
                         })
                     })))
                 } else {

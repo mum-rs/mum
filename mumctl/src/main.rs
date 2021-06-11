@@ -268,10 +268,10 @@ fn match_opt() -> Result<(), Error> {
                 password: password.map(|x| x.to_string()),
                 accept_invalid_cert: true, //TODO
             })??;
-            if let Some(CommandResponse::ServerConnect { welcome_message }) = response {
-                println!("Connected to {}", host);
+            if let Some(CommandResponse::ServerConnect { welcome_message, server_state }) = response {
+                parse_state(&server_state);
                 if let Some(message) = welcome_message {
-                    println!("Welcome: {}", message);
+                    println!("\nWelcome: {}", message);
                 }
             }
         }
