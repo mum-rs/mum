@@ -55,6 +55,8 @@ enum Command {
         password: Option<String>,
         #[structopt(short = "p", long = "port")]
         port: Option<u16>,
+        #[structopt(long = "accept-invalid-cert")]
+        accept_invalid_cert: bool,
     },
     /// Disconnect from the currently connected server
     Disconnect,
@@ -233,10 +235,12 @@ fn match_opt() -> Result<(), Error> {
             username,
             password,
             port,
+            accept_invalid_cert: cli_accept_invalid_cert,
         } => {
             let port = port.unwrap_or(mumlib::DEFAULT_PORT);
 
-            let (host, username, password, port, accept_invalid_cert) =
+
+            let (host, username, password, port, server_accept_invalid_cert) =
                 match config.servers.iter().find(|e| e.name == host) {
                     Some(server) => (
                         &server.host,
@@ -258,16 +262,16 @@ fn match_opt() -> Result<(), Error> {
                     ),
                 };
 
-            let accept_invalid_cert = accept_invalid_cert
+            let config_accept_invalid_cert = server_accept_invalid_cert
                 .or(config.allow_invalid_server_cert);
-            let specified_accept_invalid_cert = accept_invalid_cert.is_some();
+            let specified_accept_invalid_cert = cli_accept_invalid_cert || config_accept_invalid_cert.is_some();
 
             let response = send_command(MumCommand::ServerConnect {
                 host: host.to_string(),
                 port,
                 username: username.to_string(),
                 password: password.map(|x| x.to_string()),
-                accept_invalid_cert: accept_invalid_cert.unwrap_or(false), //TODO force true/false via flags
+                accept_invalid_cert: cli_accept_invalid_cert || config_accept_invalid_cert.unwrap_or(false),
             })??;
             match response {
                 Some(CommandResponse::ServerConnect { welcome_message }) => {
@@ -280,9 +284,9 @@ fn match_opt() -> Result<(), Error> {
                     error!("Connection rejected since the server supplied an invalid certificate.");
                     if !specified_accept_invalid_cert {
                         eprintln!("help: If you trust this server anyway, you can do any of the following to connect:");
-                        // eprintln!("  1. Temporarily trust this server by passing --accept-invalid-cert when connecting.");
-                        eprintln!("  1. Permanently trust this server by setting accept_invalid_cert=true in the server's config.");
-                        eprintln!("  2. Permantently trust all invalid certificates by setting accept_all_invalid_certs=true globally");
+                        eprintln!("  1. Temporarily trust this server by passing --accept-invalid-cert when connecting.");
+                        eprintln!("  2. Permanently trust this server by setting accept_invalid_cert=true in the server's config.");
+                        eprintln!("  3. Permantently trust all invalid certificates by setting accept_all_invalid_certs=true globally");
                     }
                 }
                 other => unreachable!("Response should only be a ServerConnect or ServerCertReject. Got {:?}", other)
