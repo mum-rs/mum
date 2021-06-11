@@ -575,7 +575,7 @@ pub fn handle_command(
                     }
                 },
                 TcpEvent::Disconnected(DisconnectedReason::InvalidTls) => |_| {
-                    Box::new(iter::once(Ok(Some(CommandResponse::ServerCertReject))))
+                    Box::new(iter::once(Err(Error::ServerCertReject)))
                 }
             )
         }
