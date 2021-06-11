@@ -37,7 +37,8 @@ pub(crate) type TcpEventSubscriber = Box<dyn FnMut(TcpEventData) -> bool>; //the
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum DisconnectedReason {
     InvalidTls,
-    Other,
+    User,
+    TcpError,
 }
 
 /// Something a callback can register to. Data is sent via a respective [TcpEventData].
@@ -195,7 +196,7 @@ pub async fn handle(
 
         let phase_watcher_inner = phase_watcher.clone();
 
-        run_until(
+        let result = run_until(
             |phase| matches!(phase, StatePhase::Disconnected),
             async {
                 select! {
@@ -217,9 +218,12 @@ pub async fn handle(
             phase_watcher,
         )
         .await
-        .unwrap_or(Ok(()))?;
+        .unwrap_or(Ok(()));
 
-        event_queue.resolve(TcpEventData::Disconnected(DisconnectedReason::Other));
+        match result {
+            Ok(()) => event_queue.resolve(TcpEventData::Disconnected(DisconnectedReason::User)),
+            Err(_) => event_queue.resolve(TcpEventData::Disconnected(DisconnectedReason::TcpError)),
+        }
 
         debug!("Fully disconnected TCP stream, waiting for new connection info");
     }
