@@ -67,12 +67,15 @@ pub enum CommandResponse {
     },
 }
 
+/// Messages sent to channels can be sent either to a named channel or the
+/// currently connected channel.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ChannelTarget {
-    Default,
+    Current,
     Named(String)
 }
 
+/// Messages can be sent to either channels or specific users.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MessageTarget {
     Channel(Vec<(ChannelTarget, bool)>),  // (target, recursive)
