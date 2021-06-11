@@ -132,6 +132,9 @@ impl Server {
         })
     }
 
+    /// Returns the currenctly connected channel.
+    ///
+    /// Returns None if not connected.
     pub fn current_channel(&self) -> Option<(u32, &Channel)> {
         let channel_id = self.users().get(&self.session_id()?)?.channel();
         let channel = self.channels().get(&channel_id)?;
