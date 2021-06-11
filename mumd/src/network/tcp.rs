@@ -310,6 +310,10 @@ async fn listen(
     let mut crypt_state = None;
     let mut crypt_state_sender = Some(crypt_state_sender);
 
+    let mut last_late = 0;
+    let mut last_lost = 0;
+    let mut last_resync = 0;
+
     loop {
         let packet = match stream.next().await {
             Some(Ok(packet)) => packet,
@@ -436,6 +440,40 @@ async fn listen(
                             payload,
                         );
                     }
+                }
+            }
+            ControlPacket::Ping(msg) => {
+                trace!("Received Ping {:?}", *msg);
+
+                let late = msg.get_late();
+                let lost = msg.get_lost();
+                let resync = msg.get_resync();
+
+                let late = late - last_late;
+                let lost = lost - last_lost;
+                let resync = resync - last_resync;
+
+                last_late += late;
+                last_lost += lost;
+                last_resync += resync;
+
+                macro_rules! format_if_nonzero {
+                    ($value:expr) => {
+                        if $value != 0 {
+                            format!("\n  {}: {}", stringify!($value), $value)
+                        } else {
+                            String::new()
+                        }
+                    }
+                }
+                
+                if late != 0 || lost != 0 || resync != 0 {
+                    debug!(
+                        "Ping:{}{}{}",
+                        format_if_nonzero!(late),
+                        format_if_nonzero!(lost),
+                        format_if_nonzero!(resync),
+                    );
                 }
             }
             packet => {
