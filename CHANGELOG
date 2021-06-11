@@ -28,6 +28,7 @@ Changed
 ~~~~~~~
 
  * Changed how you mute yourself/others. See man pages for details on the new options.
+ * The current channel status is now printed when connecting to a server.
 
 // Removed
 // ~~~~~~~
