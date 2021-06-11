@@ -1,6 +1,6 @@
 use colored::Colorize;
 use log::*;
-use mumlib::command::{Command as MumCommand, CommandResponse, MessageTarget};
+use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
 use serde::de::DeserializeOwned;
@@ -381,13 +381,15 @@ fn match_opt() -> Result<(), Error> {
             } => {
                 let msg = MumCommand::SendMessage {
                     message,
-                    targets: if names.is_empty() {
-                        vec![MessageTarget::CurrentChannel { recursive }]
+                    target: if names.is_empty() {
+                        MessageTarget::Channel(vec![(ChannelTarget::Default, recursive)])
                     } else {
-                        names
-                            .into_iter()
-                            .map(|name| MessageTarget::Channel { name, recursive })
-                            .collect()
+                        MessageTarget::Channel(
+                            names
+                                .into_iter()
+                                .map(|name| (ChannelTarget::Named(name), recursive))
+                                .collect()
+                        )
                     },
                 };
                 send_command(msg)??;
@@ -395,10 +397,7 @@ fn match_opt() -> Result<(), Error> {
             Target::User { message, names } => {
                 let msg = MumCommand::SendMessage {
                     message,
-                    targets: names
-                        .into_iter()
-                        .map(|name| MessageTarget::User { name })
-                        .collect(),
+                    target: MessageTarget::User(names),
                 };
                 send_command(msg)??;
             }

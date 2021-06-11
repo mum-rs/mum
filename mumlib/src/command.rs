@@ -34,7 +34,7 @@ pub enum Command {
     },
     SendMessage {
         message: String,
-        targets: Vec<MessageTarget>,
+        target: MessageTarget,
     },
 }
 
@@ -68,8 +68,13 @@ pub enum CommandResponse {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum ChannelTarget {
+    Default,
+    Named(String)
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MessageTarget {
-    CurrentChannel {recursive: bool },
-    Channel { recursive: bool, name: String },
-    User { name: String },
+    Channel(Vec<(ChannelTarget, bool)>),  // (target, recursive)
+    User(Vec<String>),
 }
