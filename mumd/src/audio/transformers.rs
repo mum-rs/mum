@@ -1,7 +1,11 @@
+/// A trait that represents a transform of a audio buffer in some way.
 pub trait Transformer {
+    /// Do the transform. Returning `None` is interpreted as "the buffer is unwanted".
+    /// The implementor is free to modify the buffer however it wants to.
     fn transform<'a>(&mut self, buf: &'a mut [f32]) -> Option<&'a mut [f32]>;
 }
 
+/// A struct representing a noise gate transform.
 pub struct NoiseGate {
     alltime_high: f32,
     open: usize,
@@ -9,6 +13,8 @@ pub struct NoiseGate {
 }
 
 impl NoiseGate {
+    /// Create a new noise gate. `deactivation_delay` is defined in terms of
+    /// how many quiet frames it receives before closing the noise gate.
     pub fn new(deactivation_delay: usize) -> Self {
         Self {
             alltime_high: 0.0,
