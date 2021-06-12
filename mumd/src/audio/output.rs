@@ -92,7 +92,6 @@ impl ClientStream {
     pub fn decode_packet(&mut self, client: ClientStreamKey, payload: VoicePacketPayload) {
         match payload {
             VoicePacketPayload::Opus(bytes, _eot) => {
-                debug!("{:?} {:?}", self.output_channels, opus::packet::get_nb_channels(&bytes));
                 self.get_client(client).store_packet(bytes);
             }
             _ => {
