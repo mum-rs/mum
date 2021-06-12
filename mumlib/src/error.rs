@@ -13,6 +13,7 @@ pub enum Error {
     InvalidServerPassword,
     Unimplemented,
     NotConnectedToChannel,
+    ServerCertReject,
 }
 
 impl std::error::Error for Error {}
@@ -30,6 +31,7 @@ impl fmt::Display for Error {
             Error::InvalidServerPassword => write!(f, "Invalid server password"),
             Error::Unimplemented => write!(f, "Unimplemented"),
             Error::NotConnectedToChannel => write!(f, "Not connected to a channel"),
+            Error::ServerCertReject => write!(f, "Invalid server certificate"),
         }
     }
 }

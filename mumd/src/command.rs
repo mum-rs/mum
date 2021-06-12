@@ -4,10 +4,7 @@ use crate::state::{ExecutionContext, State};
 use log::*;
 use mumble_protocol::{control::ControlPacket, Serverbound};
 use mumlib::command::{Command, CommandResponse};
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc, RwLock,
-};
+use std::{rc::Rc, sync::{Arc, RwLock, atomic::{AtomicBool, AtomicU64, Ordering}}};
 use tokio::sync::{mpsc, watch};
 
 pub async fn handle(
@@ -32,16 +29,25 @@ pub async fn handle(
             &mut connection_info_sender,
         );
         match event {
-            ExecutionContext::TcpEventCallback(event, generator) => {
-                tcp_event_queue.register_callback(
-                    event,
-                    Box::new(move |e| {
-                        let response = generator(e);
-                        for response in response {
-                            response_sender.send(response).unwrap();
-                        }
-                    }),
-                );
+            ExecutionContext::TcpEventCallback(callbacks) => {
+                // A shared bool ensures that only one of the supplied callbacks is run.
+                let should_handle = Rc::new(AtomicBool::new(true));
+                for (event, generator) in callbacks {
+                    let should_handle = Rc::clone(&should_handle);
+                    let response_sender = response_sender.clone();
+                    tcp_event_queue.register_callback(
+                        event,
+                        Box::new(move |e| {
+                            // If should_handle == true no other callback has been run yet.
+                            if should_handle.swap(false, Ordering::Relaxed) {
+                                let response = generator(e);
+                                for response in response {
+                                    response_sender.send(response).unwrap();
+                                }
+                            }
+                        }),
+                    );
+                }
             }
             ExecutionContext::TcpEventSubscriber(event, mut handler) => tcp_event_queue
                 .register_subscriber(

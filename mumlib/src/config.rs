@@ -10,8 +10,15 @@ use std::path::{Path, PathBuf};
 use toml::value::Array;
 use toml::Value;
 
+/// A TOML-friendly version of [Config].
+///
+/// Values need to be placed before tables due to how TOML works.
 #[derive(Debug, Deserialize, Serialize)]
 struct TOMLConfig {
+    // Values
+    accept_all_invalid_certs: Option<bool>,
+
+    // Tables
     audio: Option<AudioConfig>,
     servers: Option<Array>,
 }
@@ -20,6 +27,10 @@ struct TOMLConfig {
 pub struct Config {
     pub audio: AudioConfig,
     pub servers: Vec<ServerConfig>,
+    /// Whether we allow connecting to servers with invalid server certificates.
+    ///
+    /// None implies false but we can show a better message to the user.
+    pub allow_invalid_server_cert: Option<bool>,
 }
 
 impl Config {
@@ -64,6 +75,7 @@ pub struct ServerConfig {
     pub port: Option<u16>,
     pub username: Option<String>,
     pub password: Option<String>,
+    pub accept_invalid_cert: Option<bool>,
 }
 
 impl ServerConfig {
@@ -105,6 +117,7 @@ impl TryFrom<TOMLConfig> for Config {
                 })
                 .transpose()?
                 .unwrap_or_default(),
+            allow_invalid_server_cert: config.accept_all_invalid_certs,
         })
     }
 }
@@ -125,6 +138,7 @@ impl From<Config> for TOMLConfig {
                     .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
                     .collect(),
             ),
+            accept_all_invalid_certs: config.allow_invalid_server_cert,
         }
     }
 }

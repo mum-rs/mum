@@ -55,6 +55,8 @@ enum Command {
         password: Option<String>,
         #[structopt(short = "p", long = "port")]
         port: Option<u16>,
+        #[structopt(long = "accept-invalid-cert")]
+        accept_invalid_cert: bool,
     },
     /// Disconnect from the currently connected server
     Disconnect,
@@ -238,10 +240,12 @@ fn match_opt() -> Result<(), Error> {
             username,
             password,
             port,
+            accept_invalid_cert: cli_accept_invalid_cert,
         } => {
             let port = port.unwrap_or(mumlib::DEFAULT_PORT);
 
-            let (host, username, password, port) =
+
+            let (host, username, password, port, server_accept_invalid_cert) =
                 match config.servers.iter().find(|e| e.name == host) {
                     Some(server) => (
                         &server.host,
@@ -252,27 +256,46 @@ fn match_opt() -> Result<(), Error> {
                             .ok_or(CliError::NoUsername)?,
                         server.password.as_ref().or(password.as_ref()),
                         server.port.unwrap_or(port),
+                        server.accept_invalid_cert,
                     ),
                     None => (
                         &host,
                         username.as_ref().ok_or(CliError::NoUsername)?,
                         password.as_ref(),
                         port,
+                        None,
                     ),
                 };
+
+            let config_accept_invalid_cert = server_accept_invalid_cert
+                .or(config.allow_invalid_server_cert);
+            let specified_accept_invalid_cert = cli_accept_invalid_cert || config_accept_invalid_cert.is_some();
 
             let response = send_command(MumCommand::ServerConnect {
                 host: host.to_string(),
                 port,
                 username: username.to_string(),
                 password: password.map(|x| x.to_string()),
-                accept_invalid_cert: true, //TODO
-            })??;
-            if let Some(CommandResponse::ServerConnect { welcome_message, server_state }) = response {
-                parse_state(&server_state);
-                if let Some(message) = welcome_message {
-                    println!("\nWelcome: {}", message);
+                accept_invalid_cert: cli_accept_invalid_cert || config_accept_invalid_cert.unwrap_or(false),
+            })?;
+            match response {
+                Ok(Some(CommandResponse::ServerConnect { welcome_message , server_state })) => {
+                    parse_state(&server_state);
+                    if let Some(message) = welcome_message {
+                        println!("\nWelcome: {}", message);
+                    }
                 }
+                Err(mumlib::error::Error::ServerCertReject) => {
+                    error!("Connection rejected since the server supplied an invalid certificate.");
+                    if !specified_accept_invalid_cert {
+                        eprintln!("help: If you trust this server anyway, you can do any of the following to connect:");
+                        eprintln!("  1. Temporarily trust this server by passing --accept-invalid-cert when connecting.");
+                        eprintln!("  2. Permanently trust this server by setting accept_invalid_cert=true in the server's config.");
+                        eprintln!("  3. Permantently trust all invalid certificates by setting accept_all_invalid_certs=true globally");
+                    }
+                }
+                Ok(other) => unreachable!("Response should only be a ServerConnect or ServerCertReject. Got {:?}", other),
+                Err(e) => return Err(e.into()),
             }
         }
         Command::Disconnect => {
@@ -316,6 +339,11 @@ fn match_opt() -> Result<(), Error> {
                 if let Ok(volume) = value.parse() {
                     send_command(MumCommand::OutputVolumeSet(volume))??;
                     config.audio.output_volume = Some(volume);
+                }
+            }
+            "accept_all_invalid_certs" => {
+                if let Ok(b) = value.parse() {
+                    config.allow_invalid_server_cert = Some(b);
                 }
             }
             _ => {
@@ -462,7 +490,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
             match (key.as_deref(), value) {
                 (None, _) => {
                     print!(
-                        "{}{}{}{}",
+                        "{}{}{}{}{}",
                         format!("host: {}\n", server.host.to_string()),
                         server
                             .port
@@ -477,6 +505,10 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                             .password
                             .as_ref()
                             .map(|s| format!("password: {}\n", s))
+                            .unwrap_or_else(|| "".to_string()),
+                        server
+                            .accept_invalid_cert
+                            .map(|b| format!("accept_invalid_cert: {}\n", if b { "true" } else { "false" }))
                             .unwrap_or_else(|| "".to_string()),
                     );
                 }
@@ -510,6 +542,15 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                             .ok_or(CliError::NotSet("password".to_string()))?
                     );
                 }
+                (Some("accept_invalid_cert"), None) => {
+                    println!(
+                        "{}",
+                        server
+                            .accept_invalid_cert
+                            .map(|b| b.to_string())
+                            .ok_or(CliError::NotSet("accept_invalid_cert".to_string()))?
+                    );
+                }
                 (Some("name"), Some(_)) => {
                     return Err(CliError::UseServerRename)?;
                 }
@@ -525,6 +566,12 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                 (Some("password"), Some(value)) => {
                     server.password = Some(value);
                     //TODO ask stdin if empty
+                }
+                (Some("accept_invalid_cert"), Some(value)) => {
+                    match value.parse() {
+                        Ok(b) => server.accept_invalid_cert = Some(b),
+                        Err(e) => warn!("{}", e)
+                    }
                 }
                 (Some(_), _) => {
                     return Err(CliError::ConfigKeyNotFound(key.unwrap()))?;
@@ -555,6 +602,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     port,
                     username,
                     password,
+                    accept_invalid_cert: None,
                 });
             }
         }

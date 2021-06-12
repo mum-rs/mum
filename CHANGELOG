@@ -23,6 +23,9 @@ Added
  * Server passwords. Thanks @rbran!
  * Added support for sending and receiving text messages.
  * See a list of occured events with +mumctl events+.
+ * Invalid server certificates are now rejected by default and need to be
+   explicitly allowed either when connecting or permanently per server or
+   globally.
 
 Changed
 ~~~~~~~

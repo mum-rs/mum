@@ -1,14 +1,12 @@
+use crate::error::{ServerSendError, TcpError};
 use crate::network::ConnectionInfo;
+use crate::notifications;
 use crate::state::{State, StatePhase};
-use crate::{
-    error::{ServerSendError, TcpError},
-    notifications,
-};
-use log::*;
 
 use futures_util::select;
 use futures_util::stream::{SplitSink, SplitStream, Stream};
 use futures_util::{FutureExt, SinkExt, StreamExt};
+use log::*;
 use mumble_protocol::control::{msgs, ClientControlCodec, ControlCodec, ControlPacket};
 use mumble_protocol::crypt::ClientCryptState;
 use mumble_protocol::voice::VoicePacket;
@@ -36,17 +34,33 @@ type TcpReceiver =
 pub(crate) type TcpEventCallback = Box<dyn FnOnce(TcpEventData)>;
 pub(crate) type TcpEventSubscriber = Box<dyn FnMut(TcpEventData) -> bool>; //the bool indicates if it should be kept or not
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+/// Why the TCP was disconnected.
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub enum DisconnectedReason {
+    InvalidTls,
+    User,
+    TcpError,
+}
+
+/// Something a callback can register to. Data is sent via a respective [TcpEventData].
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TcpEvent {
     Connected,    //fires when the client has connected to a server
-    Disconnected, //fires when the client has disconnected from a server
+    Disconnected(DisconnectedReason), //fires when the client has disconnected from a server
     TextMessage,  //fires when a text message comes in
 }
 
+/// When a [TcpEvent] occurs, this contains the data for the event.
+/// 
+/// The events are picked up by a [crate::state::ExecutionContext].
+/// 
+/// Having two different types might feel a bit confusing. Essentially, a
+/// callback _registers_ to a [TcpEvent] but _takes_ a [TcpEventData] as
+/// parameter.
 #[derive(Clone)]
 pub enum TcpEventData<'a> {
     Connected(Result<&'a msgs::ServerSync, mumlib::Error>),
-    Disconnected,
+    Disconnected(DisconnectedReason),
     TextMessage(&'a msgs::TextMessage),
 }
 
@@ -54,7 +68,7 @@ impl<'a> From<&TcpEventData<'a>> for TcpEvent {
     fn from(t: &TcpEventData) -> Self {
         match t {
             TcpEventData::Connected(_) => TcpEvent::Connected,
-            TcpEventData::Disconnected => TcpEvent::Disconnected,
+            TcpEventData::Disconnected(reason) => TcpEvent::Disconnected(*reason),
             TcpEventData::TextMessage(_) => TcpEvent::TextMessage,
         }
     }
@@ -142,12 +156,25 @@ pub async fn handle(
             }
             return Err(TcpError::NoConnectionInfoReceived);
         };
-        let (mut sink, stream) = connect(
+        let connect_result = connect(
             connection_info.socket_addr,
             connection_info.hostname,
             connection_info.accept_invalid_cert,
         )
-        .await?;
+        .await;
+        
+        let (mut sink, stream) = match connect_result {
+            Ok(ok) => ok,
+            Err(TcpError::TlsConnectError(_)) => {
+                warn!("Invalid TLS");
+                state.read().unwrap().broadcast_phase(StatePhase::Disconnected);
+                event_queue.resolve(TcpEventData::Disconnected(DisconnectedReason::InvalidTls));
+                continue;
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        };
 
         // Handshake (omitting `Version` message for brevity)
         let (username, password) = {
@@ -170,7 +197,7 @@ pub async fn handle(
 
         let phase_watcher_inner = phase_watcher.clone();
 
-        run_until(
+        let result = run_until(
             |phase| matches!(phase, StatePhase::Disconnected),
             async {
                 select! {
@@ -192,9 +219,12 @@ pub async fn handle(
             phase_watcher,
         )
         .await
-        .unwrap_or(Ok(()))?;
+        .unwrap_or(Ok(()));
 
-        event_queue.resolve(TcpEventData::Disconnected);
+        match result {
+            Ok(()) => event_queue.resolve(TcpEventData::Disconnected(DisconnectedReason::User)),
+            Err(_) => event_queue.resolve(TcpEventData::Disconnected(DisconnectedReason::TcpError)),
+        }
 
         debug!("Fully disconnected TCP stream, waiting for new connection info");
     }
