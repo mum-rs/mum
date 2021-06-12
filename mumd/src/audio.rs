@@ -3,9 +3,6 @@ mod noise_gate;
 pub mod output;
 
 use crate::audio::input::{AudioInputDevice, DefaultAudioInputDevice};
-use crate::audio::noise_gate::{
-    from_interleaved_samples_stream, OpusEncoder, StreamingNoiseGate, StreamingSignalExt,
-};
 use crate::audio::output::{AudioOutputDevice, ClientStream, DefaultAudioOutputDevice};
 use crate::error::AudioError;
 use crate::network::VoiceStreamType;
@@ -81,27 +78,19 @@ impl AudioInput {
         input_volume: f32,
         phase_watcher: watch::Receiver<StatePhase>,
     ) -> Result<Self, AudioError> {
-        let mut default = DefaultAudioInputDevice::new(input_volume, phase_watcher)?;
+        let mut default = DefaultAudioInputDevice::new(input_volume, phase_watcher, 4)?;
         let sample_rate = SampleRate(SAMPLE_RATE);
 
-        let opus_stream = OpusEncoder::new(
-            4,
-            sample_rate.0,
-            default.num_channels(),
-            StreamingSignalExt::into_interleaved_samples(StreamingNoiseGate::new(
-                from_interleaved_samples_stream::<_, f32>(default.sample_receiver()), //TODO group frames correctly
-                10_000,
-            )),
-        )
-        .enumerate()
-        .map(|(i, e)| VoicePacket::Audio {
-            _dst: std::marker::PhantomData,
-            target: 0,      // normal speech
-            session_id: (), // unused for server-bound packets
-            seq_num: i as u64,
-            payload: VoicePacketPayload::Opus(e.into(), false),
-            position_info: None,
-        });
+        let opus_stream = default.sample_receiver().unwrap()
+            .enumerate()
+            .map(|(i, e)| VoicePacket::Audio {
+                _dst: std::marker::PhantomData,
+                target: 0,      // normal speech
+                session_id: (), // unused for server-bound packets
+                seq_num: i as u64,
+                payload: VoicePacketPayload::Opus(e.into(), false),
+                position_info: None,
+            });
 
         default.play()?;
 
