@@ -92,7 +92,7 @@ impl DefaultAudioInputDevice {
 
         let (volume_sender, input_volume_receiver) = watch::channel::<f32>(input_volume);
 
-        let mut opus_encoder = opus::Encoder::new(
+        let opus_encoder = opus::Encoder::new(
                 sample_rate.0,
                 match input_config.channels {
                     1 => opus::Channels::Mono,

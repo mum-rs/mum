@@ -8,7 +8,6 @@ use crate::error::AudioError;
 use crate::network::VoiceStreamType;
 use crate::state::StatePhase;
 
-use cpal::SampleRate;
 use dasp_interpolate::linear::Linear;
 use dasp_signal::{self as signal, Signal};
 use futures_util::stream::Stream;
