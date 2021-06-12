@@ -105,7 +105,7 @@ impl DefaultAudioInputDevice {
         // 4 blocks @ 2.5 ms meaning 10 ms total
         let buffer_size = (sample_rate.0 * frame_size / 400) as usize;
 
-        let transformers = vec![Box::new(NoiseGate::new(200)) as Box<dyn Transformer + Send + 'static>];
+        let transformers = vec![Box::new(NoiseGate::new(50)) as Box<dyn Transformer + Send + 'static>];
 
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
