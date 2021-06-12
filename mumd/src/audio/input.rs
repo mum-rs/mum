@@ -4,13 +4,13 @@ use log::*;
 use tokio::sync::watch;
 
 use crate::audio::SAMPLE_RATE;
-use crate::audio::transformers::{create_noise_gate};
+use crate::audio::transformers::{NoiseGate, Transformer};
 use crate::error::{AudioError, AudioStream};
 use crate::state::StatePhase;
 
 pub fn callback<T: Sample>(
     mut input_sender: futures_channel::mpsc::Sender<Vec<u8>>,
-    mut transformers: Vec<Box<dyn FnMut(&mut [f32]) -> Option<&mut [f32]> + Send + 'static>>,
+    mut transformers: Vec<Box<dyn Transformer + Send + 'static>>,
     frame_size: u32,
     sample_rate: u32,
     channels: u16,
@@ -41,7 +41,7 @@ pub fn callback<T: Sample>(
             buffer.extend(data.by_ref().take(buffer_size - buffer.len()));
             let encoded = transformers
                 .iter_mut()
-                .try_fold(&mut buffer[..], |acc, e| e(acc))
+                .try_fold(&mut buffer[..], |acc, e| e.transform(acc))
                 .map(|buf| opus_encoder.encode_vec_float(&*buf, buffer_size).unwrap());
 
             if let Some(encoded) = encoded {
@@ -74,7 +74,7 @@ impl DefaultAudioInputDevice {
     pub fn new(
         input_volume: f32,
         phase_watcher: watch::Receiver<StatePhase>,
-        frame_size: u32,
+        frame_size: u32, // blocks of 2.5 ms
     ) -> Result<Self, AudioError> {
         let sample_rate = SampleRate(SAMPLE_RATE);
 
@@ -104,7 +104,7 @@ impl DefaultAudioInputDevice {
 
         let (volume_sender, input_volume_receiver) = watch::channel::<f32>(input_volume);
 
-        let transformers = vec![Box::new(create_noise_gate(10, 0.6)) as Box<dyn FnMut(&mut [f32]) -> Option<&mut [f32]> + Send + 'static>];
+        let transformers = vec![Box::new(NoiseGate::new(200)) as Box<dyn Transformer + Send + 'static>];
 
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
