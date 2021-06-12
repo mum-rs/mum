@@ -79,7 +79,6 @@ impl AudioInput {
         phase_watcher: watch::Receiver<StatePhase>,
     ) -> Result<Self, AudioError> {
         let mut default = DefaultAudioInputDevice::new(input_volume, phase_watcher, 4)?;
-        let sample_rate = SampleRate(SAMPLE_RATE);
 
         let opus_stream = default.sample_receiver().unwrap()
             .enumerate()

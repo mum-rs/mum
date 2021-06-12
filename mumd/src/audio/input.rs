@@ -11,23 +11,11 @@ use crate::state::StatePhase;
 pub fn callback<T: Sample>(
     mut input_sender: futures_channel::mpsc::Sender<Vec<u8>>,
     mut transformers: Vec<Box<dyn Transformer + Send + 'static>>,
-    frame_size: u32,
-    sample_rate: u32,
-    channels: u16,
+    mut opus_encoder: opus::Encoder,
+    buffer_size: usize,
     input_volume_receiver: watch::Receiver<f32>,
     phase_watcher: watch::Receiver<StatePhase>,
 ) -> impl FnMut(&[T], &InputCallbackInfo) + Send + 'static {
-    let buffer_size = (sample_rate * frame_size / 400) as usize;
-    let mut opus_encoder = opus::Encoder::new(
-            sample_rate,
-            match channels {
-                1 => opus::Channels::Mono,
-                2 => opus::Channels::Stereo,
-                _ => unimplemented!("Only 1 or 2 channels supported, got {}", channels),
-            },
-            opus::Application::Voip,
-        )
-        .unwrap();
     let mut buffer = Vec::with_capacity(buffer_size);
 
     move |data: &[T], _info: &InputCallbackInfo| {
@@ -104,6 +92,19 @@ impl DefaultAudioInputDevice {
 
         let (volume_sender, input_volume_receiver) = watch::channel::<f32>(input_volume);
 
+        let mut opus_encoder = opus::Encoder::new(
+                sample_rate.0,
+                match input_config.channels {
+                    1 => opus::Channels::Mono,
+                    2 => opus::Channels::Stereo,
+                    _ => unimplemented!("Only 1 or 2 channels supported, got {}", input_config.channels),
+                },
+                opus::Application::Voip,
+            )
+            .unwrap();
+        // 4 blocks @ 2.5 ms meaning 10 ms total
+        let buffer_size = (sample_rate.0 * frame_size / 400) as usize;
+
         let transformers = vec![Box::new(NoiseGate::new(200)) as Box<dyn Transformer + Send + 'static>];
 
         let input_stream = match input_supported_sample_format {
@@ -112,9 +113,8 @@ impl DefaultAudioInputDevice {
                 callback::<f32>(
                     sample_sender, 
                     transformers, 
-                    frame_size, 
-                    SAMPLE_RATE, 
-                    input_config.channels,
+                    opus_encoder,
+                    buffer_size,
                     input_volume_receiver, 
                     phase_watcher
                 ),
@@ -125,9 +125,8 @@ impl DefaultAudioInputDevice {
                 callback::<i16>(
                     sample_sender, 
                     transformers, 
-                    frame_size, 
-                    SAMPLE_RATE, 
-                    input_config.channels,
+                    opus_encoder,
+                    buffer_size,
                     input_volume_receiver, 
                     phase_watcher
                 ),
@@ -138,9 +137,8 @@ impl DefaultAudioInputDevice {
                 callback::<u16>(
                     sample_sender, 
                     transformers, 
-                    frame_size, 
-                    SAMPLE_RATE, 
-                    input_config.channels,
+                    opus_encoder,
+                    buffer_size,
                     input_volume_receiver, 
                     phase_watcher
                 ),
