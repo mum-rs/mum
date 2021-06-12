@@ -1,5 +1,6 @@
 pub mod input;
 pub mod output;
+pub mod transformers;
 
 use crate::audio::input::{AudioInputDevice, DefaultAudioInputDevice};
 use crate::audio::output::{AudioOutputDevice, ClientStream, DefaultAudioOutputDevice};
