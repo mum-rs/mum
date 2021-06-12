@@ -1,5 +1,4 @@
 pub mod input;
-mod noise_gate;
 pub mod output;
 
 use crate::audio::input::{AudioInputDevice, DefaultAudioInputDevice};
