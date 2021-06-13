@@ -7,9 +7,9 @@
 #![warn(unused_import_braces)]
 #![warn(unused_lifetimes)]
 #![warn(unused_qualifications)]
-#![deny(keyword_idents)]
 #![deny(macro_use_extern_crate)]
 #![deny(missing_abi)]
+#![deny(future_incompatible)]
 #![forbid(unsafe_code)]
 
 pub mod audio;
