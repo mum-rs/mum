@@ -1,5 +1,20 @@
+#![warn(elided_lifetimes_in_paths)]
+#![warn(meta_variable_misuse)]
+#![warn(missing_debug_implementations)]
+#![warn(single_use_lifetimes)]
+#![warn(unreachable_pub)]
+#![warn(unused_crate_dependencies)]
+#![warn(unused_import_braces)]
+#![warn(unused_lifetimes)]
+#![warn(unused_qualifications)]
+#![deny(macro_use_extern_crate)]
+#![deny(missing_abi)]
+#![deny(future_incompatible)]
+#![forbid(unsafe_code)]
+#![forbid(non_ascii_idents)]
+
 use colored::Colorize;
-use log::*;
+use log::{Level, LevelFilter, Metadata, Record, error, warn};
 use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
@@ -17,11 +32,11 @@ const INDENTATION: &str = "  ";
 struct SimpleLogger;
 
 impl log::Log for SimpleLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
+    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
         metadata.level() <= Level::Info
     }
 
-    fn log(&self, record: &Record) {
+    fn log(&self, record: &Record<'_>) {
         if self.enabled(record.metadata()) {
             println!(
                 "{}{}",
