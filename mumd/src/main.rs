@@ -3,6 +3,7 @@
 #![warn(missing_debug_implementations)]
 #![warn(single_use_lifetimes)]
 #![warn(unreachable_pub)]
+#![warn(unused_crate_dependencies)]
 #![deny(keyword_idents)]
 #![deny(macro_use_extern_crate)]
 #![deny(missing_abi)]
