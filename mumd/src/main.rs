@@ -1,8 +1,8 @@
 #![warn(elided_lifetimes_in_paths)]
 #![warn(meta_variable_misuse)]
 #![warn(missing_debug_implementations)] //doesn't seem to work
-#![deny(keyword_idents, macro_use_extern_crate, missing_abi)]
-#![deny(macro_use_extern_crate, missing_abi)]
+#![deny(keyword_idents)]
+#![deny(macro_use_extern_crate)]
 #![deny(missing_abi)]
 
 mod audio;
