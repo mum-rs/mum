@@ -1,4 +1,5 @@
 #![warn(elided_lifetimes_in_paths)]
+#![deny(keyword_idents)]
 
 mod audio;
 mod client;
