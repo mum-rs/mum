@@ -1,18 +1,19 @@
 #![warn(elided_lifetimes_in_paths)]
 #![warn(meta_variable_misuse)]
-#![warn(missing_debug_implementations)] //doesn't seem to work
+#![warn(missing_debug_implementations)]
 #![warn(single_use_lifetimes)]
+#![warn(unreachable_pub)]
 #![deny(keyword_idents)]
 #![deny(macro_use_extern_crate)]
 #![deny(missing_abi)]
 
-mod audio;
-mod client;
-mod command;
-mod error;
-mod network;
-mod notifications;
-mod state;
+pub mod audio;
+pub mod client;
+pub mod command;
+pub mod error;
+pub mod network;
+pub mod notifications;
+pub mod state;
 
 use crate::state::State;
 

@@ -20,6 +20,7 @@ use mumlib::command::{ChannelTarget, Command, CommandResponse, MessageTarget, Mu
 use mumlib::config::Config;
 use mumlib::Error;
 use std::{
+    fmt::Debug,
     iter,
     net::{SocketAddr, ToSocketAddrs},
     sync::{Arc, RwLock},
@@ -63,6 +64,17 @@ pub enum ExecutionContext {
     ),
 }
 
+impl Debug for ExecutionContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple(match self {
+            ExecutionContext::TcpEventCallback(_) => "TcpEventCallback",
+            ExecutionContext::TcpEventSubscriber(_, _) => "TcpEventSubscriber",
+            ExecutionContext::Now(_) => "Now",
+            ExecutionContext::Ping(_, _) => "Ping",
+        }).finish()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StatePhase {
     Disconnected,
@@ -70,6 +82,7 @@ pub enum StatePhase {
     Connected(VoiceStreamType),
 }
 
+#[derive(Debug)]
 pub struct State {
     config: Config,
     server: Option<Server>,

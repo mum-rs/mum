@@ -112,6 +112,16 @@ impl AudioInput {
     }
 }
 
+impl Debug for AudioInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AudioInput")
+            .field("device", &self.device)
+            .field("channel_receiver", &"receiver")
+            .finish()
+    }
+}
+
+#[derive(Debug)]
 pub struct AudioOutput {
     device: DefaultAudioOutputDevice,
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,

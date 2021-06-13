@@ -6,6 +6,7 @@ pub trait Transformer {
 }
 
 /// A struct representing a noise gate transform.
+#[derive(Debug)]
 pub struct NoiseGate {
     alltime_high: f32,
     open: usize,

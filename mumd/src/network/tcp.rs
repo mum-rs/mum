@@ -14,6 +14,7 @@ use mumble_protocol::{Clientbound, Serverbound};
 use mumlib::command::MumbleEventKind;
 use std::collections::HashMap;
 use std::convert::{Into, TryInto};
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::net::TcpStream;
@@ -57,7 +58,7 @@ pub enum TcpEvent {
 /// Having two different types might feel a bit confusing. Essentially, a
 /// callback _registers_ to a [TcpEvent] but _takes_ a [TcpEventData] as
 /// parameter.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum TcpEventData<'a> {
     Connected(Result<&'a msgs::ServerSync, mumlib::Error>),
     Disconnected(DisconnectedReason),
@@ -136,6 +137,13 @@ impl TcpEventQueue {
                 }
             }
         }
+    }
+}
+
+impl Debug for TcpEventQueue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TcpEventQueue")
+            .finish()
     }
 }
 

@@ -7,12 +7,14 @@ use cpal::{OutputCallbackInfo, Sample, SampleFormat, SampleRate, StreamConfig};
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use std::collections::{HashMap, VecDeque};
+use std::fmt::Debug;
 use std::ops::AddAssign;
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
 
 type ClientStreamKey = (VoiceStreamType, u32);
 
+#[derive(Debug)]
 pub struct ClientStream {
     buffer_clients: HashMap<ClientStreamKey, (VecDeque<f32>, opus::Decoder)>, //TODO ring buffer?
     buffer_effects: VecDeque<f32>,
@@ -240,5 +242,16 @@ pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>
                 &(user_bufs.buffer_effects.pop_front().unwrap_or(0.0) * volume),
             ));
         }
+    }
+}
+
+impl Debug for DefaultAudioOutputDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultAudioInputDevice")
+            .field("client_streams", &self.client_streams)
+            .field("config", &self.config)
+            .field("volume_sender", &self.volume_sender)
+            .field("stream", &"cpal::Stream")
+            .finish()
     }
 }
