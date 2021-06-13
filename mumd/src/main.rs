@@ -1,6 +1,7 @@
 #![warn(elided_lifetimes_in_paths)]
 #![warn(meta_variable_misuse)]
 #![warn(missing_debug_implementations)] //doesn't seem to work
+#![warn(single_use_lifetimes)]
 #![deny(keyword_idents)]
 #![deny(macro_use_extern_crate)]
 #![deny(missing_abi)]

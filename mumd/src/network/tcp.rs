@@ -64,7 +64,7 @@ pub enum TcpEventData<'a> {
     TextMessage(&'a msgs::TextMessage),
 }
 
-impl<'a> From<&TcpEventData<'a>> for TcpEvent {
+impl From<&TcpEventData<'_>> for TcpEvent {
     fn from(t: &TcpEventData<'_>) -> Self {
         match t {
             TcpEventData::Connected(_) => TcpEvent::Connected,
@@ -111,7 +111,7 @@ impl TcpEventQueue {
 
     /// Fires all callbacks related to a specific TCP event and removes them from the event queue.
     /// Also calls all event subscribers, but keeps them in the queue
-    pub fn resolve<'a>(&self, data: TcpEventData<'a>) {
+    pub fn resolve(&self, data: TcpEventData<'_>) {
         if let Some(vec) = self
             .callbacks
             .write()
