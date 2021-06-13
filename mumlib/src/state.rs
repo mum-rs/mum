@@ -46,6 +46,7 @@ impl Channel {
     }
 }
 
+#[derive(Debug)]
 pub struct Iter<'a> {
     me: Option<&'a Channel>,
     channel: Option<usize>,
@@ -76,6 +77,7 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct UsersIter<'a> {
     channel: Option<usize>,
     channels: Vec<UsersIter<'a>>,
