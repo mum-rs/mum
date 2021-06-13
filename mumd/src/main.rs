@@ -1,6 +1,9 @@
-#![warn(elided_lifetimes_in_paths, meta_variable_misuse)]
+#![warn(elided_lifetimes_in_paths)]
+#![warn(meta_variable_misuse)]
 #![warn(missing_debug_implementations)] //doesn't seem to work
 #![deny(keyword_idents, macro_use_extern_crate, missing_abi)]
+#![deny(macro_use_extern_crate, missing_abi)]
+#![deny(missing_abi)]
 
 mod audio;
 mod client;
