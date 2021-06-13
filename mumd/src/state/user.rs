@@ -78,7 +78,7 @@ impl User {
         }
     }
 
-    pub fn apply_user_diff(&mut self, diff: &crate::state::user::UserDiff) {
+    pub fn apply_user_diff(&mut self, diff: &UserDiff) {
         if let Some(comment) = diff.comment.clone() {
             self.comment = Some(comment);
         }
