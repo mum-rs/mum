@@ -1,5 +1,5 @@
 #![warn(elided_lifetimes_in_paths)]
-#![deny(keyword_idents)]
+#![deny(keyword_idents, macro_use_extern_crate)]
 
 mod audio;
 mod client;
