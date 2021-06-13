@@ -79,7 +79,9 @@ impl AudioInput {
     ) -> Result<Self, AudioError> {
         let mut default = DefaultAudioInputDevice::new(input_volume, phase_watcher, 4)?;
 
-        let opus_stream = default.sample_receiver().unwrap()
+        let opus_stream = default
+            .sample_receiver()
+            .unwrap()
             .enumerate()
             .map(|(i, e)| VoicePacket::Audio {
                 _dst: std::marker::PhantomData,

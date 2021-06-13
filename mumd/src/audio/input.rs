@@ -93,15 +93,15 @@ impl DefaultAudioInputDevice {
         let (volume_sender, input_volume_receiver) = watch::channel::<f32>(input_volume);
 
         let opus_encoder = opus::Encoder::new(
-                sample_rate.0,
-                match input_config.channels {
-                    1 => opus::Channels::Mono,
-                    2 => opus::Channels::Stereo,
-                    _ => unimplemented!("Only 1 or 2 channels supported, got {}", input_config.channels),
-                },
-                opus::Application::Voip,
-            )
-            .unwrap();
+            sample_rate.0,
+            match input_config.channels {
+                1 => opus::Channels::Mono,
+                2 => opus::Channels::Stereo,
+                _ => unimplemented!("Only 1 or 2 channels supported, got {}", input_config.channels),
+            },
+            opus::Application::Voip,
+        )
+        .unwrap();
         let buffer_size = (sample_rate.0 * frame_size / 400) as usize;
 
         let transformers = vec![Box::new(NoiseGate::new(50)) as Box<dyn Transformer + Send + 'static>];
