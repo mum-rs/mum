@@ -11,6 +11,7 @@
 #![deny(missing_abi)]
 #![deny(future_incompatible)]
 #![forbid(unsafe_code)]
+#![forbid(non_ascii_idents)]
 
 pub mod audio;
 pub mod client;
