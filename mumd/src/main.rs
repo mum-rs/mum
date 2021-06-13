@@ -1,3 +1,5 @@
+#![warn(elided_lifetimes_in_paths)]
+
 mod audio;
 mod client;
 mod command;

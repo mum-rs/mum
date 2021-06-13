@@ -44,12 +44,12 @@ type Responses = Box<dyn Iterator<Item = mumlib::error::Result<Option<CommandRes
 
 //TODO give me a better name
 pub enum ExecutionContext {
-    TcpEventCallback(Vec<(TcpEvent, Box<dyn FnOnce(TcpEventData) -> Responses>)>),
+    TcpEventCallback(Vec<(TcpEvent, Box<dyn FnOnce(TcpEventData<'_>) -> Responses>)>),
     TcpEventSubscriber(
         TcpEvent,
         Box<
             dyn FnMut(
-                TcpEventData,
+                TcpEventData<'_>,
                 &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
             ) -> bool,
         >,

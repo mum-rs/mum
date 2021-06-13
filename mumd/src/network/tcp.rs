@@ -31,8 +31,8 @@ type TcpSender = SplitSink<
 type TcpReceiver =
     SplitStream<Framed<TlsStream<TcpStream>, ControlCodec<Serverbound, Clientbound>>>;
 
-pub(crate) type TcpEventCallback = Box<dyn FnOnce(TcpEventData)>;
-pub(crate) type TcpEventSubscriber = Box<dyn FnMut(TcpEventData) -> bool>; //the bool indicates if it should be kept or not
+pub(crate) type TcpEventCallback = Box<dyn FnOnce(TcpEventData<'_>)>;
+pub(crate) type TcpEventSubscriber = Box<dyn FnMut(TcpEventData<'_>) -> bool>; //the bool indicates if it should be kept or not
 
 /// Why the TCP was disconnected.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -65,7 +65,7 @@ pub enum TcpEventData<'a> {
 }
 
 impl<'a> From<&TcpEventData<'a>> for TcpEvent {
-    fn from(t: &TcpEventData) -> Self {
+    fn from(t: &TcpEventData<'_>) -> Self {
         match t {
             TcpEventData::Connected(_) => TcpEvent::Connected,
             TcpEventData::Disconnected(reason) => TcpEvent::Disconnected(*reason),
