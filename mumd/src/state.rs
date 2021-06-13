@@ -29,7 +29,7 @@ use tokio::sync::{mpsc, watch};
 macro_rules! at {
     ( $( $event:expr => $generator:expr ),+ $(,)? ) => {
         ExecutionContext::TcpEventCallback(vec![
-            $( ($event, Box::new($generator)), )*
+            $( ($event, Box::new($generator)), )+
         ])
     };
 }
