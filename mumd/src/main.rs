@@ -5,6 +5,7 @@
 #![warn(unreachable_pub)]
 #![warn(unused_crate_dependencies)]
 #![warn(unused_import_braces)]
+#![warn(unused_lifetimes)]
 #![deny(keyword_idents)]
 #![deny(macro_use_extern_crate)]
 #![deny(missing_abi)]
