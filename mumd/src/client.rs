@@ -33,7 +33,7 @@ pub async fn handle(
             packet_sender.clone(),
             packet_receiver,
             event_queue.clone(),
-        ).fuse() => r.map_err(|e| ClientError::TcpError(e)),
+        ).fuse() => r.map_err(ClientError::TcpError),
         _ = udp::handle(
             Arc::clone(&state),
             connection_info_receiver.clone(),

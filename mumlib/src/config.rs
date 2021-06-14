@@ -155,7 +155,7 @@ pub fn read_cfg(path: &Path) -> Result<Config, ConfigError> {
             } else {
                 error!("Error reading config file: {}", e);
             }
-            return Ok(Config::default());
+            Ok(Config::default())
         }
     }
 }

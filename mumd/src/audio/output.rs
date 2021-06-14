@@ -191,13 +191,13 @@ impl AudioOutputDevice for DefaultAudioOutputDevice {
     fn play(&self) -> Result<(), AudioError> {
         self.stream
             .play()
-            .map_err(|e| AudioError::OutputPlayError(e))
+            .map_err(AudioError::OutputPlayError)
     }
 
     fn pause(&self) -> Result<(), AudioError> {
         self.stream
             .pause()
-            .map_err(|e| AudioError::OutputPauseError(e))
+            .map_err(AudioError::OutputPauseError)
     }
 
     fn set_volume(&self, volume: f32) {

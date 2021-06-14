@@ -161,12 +161,12 @@ impl AudioInputDevice for DefaultAudioInputDevice {
     fn play(&self) -> Result<(), AudioError> {
         self.stream
             .play()
-            .map_err(|e| AudioError::InputPlayError(e))
+            .map_err(AudioError::InputPlayError)
     }
     fn pause(&self) -> Result<(), AudioError> {
         self.stream
             .pause()
-            .map_err(|e| AudioError::InputPauseError(e))
+            .map_err(AudioError::InputPauseError)
     }
     fn set_volume(&self, volume: f32) {
         self.volume_sender.send(volume).unwrap();

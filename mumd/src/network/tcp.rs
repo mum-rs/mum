@@ -75,7 +75,7 @@ impl From<&TcpEventData<'_>> for TcpEvent {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct TcpEventQueue {
     callbacks: Arc<RwLock<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
     subscribers: Arc<RwLock<HashMap<TcpEvent, Vec<TcpEventSubscriber>>>>,
@@ -156,13 +156,14 @@ pub async fn handle(
     event_queue: TcpEventQueue,
 ) -> Result<(), TcpError> {
     loop {
-        let connection_info = 'data: loop {
-            while connection_info_receiver.changed().await.is_ok() {
+        let connection_info = loop {
+            if connection_info_receiver.changed().await.is_ok() {
                 if let Some(data) = connection_info_receiver.borrow().clone() {
-                    break 'data data;
+                    break data;
                 }
+            } else {
+                return Err(TcpError::NoConnectionInfoReceived);
             }
-            return Err(TcpError::NoConnectionInfoReceived);
         };
         let connect_result = connect(
             connection_info.socket_addr,
@@ -250,12 +251,12 @@ async fn connect(
     builder.danger_accept_invalid_certs(accept_invalid_cert);
     let connector: TlsConnector = builder
         .build()
-        .map_err(|e| TcpError::TlsConnectorBuilderError(e))?
+        .map_err(TcpError::TlsConnectorBuilderError)?
         .into();
     let tls_stream = connector
         .connect(&server_host, stream)
         .await
-        .map_err(|e| TcpError::TlsConnectError(e))?;
+        .map_err(TcpError::TlsConnectError)?;
     debug!("TLS connected");
 
     // Wrap the TLS stream with Mumble's client-side control-channel codec
@@ -312,13 +313,13 @@ async fn send_voice(
             inner_phase_watcher.changed().await.unwrap();
             if matches!(
                 *inner_phase_watcher.borrow(),
-                StatePhase::Connected(VoiceStreamType::TCP)
+                StatePhase::Connected(VoiceStreamType::Tcp)
             ) {
                 break;
             }
         }
         run_until(
-            |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::TCP)),
+            |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::Tcp)),
             async {
                 loop {
                     packet_sender.send(
@@ -473,7 +474,7 @@ async fn listen(
                         ..
                     } => {
                         state.read().unwrap().audio_output().decode_packet_payload(
-                            VoiceStreamType::TCP,
+                            VoiceStreamType::Tcp,
                             session_id,
                             payload,
                         );

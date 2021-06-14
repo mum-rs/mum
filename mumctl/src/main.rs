@@ -267,9 +267,9 @@ fn match_opt() -> Result<(), Error> {
                         server
                             .username
                             .as_ref()
-                            .or(username.as_ref())
+                            .or_else(|| username.as_ref())
                             .ok_or(CliError::NoUsername)?,
-                        server.password.as_ref().or(password.as_ref()),
+                        server.password.as_ref().or_else(|| password.as_ref()),
                         server.port.unwrap_or(port),
                         server.accept_invalid_cert,
                     ),
@@ -536,7 +536,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                 (Some("port"), None) => {
                     println!(
                         "{}",
-                        server.port.ok_or(CliError::NotSet("port".to_string()))?
+                        server.port.ok_or_else(|| CliError::NotSet("port".to_string()))?
                     );
                 }
                 (Some("username"), None) => {
@@ -545,7 +545,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                         server
                             .username
                             .as_ref()
-                            .ok_or(CliError::NotSet("username".to_string()))?
+                            .ok_or_else(|| CliError::NotSet("username".to_string()))?
                     );
                 }
                 (Some("password"), None) => {
@@ -554,7 +554,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                         server
                             .password
                             .as_ref()
-                            .ok_or(CliError::NotSet("password".to_string()))?
+                            .ok_or_else(|| CliError::NotSet("password".to_string()))?
                     );
                 }
                 (Some("accept_invalid_cert"), None) => {
@@ -563,11 +563,11 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                         server
                             .accept_invalid_cert
                             .map(|b| b.to_string())
-                            .ok_or(CliError::NotSet("accept_invalid_cert".to_string()))?
+                            .ok_or_else(|| CliError::NotSet("accept_invalid_cert".to_string()))?
                     );
                 }
                 (Some("name"), Some(_)) => {
-                    return Err(CliError::UseServerRename)?;
+                    return Err(CliError::UseServerRename.into());
                 }
                 (Some("host"), Some(value)) => {
                     server.host = value;
@@ -589,7 +589,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     }
                 }
                 (Some(_), _) => {
-                    return Err(CliError::ConfigKeyNotFound(key.unwrap()))?;
+                    return Err(CliError::ConfigKeyNotFound(key.unwrap()).into());
                 }
             }
         }
