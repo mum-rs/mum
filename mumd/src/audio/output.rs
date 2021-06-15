@@ -1,4 +1,5 @@
 //! Receives audio packets from the networking and plays them.
+
 use crate::audio::SAMPLE_RATE;
 use crate::error::{AudioError, AudioStream};
 use crate::network::VoiceStreamType;
@@ -79,8 +80,8 @@ impl ClientStream {
 /// Since we support [f32], [i16] and [u16] we need some way of adding two values
 /// without peaking above/below the edge values. This trait ensures that we can
 /// use all three primitive types as a generic parameter.
-
 pub trait SaturatingAdd {
+    /// Adds two values in some saturating way. See trait documentation.
     fn saturating_add(self, rhs: Self) -> Self;
 }
 
