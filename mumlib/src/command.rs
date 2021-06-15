@@ -89,16 +89,18 @@ pub enum Command {
     /// Set the outgoing audio volume (i.e. from you to the server). No response.
     InputVolumeSet(f32),
 
-    /// Response: [CommandResponse::MuteStatus]. Toggles if None.
+    /// Response: [CommandResponse::MuteStatus]. Toggles mute state if None.
     MuteOther(String, Option<bool>),
 
-    /// Response: [CommandResponse::MuteStatus]. Toggles if None.
+    /// Response: [CommandResponse::MuteStatus]. Toggles mute state if None.
     MuteSelf(Option<bool>),
 
     /// Set the master incoming audio volume (i.e. from the server to you).
     /// No response.
     OutputVolumeSet(f32),
 
+    /// Request a list of past messages. Blocks while waiting for more messages
+    /// if block is true. Response: multiple [CommandResponse::PastMessage].
     PastMessages {
         block: bool,
     },
@@ -107,20 +109,29 @@ pub enum Command {
     /// mumd-instance.
     Ping,
 
+    /// Send a message to some [MessageTarget].
     SendMessage {
+        /// The message to send.
         message: String,
+        /// The target(s) to send the message to.
         targets: MessageTarget,
     },
+
     /// Connect to the specified server. Response: [CommandResponse::ServerConnect].
     ServerConnect {
+        /// The URL or IP-adress to connect to.
         host: String,
+        /// The port to connect to.
         port: u16,
+        /// The username to connect with.
         username: String,
+        /// The server password, if applicable. Not sent if None.
         password: Option<String>,
+        /// Whether to accept an invalid server certificate or not.
         accept_invalid_cert: bool,
     },
 
-    /// No response.
+    /// Disconnect from the currently connected server. No response.
     ServerDisconnect,
 
     /// Send a server status request via UDP (e.g. not requiring a TCP connection).
@@ -130,10 +141,10 @@ pub enum Command {
         port: u16,
     },
 
-    /// Response: [CommandResponse::Status].
+    /// Request the status of the current server. Response: [CommandResponse::Status].
     Status,
 
-    /// No response.
+    /// The the volume of the specified user. No response.
     UserVolumeSet(String, f32),
 }
 

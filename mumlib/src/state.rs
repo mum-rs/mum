@@ -1,26 +1,38 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// The state of the currently connected Mumble server.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Server {
+    /// State of the currently connected channel.
     pub channels: Channel,
+    /// The welcome text we received when we connected.
     pub welcome_text: Option<String>,
+    /// Our username.
     pub username: String,
+    /// The host (ip:port) of the server.
     pub host: String,
 }
 
+/// A representation of a channel in a Mumble server.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Channel {
+    /// The description of the channel, if set.
     pub description: Option<String>,
+    /// The maximum number of allowed users in this channel.
     pub max_users: u32,
+    /// The name of this channel.
     pub name: String,
+    /// Any children this channel has.
     pub children: Vec<Channel>,
+    /// This channel's connected users.
     pub users: Vec<User>,
 
     links: Vec<Vec<usize>>, //to represent several walks through the tree to find channels its linked to
 }
 
 impl Channel {
+    /// Create a new Channel representation.
     pub fn new(
         name: String,
         description: Option<String>,
