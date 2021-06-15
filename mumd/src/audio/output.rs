@@ -115,6 +115,7 @@ pub trait AudioOutputDevice {
     fn client_streams(&self) -> Arc<Mutex<ClientStream>>;
 }
 
+/// The default audio output device, as determined by [cpal].
 pub struct DefaultAudioOutputDevice {
     config: StreamConfig,
     stream: cpal::Stream,
