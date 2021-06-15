@@ -1,6 +1,5 @@
-//! [Command]s can be sent from a controller to mumd who might respond with a
-//! [CommandResponse]. The commands and their responses are serializable and
-//! can be sent in any way you want.
+//! [Command]s can be sent from a controller to mumd which might respond with a
+//! [CommandResponse].
 
 use crate::state::{Channel, Server};
 
