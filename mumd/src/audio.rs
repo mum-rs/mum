@@ -76,7 +76,7 @@ impl TryFrom<&str> for NotificationEvents {
 pub struct AudioInput {
     device: DefaultAudioInputDevice,
 
-    /// Voice packets received from the network.
+    /// Outgoing voice packets that should be sent over the network.
     channel_receiver:
         Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
 }
