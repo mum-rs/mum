@@ -1,3 +1,5 @@
+//! Representations of the mumdrc configuration file.
+
 use crate::error::ConfigError;
 use crate::DEFAULT_PORT;
 
@@ -27,7 +29,9 @@ struct TOMLConfig {
 // Deserialized via [TOMLConfig].
 #[derive(Clone, Debug, Default)]
 pub struct Config {
+    /// General audio configuration.
     pub audio: AudioConfig,
+    /// Saved servers.
     pub servers: Vec<ServerConfig>,
     /// Whether we allow connecting to servers with invalid server certificates.
     ///
@@ -66,38 +70,53 @@ impl Config {
     }
 }
 
+/// Overwrite a specific sound effect with a file that should be played instead.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct SoundEffect {
+    /// During which event the effect should be played.
     pub event: String,
+    /// The file that should be played.
     pub file: String,
 }
 
+/// General audio configuration.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct AudioConfig {
+    /// The microphone input sensitivity.
     pub input_volume: Option<f32>,
+    /// The output main gain.
     pub output_volume: Option<f32>,
+    /// Overriden sound effects.
     pub sound_effects: Option<Vec<SoundEffect>>,
 }
 
+/// A saved server.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ServerConfig {
+    /// The alias of the server.
     pub name: String,
+    /// The host (URL or IP-adress) of the server.
     pub host: String,
+    /// The port, if non-default.
     pub port: Option<u16>,
+    /// The username to connect with. Prompted on connection if omitted.
     pub username: Option<String>,
+    /// The password to connect with. Nothing is sent to the server if omitted.
     pub password: Option<String>,
+    /// Whether to accept invalid server certifications for this server.
     pub accept_invalid_cert: Option<bool>,
 }
 
 impl ServerConfig {
+    /// Creates a [SocketAddr] for this server.
+    /// 
+    /// Returns `None` if no resolution could be made. See
+    /// [std::net::ToSocketAddrs] for more information.
     pub fn to_socket_addr(&self) -> Option<SocketAddr> {
-        match (self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
-            .to_socket_addrs()
-            .map(|mut e| e.next())
-        {
-            Ok(Some(addr)) => Some(addr),
-            _ => None,
-        }
+        Some((self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
+                .to_socket_addrs()
+                .ok()?
+                .next()?)
     }
 }
 

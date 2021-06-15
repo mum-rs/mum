@@ -11,7 +11,9 @@ use std::fmt;
 /// Something that happened in our channel at a point in time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MumbleEvent {
+    /// When the event occured.
     pub timestamp: NaiveDateTime,
+    /// What occured.
     pub kind: MumbleEventKind
 }
 
@@ -24,11 +26,17 @@ impl fmt::Display for MumbleEvent {
 /// The different kinds of events that can happen.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MumbleEventKind {
+    /// A user connected to the server and joined our channel. Contains `(user, channel)`.
     UserConnected(String, String),
+    /// A user disconnected from the server while in our channel. Contains `(user, channel)`.
     UserDisconnected(String, String),
+    /// A user {un,}{muted,deafened}. Contains a rendered message with what changed and the user.
     UserMuteStateChanged(String),  // This logic is kinda weird so we only store the rendered message.
+    /// A text message was received. Contains who sent the message.
     TextMessageReceived(String),
+    /// A user switched to our channel from some other channel. Contains `(user, previous-channel)`.
     UserJoinedChannel(String, String),
+    /// A user switched from our channel to some other channel. Contains `(user, new-channel)`.
     UserLeftChannel(String, String),
 }
 

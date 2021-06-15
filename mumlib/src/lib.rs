@@ -1,3 +1,7 @@
+//! Shared items for crates that want to communicate with mumd and/or mumctl.
+
+// #![warn(missing_docs)]
+
 pub mod command;
 pub mod config;
 pub mod error;
@@ -8,11 +12,15 @@ pub use error::Error;
 use colored::*;
 use log::*;
 
+/// The default file path to use for the socket.
 pub const SOCKET_PATH: &str = "/tmp/mumd";
 
 /// The default mumble port.
 pub const DEFAULT_PORT: u16 = 64738;
 
+/// Setup a minimal fern logger.
+///
+/// Format: `LEVEL [yyyy-mm-dd][HH:MM:SS] FILE:LINE MESSAGE`
 pub fn setup_logger<T: Into<fern::Output>>(target: T, color: bool) {
     fern::Dispatch::new()
         .format(move |out, message, record| {
