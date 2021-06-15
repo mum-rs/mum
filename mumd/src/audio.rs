@@ -234,7 +234,7 @@ impl AudioOutput {
     }
 
     /// Sets the incoming volume of a user.
-    pub(crate) fn set_user_volume(&self, id: u32, volume: f32) {
+    pub fn set_user_volume(&self, id: u32, volume: f32) {
         match self.user_volumes.lock().unwrap().entry(id) {
             Entry::Occupied(mut entry) => {
                 entry.get_mut().0 = volume;
