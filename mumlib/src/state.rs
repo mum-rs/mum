@@ -49,8 +49,10 @@ impl Channel {
         }
     }
 
-    /// Create an iterator over this channel and its children in a pre-order
-    /// traversal.
+    /// Create an iterator over this channel and its children in a [pre-order
+    /// traversal](https://en.wikipedia.org/wiki/Tree_traversal#Pre-order,_NLR)
+    /// which ensures that parent channels are returned before any of its
+    /// children.
     pub fn iter(&self) -> Iter<'_> {
         Iter {
             me: Some(&self),
