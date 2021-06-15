@@ -45,6 +45,9 @@ pub fn callback<T: Sample>(
     }
 }
 
+/// Something that can listen to audio and send it somewhere.
+/// 
+/// One sample is assumed to be an encoded opus frame. See [opus::Encoder].
 pub trait AudioInputDevice {
     /// Starts the device.
     fn play(&self) -> Result<(), AudioError>;
