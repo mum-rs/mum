@@ -228,7 +228,8 @@ impl AudioOutputDevice for DefaultAudioOutputDevice {
     }
 }
 
-/// Over-engineered way of handling multiple types of samples.
+/// Returns a function that fills a buffer with audio from client streams
+/// modified according to some audio configuration.
 pub fn curry_callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
     user_bufs: Arc<Mutex<ClientStream>>,
     output_volume_receiver: watch::Receiver<f32>,
