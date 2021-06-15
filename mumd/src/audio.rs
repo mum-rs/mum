@@ -122,6 +122,9 @@ impl AudioInput {
     }
 }
 
+/// Audio output state. The audio is received from each client over the network,
+/// decoded, merged and finally played to an [AudioOutputDevice] (e.g. speaker,
+/// headphones, ...).
 pub struct AudioOutput {
     device: DefaultAudioOutputDevice,
     /// The volume and mute-status of a user ID.
