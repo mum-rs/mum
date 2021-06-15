@@ -72,7 +72,8 @@ impl TryFrom<&str> for NotificationEvents {
     }
 }
 
-/// Input audio state.
+/// Input audio state. Input audio is picket up from an [AudioInputDevice] (e.g.
+/// a microphone) and sent over the network.
 pub struct AudioInput {
     device: DefaultAudioInputDevice,
 
