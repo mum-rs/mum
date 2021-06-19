@@ -15,6 +15,7 @@ use strum_macros::EnumIter;
 
 use crate::audio::SAMPLE_RATE;
 
+/// The different kinds of files we can open.
 enum AudioFileKind {
     Ogg,
     Wav,
@@ -32,11 +33,13 @@ impl TryFrom<&str> for AudioFileKind {
     }
 }
 
+/// A specification accompanying some audio data.
 struct AudioSpec {
     channels: u32,
     sample_rate: u32,
 }
 
+/// An event where a notification is shown and a sound effect is played.
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash, EnumIter)]
 pub enum NotificationEvents {
     ServerConnect,
