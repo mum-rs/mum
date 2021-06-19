@@ -108,9 +108,9 @@ pub fn load_sound_effects(overrides: &[SoundEffect], num_channels: usize) -> Has
             // Unpack the samples.
             let (samples, spec) = unpack_audio(data, kind);
             // If the audio is mono (single channel), pad every sample with
-            // itself, since we later assume that audio is stored as LRLRLR (or
-            // RLRLRL). Without this, mono audio would be played in double
-            // speed.
+            // itself, since we later assume that audio is stored interleaved as
+            // LRLRLR (or RLRLRL). Without this, mono audio would be played in
+            // double speed.
             let iter: Box<dyn Iterator<Item = f32>> = match spec.channels {
                 1 => Box::new(samples.into_iter().flat_map(|e| vec![e, e])),
                 2 => Box::new(samples.into_iter()),
