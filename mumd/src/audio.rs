@@ -97,6 +97,8 @@ impl AudioOutput {
         Ok(res)
     }
 
+    /// Sets the sound effects according to some overrides, using some default
+    /// value if an event isn't overriden.
     pub fn load_sound_effects(&mut self, overrides: &[SoundEffect]) {
         self.sounds = sound_effects::load_sound_effects(overrides, self.device.num_channels());
     }

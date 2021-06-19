@@ -74,6 +74,8 @@ impl TryFrom<&str> for NotificationEvents {
     }
 }
 
+/// Loads files into an "event -> data"-map, with support for overriding
+/// specific events with another sound file.
 pub fn load_sound_effects(overrides: &[SoundEffect], num_channels: usize) -> HashMap<NotificationEvents, Vec<f32>> {
     let overrides: HashMap<_, _> = overrides
         .iter()
@@ -164,6 +166,7 @@ fn unpack_ogg(data: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
 }
 
 #[cfg(not(feature = "ogg"))]
+/// Fallback to default sound effect since ogg is disabled.
 fn unpack_ogg(_: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
     warn!("Can't open .ogg without the ogg-feature enabled.");
     unpack_wav(get_default_sfx())
