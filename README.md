@@ -20,7 +20,7 @@ publish [compiled binaries on Github](https://github.com/sornas/mum/releases/).
 These are for Arch Linux. You might need other packages on other distributions
 and operating systems, or they might be named something different.
 
-- rust (stable)
+- rust (stable, ideally latest)
 - alsa-lib
 - openssl
 - opus
@@ -53,9 +53,10 @@ them, build with --no-default-features. Features can then be enabled with
 
 The following features can be specified:
 
-| Name               | Needed for    |
-|--------------------|---------------|
-| mumd/notifications | Notifications |
+| Name               | Needed for         |
+|--------------------+--------------------|
+| mumd/notifications | Notifications      |
+| mumd/ogg           | .ogg sound effects |
 
 If you're using Cargo 1.51 or later you can specify features directly from the
 workspace root:
