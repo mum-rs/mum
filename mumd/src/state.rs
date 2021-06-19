@@ -44,7 +44,12 @@ macro_rules! now {
 type Responses = Box<dyn Iterator<Item = mumlib::error::Result<Option<CommandResponse>>>>;
 
 type TcpEventCallback = Box<dyn FnOnce(TcpEventData<'_>) -> Responses>;
-type TcpEventSubscriberCallback = Box<dyn FnMut(TcpEventData<'_>,&mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,) -> bool>;
+type TcpEventSubscriberCallback = Box<
+    dyn FnMut(
+        TcpEventData<'_>,
+        &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
+    ) -> bool
+>;
 
 //TODO give me a better name
 pub enum ExecutionContext {
