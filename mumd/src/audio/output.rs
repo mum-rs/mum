@@ -180,14 +180,6 @@ impl DefaultAudioOutputDevice {
         let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
 
         let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
-        let output_channels = match output_config.channels {
-            1 => opus::Channels::Mono,
-            2 => opus::Channels::Stereo,
-            _ => {
-                warn!("Trying to output to an unsupported number of channels ({}), defaulting to mono", output_config.channels);
-                opus::Channels::Mono
-            }
-        };
 
         let output_stream = match output_supported_sample_format {
             SampleFormat::F32 => output_device.build_output_stream(
@@ -196,7 +188,6 @@ impl DefaultAudioOutputDevice {
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     user_volumes,
-                    output_channels,
                 ),
                 err_fn,
             ),
@@ -206,7 +197,6 @@ impl DefaultAudioOutputDevice {
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     user_volumes,
-                    output_channels,
                 ),
                 err_fn,
             ),
@@ -216,7 +206,6 @@ impl DefaultAudioOutputDevice {
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     user_volumes,
-                    output_channels,
                 ),
                 err_fn,
             ),
@@ -262,7 +251,6 @@ pub fn callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
     user_bufs: Arc<Mutex<ClientStream>>,
     output_volume_receiver: watch::Receiver<f32>,
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
-    output_channels: opus::Channels,
 ) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {
     move |data: &mut [T], _info: &OutputCallbackInfo| {
         for sample in data.iter_mut() {
