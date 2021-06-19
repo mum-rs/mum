@@ -29,8 +29,8 @@ pub fn callback<T: Sample>(
             buffer.extend(data.by_ref().take(buffer_size - buffer.len()));
             let encoded = transformers
                 .iter_mut()
-                .try_fold(&mut buffer[..], |acc, e| e.transform(acc))
-                .map(|buf| opus_encoder.encode_vec_float(&*buf, buffer_size).unwrap());
+                .try_fold((opus::Channels::Mono, &mut buffer[..]), |acc, e| e.transform(acc))
+                .map(|buf| opus_encoder.encode_vec_float(&*buf.1, buffer_size).unwrap());
 
             if let Some(encoded) = encoded {
                 if let Err(e) = input_sender.try_send(encoded) {
