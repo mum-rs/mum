@@ -1,3 +1,4 @@
+//! Listens to the microphone and sends it to the networking.
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{InputCallbackInfo, Sample, SampleFormat, SampleRate, StreamConfig};
 use log::*;
@@ -8,6 +9,7 @@ use crate::audio::transformers::{NoiseGate, Transformer};
 use crate::error::{AudioError, AudioStream};
 use crate::state::StatePhase;
 
+/// Generates a callback that receives [Sample]s and sends them as floats to a [futures_channel::mpsc::Sender].
 pub fn callback<T: Sample>(
     mut input_sender: futures_channel::mpsc::Sender<Vec<u8>>,
     mut transformers: Vec<Box<dyn Transformer + Send + 'static>>,
@@ -43,11 +45,19 @@ pub fn callback<T: Sample>(
     }
 }
 
+/// Something that can listen to audio and send it somewhere.
+/// 
+/// One sample is assumed to be an encoded opus frame. See [opus::Encoder].
 pub trait AudioInputDevice {
+    /// Starts the device.
     fn play(&self) -> Result<(), AudioError>;
+    /// Stops the device.
     fn pause(&self) -> Result<(), AudioError>;
+    /// Sets the input volume of the device.
     fn set_volume(&self, volume: f32);
+    /// Returns a receiver to this device's values.
     fn sample_receiver(&mut self) -> Option<futures_channel::mpsc::Receiver<Vec<u8>>>;
+    /// The amount of channels this device has.
     fn num_channels(&self) -> usize;
 }
 
@@ -59,6 +69,7 @@ pub struct DefaultAudioInputDevice {
 }
 
 impl DefaultAudioInputDevice {
+    /// Initializes the default audio input.
     pub fn new(
         input_volume: f32,
         phase_watcher: watch::Receiver<StatePhase>,
@@ -162,17 +173,21 @@ impl AudioInputDevice for DefaultAudioInputDevice {
             .play()
             .map_err(|e| AudioError::InputPlayError(e))
     }
+
     fn pause(&self) -> Result<(), AudioError> {
         self.stream
             .pause()
             .map_err(|e| AudioError::InputPauseError(e))
     }
+
     fn set_volume(&self, volume: f32) {
         self.volume_sender.send(volume).unwrap();
     }
+
     fn sample_receiver(&mut self) -> Option<futures_channel::mpsc::Receiver<Vec<u8>>> {
         self.sample_receiver.take()
     }
+
     fn num_channels(&self) -> usize {
         self.channels as usize
     }

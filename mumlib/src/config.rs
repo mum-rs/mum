@@ -1,3 +1,5 @@
+//! Representations of the mumdrc configuration file.
+
 use crate::error::ConfigError;
 use crate::DEFAULT_PORT;
 
@@ -23,9 +25,13 @@ struct TOMLConfig {
     servers: Option<Array>,
 }
 
+/// Our representation of the mumdrc config file.
+// Deserialized via [TOMLConfig].
 #[derive(Clone, Debug, Default)]
 pub struct Config {
+    /// General audio configuration.
     pub audio: AudioConfig,
+    /// Saved servers.
     pub servers: Vec<ServerConfig>,
     /// Whether we allow connecting to servers with invalid server certificates.
     ///
@@ -34,6 +40,15 @@ pub struct Config {
 }
 
 impl Config {
+    /// Writes this config to the specified path.
+    ///
+    /// Pass create = true if you want the file to be created if it doesn't already exist.
+    ///
+    /// # Errors
+    ///
+    /// - [ConfigError::WontCreateFile] if the file doesn't exist and create = false was passed.
+    /// - Any [ConfigError::TOMLErrorSer] encountered when serializing the config.
+    /// - Any [ConfigError::IOError] encountered when writing the file.
     pub fn write(&self, path: &Path, create: bool) -> Result<(), ConfigError> {
         // Possible race here. It's fine since it shows when:
         //   1) the file doesn't exist when checked and is then created
@@ -55,41 +70,60 @@ impl Config {
     }
 }
 
+/// Overwrite a specific sound effect with a file that should be played instead.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct SoundEffect {
+    /// During which event the effect should be played.
     pub event: String,
+    /// The file that should be played.
     pub file: String,
 }
 
+/// General audio configuration.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct AudioConfig {
+    /// The microphone input sensitivity.
     pub input_volume: Option<f32>,
+    /// The output main gain.
     pub output_volume: Option<f32>,
+    /// Overriden sound effects.
     pub sound_effects: Option<Vec<SoundEffect>>,
 }
 
+/// A saved server.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ServerConfig {
+    /// The alias of the server.
     pub name: String,
+    /// The host (URL or IP-adress) of the server.
     pub host: String,
+    /// The port, if non-default.
     pub port: Option<u16>,
+    /// The username to connect with. Prompted on connection if omitted.
     pub username: Option<String>,
+    /// The password to connect with. Nothing is sent to the server if omitted.
     pub password: Option<String>,
+    /// Whether to accept invalid server certifications for this server.
     pub accept_invalid_cert: Option<bool>,
 }
 
 impl ServerConfig {
+    /// Creates a [SocketAddr] for this server.
+    /// 
+    /// Returns `None` if no resolution could be made. See
+    /// [std::net::ToSocketAddrs] for more information.
     pub fn to_socket_addr(&self) -> Option<SocketAddr> {
-        match (self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
-            .to_socket_addrs()
-            .map(|mut e| e.next())
-        {
-            Ok(Some(addr)) => Some(addr),
-            _ => None,
-        }
+        Some((self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
+                .to_socket_addrs()
+                .ok()?
+                .next()?)
     }
 }
 
+/// Finds the default path of the configuration file.
+/// 
+/// The user config dir is looked for first (cross-platform friendly) and
+/// `/etc/mumdrc` is used as a fallback.
 pub fn default_cfg_path() -> PathBuf {
     match dirs::config_dir() {
         Some(mut p) => {
@@ -143,6 +177,14 @@ impl From<Config> for TOMLConfig {
     }
 }
 
+/// Reads the config at the specified path.
+///
+/// If the file isn't found, returns a default config.
+///
+/// # Errors
+///
+/// - Any [ConfigError::TOMLErrorDe] encountered when deserializing the config.
+/// - Any [ConfigError::IOError] encountered when reading the file.
 pub fn read_cfg(path: &Path) -> Result<Config, ConfigError> {
     match fs::read_to_string(path) {
         Ok(s) => {
