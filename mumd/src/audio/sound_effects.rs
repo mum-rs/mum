@@ -24,8 +24,8 @@ impl TryFrom<&str> for AudioFileKind {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
-            ".ogg" => Ok(AudioFileKind::Ogg),
-            ".wav" => Ok(AudioFileKind::Wav),
+            "ogg" => Ok(AudioFileKind::Ogg),
+            "wav" => Ok(AudioFileKind::Wav),
             _ => Err(()),
         }
     }
