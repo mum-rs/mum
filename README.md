@@ -116,6 +116,12 @@ ServerRoot
 $ mumctl channel connect Channel2
 ```
 
+## Known issues
+
+- Administration tools are not present.
+- Surround output. If this is something you want, open an issue so we can take a
+  look at implementing it.
+
 ## Why?
 
 Mostly because it's a fun way of learning a new language. Also:
