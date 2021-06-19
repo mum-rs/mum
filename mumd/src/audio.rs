@@ -1,3 +1,7 @@
+//! All things audio.
+//!
+//! Audio is handled mostly as signals from [dasp_signal]. Input/output is handled by [cpal].
+
 pub mod input;
 pub mod output;
 pub mod sound_effects;
@@ -20,11 +24,15 @@ use self::input::{AudioInputDevice, DefaultAudioInputDevice};
 use self::output::{AudioOutputDevice, ClientStream, DefaultAudioOutputDevice};
 use self::sound_effects::NotificationEvents;
 
+/// The sample rate used internally.
 const SAMPLE_RATE: u32 = 48000;
 
+/// Input audio state. Input audio is picket up from an [AudioInputDevice] (e.g.
+/// a microphone) and sent over the network.
 pub struct AudioInput {
     device: DefaultAudioInputDevice,
 
+    /// Outgoing voice packets that should be sent over the network.
     channel_receiver:
         Arc<tokio::sync::Mutex<Box<dyn Stream<Item = VoicePacket<Serverbound>> + Unpin>>>,
 }
@@ -69,12 +77,20 @@ impl AudioInput {
     }
 }
 
+/// Audio output state. The audio is received from each client over the network,
+/// decoded, merged and finally played to an [AudioOutputDevice] (e.g. speaker,
+/// headphones, ...).
 pub struct AudioOutput {
     device: DefaultAudioOutputDevice,
+    /// The volume and mute-status of a user ID.
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
+    /// The client stream per user ID. A separate stream is kept for UDP and TCP.
+    ///
+    /// Shared with [DefaultAudioOutputDevice].
     client_streams: Arc<Mutex<ClientStream>>,
 
+    /// Which sound effect should be played on an event.
     sounds: HashMap<NotificationEvents, Vec<f32>>,
 }
 
@@ -103,6 +119,7 @@ impl AudioOutput {
         self.sounds = sound_effects::load_sound_effects(overrides, self.device.num_channels());
     }
 
+    /// Decodes a voice packet.
     pub fn decode_packet_payload(
         &self,
         stream_type: VoiceStreamType,
@@ -115,10 +132,12 @@ impl AudioOutput {
             .decode_packet((stream_type, session_id), payload);
     }
 
+    /// Sets the volume of the output device.
     pub fn set_volume(&self, output_volume: f32) {
         self.device.set_volume(output_volume);
     }
 
+    /// Sets the incoming volume of a user.
     pub fn set_user_volume(&self, id: u32, volume: f32) {
         match self.user_volumes.lock().unwrap().entry(id) {
             Entry::Occupied(mut entry) => {
@@ -130,6 +149,7 @@ impl AudioOutput {
         }
     }
 
+    /// Mutes another user.
     pub fn set_mute(&self, id: u32, mute: bool) {
         match self.user_volumes.lock().unwrap().entry(id) {
             Entry::Occupied(mut entry) => {
@@ -141,6 +161,7 @@ impl AudioOutput {
         }
     }
 
+    /// Queues a sound effect.
     pub fn play_effect(&self, effect: NotificationEvents) {
         let samples = self.sounds.get(&effect).unwrap();
         self.client_streams.lock().unwrap().add_sound_effect(samples);

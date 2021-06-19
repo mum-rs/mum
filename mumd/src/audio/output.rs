@@ -1,3 +1,5 @@
+//! Receives audio packets from the networking and plays them.
+
 use crate::audio::SAMPLE_RATE;
 use crate::error::{AudioError, AudioStream};
 use crate::network::VoiceStreamType;
@@ -16,12 +18,13 @@ use tokio::sync::watch;
 
 type ClientStreamKey = (VoiceStreamType, u32);
 
+/// State for decoding audio received from another user.
 pub struct ClientAudioData {
     buf: Bounded<Vec<f32>>,
     output_channels: opus::Channels,
-    //we need two since a client can hypothetically send both mono
-    //and stereo packets, and we can't switch a decoder on the fly
-    //to reuse it
+    // We need both since a client can hypothetically send both mono
+    // and stereo packets, and we can't switch a decoder on the fly
+    // to reuse it.
     mono_decoder: opus::Decoder,
     stereo_decoder: opus::Decoder,
 }
@@ -62,6 +65,7 @@ impl ClientAudioData {
     }
 }
 
+/// Collected state for client opus decoders and sound effects.
 pub struct ClientStream {
     buffer_clients: HashMap<ClientStreamKey, ClientAudioData>,
     buffer_effects: VecDeque<f32>,
@@ -90,6 +94,7 @@ impl ClientStream {
         )
     }
 
+    /// Decodes a voice packet.
     pub fn decode_packet(&mut self, client: ClientStreamKey, payload: VoicePacketPayload) {
         match payload {
             VoicePacketPayload::Opus(bytes, _eot) => {
@@ -101,12 +106,19 @@ impl ClientStream {
         }
     }
 
+    /// Extends the sound effect buffer queue with some received values.
     pub fn add_sound_effect(&mut self, values: &[f32]) {
         self.buffer_effects.extend(values.iter().copied());
     }
 }
 
+/// Adds two values in some saturating way.
+/// 
+/// Since we support [f32], [i16] and [u16] we need some way of adding two values
+/// without peaking above/below the edge values. This trait ensures that we can
+/// use all three primitive types as a generic parameter.
 pub trait SaturatingAdd {
+    /// Adds two values in some saturating way. See trait documentation.
     fn saturating_add(self, rhs: Self) -> Self;
 }
 
@@ -140,14 +152,20 @@ pub trait AudioOutputDevice {
     fn client_streams(&self) -> Arc<Mutex<ClientStream>>;
 }
 
+/// The default audio output device, as determined by [cpal].
 pub struct DefaultAudioOutputDevice {
     config: StreamConfig,
     stream: cpal::Stream,
+    /// The client stream per user ID. A separate stream is kept for UDP and TCP.
+    ///
+    /// Shared with [super::AudioOutput].
     client_streams: Arc<Mutex<ClientStream>>,
+    /// Output volume configuration.
     volume_sender: watch::Sender<f32>,
 }
 
 impl DefaultAudioOutputDevice {
+    /// Initializes the default audio output.
     pub fn new(
         output_volume: f32,
         user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
@@ -180,14 +198,6 @@ impl DefaultAudioOutputDevice {
         let err_fn = |err| error!("An error occurred on the output audio stream: {}", err);
 
         let (output_volume_sender, output_volume_receiver) = watch::channel::<f32>(output_volume);
-        let output_channels = match output_config.channels {
-            1 => opus::Channels::Mono,
-            2 => opus::Channels::Stereo,
-            _ => {
-                warn!("Trying to output to an unsupported number of channels ({}), defaulting to mono", output_config.channels);
-                opus::Channels::Mono
-            }
-        };
 
         let output_stream = match output_supported_sample_format {
             SampleFormat::F32 => output_device.build_output_stream(
@@ -196,7 +206,6 @@ impl DefaultAudioOutputDevice {
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     user_volumes,
-                    output_channels,
                 ),
                 err_fn,
             ),
@@ -206,7 +215,6 @@ impl DefaultAudioOutputDevice {
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     user_volumes,
-                    output_channels,
                 ),
                 err_fn,
             ),
@@ -216,7 +224,6 @@ impl DefaultAudioOutputDevice {
                     Arc::clone(&client_streams),
                     output_volume_receiver,
                     user_volumes,
-                    output_channels,
                 ),
                 err_fn,
             ),
@@ -258,11 +265,12 @@ impl AudioOutputDevice for DefaultAudioOutputDevice {
     }
 }
 
+/// Returns a function that fills a buffer with audio from client streams
+/// modified according to some audio configuration.
 pub fn callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
     user_bufs: Arc<Mutex<ClientStream>>,
     output_volume_receiver: watch::Receiver<f32>,
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
-    output_channels: opus::Channels,
 ) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {
     move |data: &mut [T], _info: &OutputCallbackInfo| {
         for sample in data.iter_mut() {

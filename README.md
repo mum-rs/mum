@@ -117,6 +117,18 @@ ServerRoot
 $ mumctl channel connect Channel2
 ```
 
+## Known issues
+
+The main hub for issues is [our issue
+tracker](https://github.com/mum-rs/mum/issues). Additionally, there are some
+features that aren't present on the issue tracker:
+
+- Administration tools. See [the admin tools
+  project](https://github.com/mum-rs/mum/projects/1).
+- Surround output. If this is something you want, [open an
+  issue](https://github.com/mum-rs/mum/issues/new) so we can take a look at
+  implementing it.
+
 ## Why?
 
 Mostly because it's a fun way of learning a new language. Also:

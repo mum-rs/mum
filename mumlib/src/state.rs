@@ -1,25 +1,58 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// The state of the currently connected Mumble server.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Server {
+    /// State of the currently connected channel.
     pub channels: Channel,
+    /// The welcome text we received when we connected.
     pub welcome_text: Option<String>,
+    /// Our username.
     pub username: String,
+    /// The host (ip:port) of the server.
     pub host: String,
 }
 
+/// A representation of a channel in a Mumble server.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Channel {
+    /// The description of the channel, if set.
     pub description: Option<String>,
-    pub links: Vec<Vec<usize>>, //to represent several walks through the tree to find channels its linked to
+    /// The maximum number of allowed users in this channel.
     pub max_users: u32,
+    /// The name of this channel.
     pub name: String,
+    /// Any children this channel has.
     pub children: Vec<Channel>,
+    /// This channel's connected users.
     pub users: Vec<User>,
+
+    links: Vec<Vec<usize>>, //to represent several walks through the tree to find channels its linked to
 }
 
 impl Channel {
+    /// Create a new Channel representation.
+    pub fn new(
+        name: String,
+        description: Option<String>,
+        max_users: u32,
+    ) -> Self {
+        Self {
+            description,
+            max_users,
+            name,
+            children: Vec::new(),
+            users: Vec::new(),
+
+            links: Vec::new(),
+        }
+    }
+
+    /// Create an iterator over this channel and its children in a [pre-order
+    /// traversal](https://en.wikipedia.org/wiki/Tree_traversal#Pre-order,_NLR)
+    /// which ensures that parent channels are returned before any of its
+    /// children.
     pub fn iter(&self) -> Iter<'_> {
         Iter {
             me: Some(&self),
@@ -32,6 +65,8 @@ impl Channel {
         }
     }
 
+    /// Create an iterator over this channel and its childrens connected users
+    /// in a pre-order traversal.
     pub fn users_iter(&self) -> UsersIter<'_> {
         UsersIter {
             channels: self.children.iter().map(|e| e.users_iter()).collect(),
@@ -46,6 +81,7 @@ impl Channel {
     }
 }
 
+/// An iterator over channels. Created by [Channel::iter].
 pub struct Iter<'a> {
     me: Option<&'a Channel>,
     channel: Option<usize>,
@@ -76,6 +112,7 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
+/// An iterator over users. Created by [Channel::users_iter].
 pub struct UsersIter<'a> {
     channel: Option<usize>,
     channels: Vec<UsersIter<'a>>,
