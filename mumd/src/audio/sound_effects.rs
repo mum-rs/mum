@@ -145,7 +145,7 @@ pub fn load_sound_effects(overrides: &[SoundEffect], num_channels: usize) -> Has
 }
 
 /// Unpack audio data. The required audio spec is read from the file and returned as well.
-fn unpack_audio(data: Cow<[u8]>, kind: AudioFileKind) -> (Vec<f32>, AudioSpec) {
+fn unpack_audio(data: Cow<'_, [u8]>, kind: AudioFileKind) -> (Vec<f32>, AudioSpec) {
     match kind {
         AudioFileKind::Ogg => unpack_ogg(data),
         AudioFileKind::Wav => unpack_wav(data),
@@ -154,7 +154,7 @@ fn unpack_audio(data: Cow<[u8]>, kind: AudioFileKind) -> (Vec<f32>, AudioSpec) {
 
 #[cfg(feature = "ogg")]
 /// Unpack ogg data.
-fn unpack_ogg(data: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
+fn unpack_ogg(data: Cow<'_, [u8]>) -> (Vec<f32>, AudioSpec) {
     let mut reader = lewton::inside_ogg::OggStreamReader::new(Cursor::new(data.as_ref())).unwrap();
     let mut samples = Vec::new();
     while let Ok(Some(mut frame)) = reader.read_dec_packet_itl() {
@@ -170,13 +170,13 @@ fn unpack_ogg(data: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
 
 #[cfg(not(feature = "ogg"))]
 /// Fallback to default sound effect since ogg is disabled.
-fn unpack_ogg(_: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
+fn unpack_ogg(_: Cow<'_, [u8]>) -> (Vec<f32>, AudioSpec) {
     warn!("Can't open .ogg without the ogg-feature enabled.");
     unpack_wav(get_default_sfx())
 }
 
 /// Unpack wav data.
-fn unpack_wav(data: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
+fn unpack_wav(data: Cow<'_, [u8]>) -> (Vec<f32>, AudioSpec) {
     let reader = hound::WavReader::new(data.as_ref()).unwrap();
     let spec = reader.spec();
     let samples = match spec.sample_format {
