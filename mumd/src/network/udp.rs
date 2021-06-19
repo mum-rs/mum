@@ -37,13 +37,14 @@ pub async fn handle(
     let receiver = state.read().unwrap().audio_input().receiver();
 
     loop {
-        let connection_info = 'data: loop {
-            while connection_info_receiver.changed().await.is_ok() {
+        let connection_info = loop {
+            if connection_info_receiver.changed().await.is_ok() {
                 if let Some(data) = connection_info_receiver.borrow().clone() {
-                    break 'data data;
+                    break data;
                 }
+            } else {
+                return Err(UdpError::NoConnectionInfoReceived);
             }
-            return Err(UdpError::NoConnectionInfoReceived);
         };
         let (sink, source) = connect(&mut crypt_state_receiver).await?;
 
@@ -136,7 +137,7 @@ async fn listen(
                 state
                     .read()
                     .unwrap()
-                    .broadcast_phase(StatePhase::Connected(VoiceStreamType::UDP));
+                    .broadcast_phase(StatePhase::Connected(VoiceStreamType::Udp));
                 last_ping_recv.store(timestamp, Ordering::Relaxed);
             }
             VoicePacket::Audio {
@@ -147,7 +148,7 @@ async fn listen(
                 ..
             } => {
                 state.read().unwrap().audio_output().decode_packet_payload(
-                    VoiceStreamType::UDP,
+                    VoiceStreamType::Udp,
                     session_id,
                     payload,
                 );
@@ -173,7 +174,7 @@ async fn send_pings(
             state
                 .read()
                 .unwrap()
-                .broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
+                .broadcast_phase(StatePhase::Connected(VoiceStreamType::Tcp));
         }
         match sink
             .lock()
@@ -208,13 +209,13 @@ async fn send_voice(
             inner_phase_watcher.changed().await.unwrap();
             if matches!(
                 *inner_phase_watcher.borrow(),
-                StatePhase::Connected(VoiceStreamType::UDP)
+                StatePhase::Connected(VoiceStreamType::Udp)
             ) {
                 break;
             }
         }
         run_until(
-            |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::UDP)),
+            |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::Udp)),
             async {
                 let mut receiver = receiver.lock().await;
                 loop {

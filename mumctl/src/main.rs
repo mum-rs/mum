@@ -1,5 +1,20 @@
+#![warn(elided_lifetimes_in_paths)]
+#![warn(meta_variable_misuse)]
+#![warn(missing_debug_implementations)]
+#![warn(single_use_lifetimes)]
+#![warn(unreachable_pub)]
+#![warn(unused_crate_dependencies)]
+#![warn(unused_import_braces)]
+#![warn(unused_lifetimes)]
+#![warn(unused_qualifications)]
+#![deny(macro_use_extern_crate)]
+#![deny(missing_abi)]
+#![deny(future_incompatible)]
+#![forbid(unsafe_code)]
+#![forbid(non_ascii_idents)]
+
 use colored::Colorize;
-use log::*;
+use log::{Level, LevelFilter, Metadata, Record, error, warn};
 use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
@@ -17,11 +32,11 @@ const INDENTATION: &str = "  ";
 struct SimpleLogger;
 
 impl log::Log for SimpleLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
+    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
         metadata.level() <= Level::Info
     }
 
-    fn log(&self, record: &Record) {
+    fn log(&self, record: &Record<'_>) {
         if self.enabled(record.metadata()) {
             println!(
                 "{}{}",
@@ -252,9 +267,9 @@ fn match_opt() -> Result<(), Error> {
                         server
                             .username
                             .as_ref()
-                            .or(username.as_ref())
+                            .or_else(|| username.as_ref())
                             .ok_or(CliError::NoUsername)?,
-                        server.password.as_ref().or(password.as_ref()),
+                        server.password.as_ref().or_else(|| password.as_ref()),
                         server.port.unwrap_or(port),
                         server.accept_invalid_cert,
                     ),
@@ -521,7 +536,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                 (Some("port"), None) => {
                     println!(
                         "{}",
-                        server.port.ok_or(CliError::NotSet("port".to_string()))?
+                        server.port.ok_or_else(|| CliError::NotSet("port".to_string()))?
                     );
                 }
                 (Some("username"), None) => {
@@ -530,7 +545,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                         server
                             .username
                             .as_ref()
-                            .ok_or(CliError::NotSet("username".to_string()))?
+                            .ok_or_else(|| CliError::NotSet("username".to_string()))?
                     );
                 }
                 (Some("password"), None) => {
@@ -539,7 +554,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                         server
                             .password
                             .as_ref()
-                            .ok_or(CliError::NotSet("password".to_string()))?
+                            .ok_or_else(|| CliError::NotSet("password".to_string()))?
                     );
                 }
                 (Some("accept_invalid_cert"), None) => {
@@ -548,11 +563,11 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                         server
                             .accept_invalid_cert
                             .map(|b| b.to_string())
-                            .ok_or(CliError::NotSet("accept_invalid_cert".to_string()))?
+                            .ok_or_else(|| CliError::NotSet("accept_invalid_cert".to_string()))?
                     );
                 }
                 (Some("name"), Some(_)) => {
-                    return Err(CliError::UseServerRename)?;
+                    return Err(CliError::UseServerRename.into());
                 }
                 (Some("host"), Some(value)) => {
                     server.host = value;
@@ -574,7 +589,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     }
                 }
                 (Some(_), _) => {
-                    return Err(CliError::ConfigKeyNotFound(key.unwrap()))?;
+                    return Err(CliError::ConfigKeyNotFound(key.unwrap()).into());
                 }
             }
         }

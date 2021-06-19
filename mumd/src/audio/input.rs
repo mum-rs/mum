@@ -2,6 +2,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{InputCallbackInfo, Sample, SampleFormat, SampleRate, StreamConfig};
 use log::*;
+use std::fmt::Debug;
 use tokio::sync::watch;
 
 use crate::audio::SAMPLE_RATE;
@@ -171,13 +172,13 @@ impl AudioInputDevice for DefaultAudioInputDevice {
     fn play(&self) -> Result<(), AudioError> {
         self.stream
             .play()
-            .map_err(|e| AudioError::InputPlayError(e))
+            .map_err(AudioError::InputPlayError)
     }
 
     fn pause(&self) -> Result<(), AudioError> {
         self.stream
             .pause()
-            .map_err(|e| AudioError::InputPauseError(e))
+            .map_err(AudioError::InputPauseError)
     }
 
     fn set_volume(&self, volume: f32) {
@@ -190,5 +191,16 @@ impl AudioInputDevice for DefaultAudioInputDevice {
 
     fn num_channels(&self) -> usize {
         self.channels as usize
+    }
+}
+
+impl Debug for DefaultAudioInputDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultAudioInputDevice")
+            .field("sample_receiver", &self.sample_receiver)
+            .field("channels", &self.channels)
+            .field("volume_sender", &self.volume_sender)
+            .field("stream", &"cpal::Stream")
+            .finish()
     }
 }

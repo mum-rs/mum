@@ -11,6 +11,7 @@ use dasp_ring_buffer::Bounded;
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use std::collections::{HashMap, VecDeque};
+use std::fmt::Debug;
 use std::iter;
 use std::ops::AddAssign;
 use std::sync::{Arc, Mutex};
@@ -19,6 +20,7 @@ use tokio::sync::watch;
 type ClientStreamKey = (VoiceStreamType, u32);
 
 /// State for decoding audio received from another user.
+#[derive(Debug)]
 pub struct ClientAudioData {
     buf: Bounded<Vec<f32>>,
     output_channels: opus::Channels,
@@ -66,6 +68,7 @@ impl ClientAudioData {
 }
 
 /// Collected state for client opus decoders and sound effects.
+#[derive(Debug)]
 pub struct ClientStream {
     buffer_clients: HashMap<ClientStreamKey, ClientAudioData>,
     buffer_effects: VecDeque<f32>,
@@ -243,13 +246,13 @@ impl AudioOutputDevice for DefaultAudioOutputDevice {
     fn play(&self) -> Result<(), AudioError> {
         self.stream
             .play()
-            .map_err(|e| AudioError::OutputPlayError(e))
+            .map_err(AudioError::OutputPlayError)
     }
 
     fn pause(&self) -> Result<(), AudioError> {
         self.stream
             .pause()
-            .map_err(|e| AudioError::OutputPauseError(e))
+            .map_err(AudioError::OutputPauseError)
     }
 
     fn set_volume(&self, volume: f32) {
@@ -296,5 +299,16 @@ pub fn callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
                 &(user_bufs.buffer_effects.pop_front().unwrap_or(0.0) * volume),
             ));
         }
+    }
+}
+
+impl Debug for DefaultAudioOutputDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DefaultAudioInputDevice")
+            .field("client_streams", &self.client_streams)
+            .field("config", &self.config)
+            .field("volume_sender", &self.volume_sender)
+            .field("stream", &"cpal::Stream")
+            .finish()
     }
 }

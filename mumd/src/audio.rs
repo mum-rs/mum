@@ -122,6 +122,16 @@ impl AudioInput {
     }
 }
 
+impl Debug for AudioInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AudioInput")
+            .field("device", &self.device)
+            .field("channel_receiver", &"receiver")
+            .finish()
+    }
+}
+
+#[derive(Debug)]
 /// Audio output state. The audio is received from each client over the network,
 /// decoded, merged and finally played to an [AudioOutputDevice] (e.g. speaker,
 /// headphones, ...).
