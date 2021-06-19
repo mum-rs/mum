@@ -2,9 +2,9 @@ pub mod channel;
 pub mod server;
 pub mod user;
 
-use crate::{audio::{AudioInput, AudioOutput, NotificationEvents}, network::tcp::DisconnectedReason};
+use crate::audio::{AudioInput, AudioOutput, sound_effects::NotificationEvents};
 use crate::error::StateError;
-use crate::network::tcp::{TcpEvent, TcpEventData};
+use crate::network::tcp::{DisconnectedReason, TcpEvent, TcpEventData};
 use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::notifications;
 use crate::state::server::Server;
@@ -12,18 +12,15 @@ use crate::state::user::UserDiff;
 
 use chrono::NaiveDateTime;
 use log::*;
-use mumble_protocol::control::msgs;
-use mumble_protocol::control::ControlPacket;
+use mumble_protocol::control::{ControlPacket, msgs};
 use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
 use mumlib::command::{ChannelTarget, Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind};
 use mumlib::config::Config;
 use mumlib::Error;
-use std::{
-    iter,
-    net::{SocketAddr, ToSocketAddrs},
-    sync::{Arc, RwLock},
-};
+use std::iter;
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, watch};
 
 macro_rules! at {
