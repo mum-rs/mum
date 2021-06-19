@@ -37,8 +37,7 @@ use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[tokio::main]
 async fn main() {
-    if std::env::args().any(|s| s.as_str() == "--version")
-    {
+    if std::env::args().any(|s| s.as_str() == "--version") {
         println!("mumd {}", env!("VERSION"));
         return;
     }
