@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fs::File;
+use std::io::Cursor;
 use std::io::Read;
 use std::path::Path;
 use strum::IntoEnumIterator;
@@ -14,6 +15,7 @@ use strum_macros::EnumIter;
 use crate::audio::SAMPLE_RATE;
 
 enum AudioFileKind {
+    Ogg,
     Wav,
 }
 
@@ -22,6 +24,7 @@ impl TryFrom<&str> for AudioFileKind {
 
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
+            ".ogg" => Ok(AudioFileKind::Ogg),
             ".wav" => Ok(AudioFileKind::Wav),
             _ => Err(()),
         }
@@ -138,8 +141,24 @@ pub fn load_sound_effects(overrides: &[SoundEffect], num_channels: usize) -> Has
 /// Unpack audio data. The required audio spec is read from the file and returned as well.
 fn unpack_audio(data: Cow<[u8]>, kind: AudioFileKind) -> (Vec<f32>, AudioSpec) {
     match kind {
+        AudioFileKind::Ogg => unpack_ogg(data),
         AudioFileKind::Wav => unpack_wav(data),
     }
+}
+
+/// Unpack ogg data.
+fn unpack_ogg(data: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
+    let mut reader = lewton::inside_ogg::OggStreamReader::new(Cursor::new(data.as_ref())).unwrap();
+    let mut samples = Vec::new();
+    while let Ok(Some(mut frame)) = reader.read_dec_packet_itl() {
+        samples.append(&mut frame);
+    }
+    let samples = samples.iter().map(|s| cpal::Sample::to_f32(s)).collect();
+    let spec = AudioSpec {
+        channels: reader.ident_hdr.audio_channels as u32,
+        sample_rate: reader.ident_hdr.audio_sample_rate,
+    };
+    (samples, spec)
 }
 
 /// Unpack wav data.
