@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Server {
     channels: HashMap<u32, Channel>,
     users: HashMap<u32, User>,

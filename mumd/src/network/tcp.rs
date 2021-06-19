@@ -14,6 +14,7 @@ use mumble_protocol::{Clientbound, Serverbound};
 use mumlib::command::MumbleEventKind;
 use std::collections::HashMap;
 use std::convert::{Into, TryInto};
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use tokio::net::TcpStream;
@@ -31,8 +32,8 @@ type TcpSender = SplitSink<
 type TcpReceiver =
     SplitStream<Framed<TlsStream<TcpStream>, ControlCodec<Serverbound, Clientbound>>>;
 
-pub(crate) type TcpEventCallback = Box<dyn FnOnce(TcpEventData)>;
-pub(crate) type TcpEventSubscriber = Box<dyn FnMut(TcpEventData) -> bool>; //the bool indicates if it should be kept or not
+pub(crate) type TcpEventCallback = Box<dyn FnOnce(TcpEventData<'_>)>;
+pub(crate) type TcpEventSubscriber = Box<dyn FnMut(TcpEventData<'_>) -> bool>; //the bool indicates if it should be kept or not
 
 /// Why the TCP was disconnected.
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
@@ -57,15 +58,15 @@ pub enum TcpEvent {
 /// Having two different types might feel a bit confusing. Essentially, a
 /// callback _registers_ to a [TcpEvent] but _takes_ a [TcpEventData] as
 /// parameter.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum TcpEventData<'a> {
     Connected(Result<&'a msgs::ServerSync, mumlib::Error>),
     Disconnected(DisconnectedReason),
     TextMessage(&'a msgs::TextMessage),
 }
 
-impl<'a> From<&TcpEventData<'a>> for TcpEvent {
-    fn from(t: &TcpEventData) -> Self {
+impl From<&TcpEventData<'_>> for TcpEvent {
+    fn from(t: &TcpEventData<'_>) -> Self {
         match t {
             TcpEventData::Connected(_) => TcpEvent::Connected,
             TcpEventData::Disconnected(reason) => TcpEvent::Disconnected(*reason),
@@ -74,7 +75,7 @@ impl<'a> From<&TcpEventData<'a>> for TcpEvent {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct TcpEventQueue {
     callbacks: Arc<RwLock<HashMap<TcpEvent, Vec<TcpEventCallback>>>>,
     subscribers: Arc<RwLock<HashMap<TcpEvent, Vec<TcpEventSubscriber>>>>,
@@ -111,7 +112,7 @@ impl TcpEventQueue {
 
     /// Fires all callbacks related to a specific TCP event and removes them from the event queue.
     /// Also calls all event subscribers, but keeps them in the queue
-    pub fn resolve<'a>(&self, data: TcpEventData<'a>) {
+    pub fn resolve(&self, data: TcpEventData<'_>) {
         if let Some(vec) = self
             .callbacks
             .write()
@@ -139,6 +140,13 @@ impl TcpEventQueue {
     }
 }
 
+impl Debug for TcpEventQueue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TcpEventQueue")
+            .finish()
+    }
+}
+
 pub async fn handle(
     state: Arc<RwLock<State>>,
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
@@ -148,13 +156,14 @@ pub async fn handle(
     event_queue: TcpEventQueue,
 ) -> Result<(), TcpError> {
     loop {
-        let connection_info = 'data: loop {
-            while connection_info_receiver.changed().await.is_ok() {
+        let connection_info = loop {
+            if connection_info_receiver.changed().await.is_ok() {
                 if let Some(data) = connection_info_receiver.borrow().clone() {
-                    break 'data data;
+                    break data;
                 }
+            } else {
+                return Err(TcpError::NoConnectionInfoReceived);
             }
-            return Err(TcpError::NoConnectionInfoReceived);
         };
         let connect_result = connect(
             connection_info.socket_addr,
@@ -242,12 +251,12 @@ async fn connect(
     builder.danger_accept_invalid_certs(accept_invalid_cert);
     let connector: TlsConnector = builder
         .build()
-        .map_err(|e| TcpError::TlsConnectorBuilderError(e))?
+        .map_err(TcpError::TlsConnectorBuilderError)?
         .into();
     let tls_stream = connector
         .connect(&server_host, stream)
         .await
-        .map_err(|e| TcpError::TlsConnectError(e))?;
+        .map_err(TcpError::TlsConnectError)?;
     debug!("TLS connected");
 
     // Wrap the TLS stream with Mumble's client-side control-channel codec
@@ -304,13 +313,13 @@ async fn send_voice(
             inner_phase_watcher.changed().await.unwrap();
             if matches!(
                 *inner_phase_watcher.borrow(),
-                StatePhase::Connected(VoiceStreamType::TCP)
+                StatePhase::Connected(VoiceStreamType::Tcp)
             ) {
                 break;
             }
         }
         run_until(
-            |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::TCP)),
+            |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::Tcp)),
             async {
                 loop {
                     packet_sender.send(
@@ -465,7 +474,7 @@ async fn listen(
                         ..
                     } => {
                         state.read().unwrap().audio_output().decode_packet_payload(
-                            VoiceStreamType::TCP,
+                            VoiceStreamType::Tcp,
                             session_id,
                             payload,
                         );

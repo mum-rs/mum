@@ -1,10 +1,25 @@
-mod audio;
-mod client;
-mod command;
-mod error;
-mod network;
-mod notifications;
-mod state;
+#![warn(elided_lifetimes_in_paths)]
+#![warn(meta_variable_misuse)]
+#![warn(missing_debug_implementations)]
+#![warn(single_use_lifetimes)]
+#![warn(unreachable_pub)]
+#![warn(unused_crate_dependencies)]
+#![warn(unused_import_braces)]
+#![warn(unused_lifetimes)]
+#![warn(unused_qualifications)]
+#![deny(macro_use_extern_crate)]
+#![deny(missing_abi)]
+#![deny(future_incompatible)]
+#![forbid(unsafe_code)]
+#![forbid(non_ascii_idents)]
+
+pub mod audio;
+pub mod client;
+pub mod command;
+pub mod error;
+pub mod network;
+pub mod notifications;
+pub mod state;
 
 use crate::state::State;
 
@@ -22,10 +37,7 @@ use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[tokio::main]
 async fn main() {
-    if std::env::args()
-        .find(|s| s.as_str() == "--version")
-        .is_some()
-    {
+    if std::env::args().any(|s| s.as_str() == "--version") {
         println!("mumd {}", env!("VERSION"));
         return;
     }
@@ -79,12 +91,9 @@ async fn main() {
         _ = receive_commands(command_sender).fuse() => Ok(()),
     };
 
-    match run {
-        Err(e) => {
-            error!("mumd: {}", e);
-            std::process::exit(1);
-        }
-        _ => {}
+    if let Err(e) = run {
+        error!("mumd: {}", e);
+        std::process::exit(1);
     }
 }
 

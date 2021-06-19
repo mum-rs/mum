@@ -18,6 +18,7 @@ use mumble_protocol::voice::Serverbound;
 use mumlib::command::{ChannelTarget, Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind};
 use mumlib::config::Config;
 use mumlib::Error;
+use std::fmt::Debug;
 use std::iter;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::{Arc, RwLock};
@@ -26,7 +27,7 @@ use tokio::sync::{mpsc, watch};
 macro_rules! at {
     ( $( $event:expr => $generator:expr ),+ $(,)? ) => {
         ExecutionContext::TcpEventCallback(vec![
-            $( ($event, Box::new($generator)), )*
+            $( ($event, Box::new($generator)), )+
         ])
     };
 }
@@ -39,18 +40,18 @@ macro_rules! now {
 
 type Responses = Box<dyn Iterator<Item = mumlib::error::Result<Option<CommandResponse>>>>;
 
+type TcpEventCallback = Box<dyn FnOnce(TcpEventData<'_>) -> Responses>;
+type TcpEventSubscriberCallback = Box<
+    dyn FnMut(
+        TcpEventData<'_>,
+        &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
+    ) -> bool
+>;
+
 //TODO give me a better name
 pub enum ExecutionContext {
-    TcpEventCallback(Vec<(TcpEvent, Box<dyn FnOnce(TcpEventData) -> Responses>)>),
-    TcpEventSubscriber(
-        TcpEvent,
-        Box<
-            dyn FnMut(
-                TcpEventData,
-                &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
-            ) -> bool,
-        >,
-    ),
+    TcpEventCallback(Vec<(TcpEvent, TcpEventCallback)>),
+    TcpEventSubscriber(TcpEvent, TcpEventSubscriberCallback),
     Now(Box<dyn FnOnce() -> Responses>),
     Ping(
         Box<dyn FnOnce() -> mumlib::error::Result<SocketAddr>>,
@@ -60,6 +61,17 @@ pub enum ExecutionContext {
     ),
 }
 
+impl Debug for ExecutionContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple(match self {
+            ExecutionContext::TcpEventCallback(_) => "TcpEventCallback",
+            ExecutionContext::TcpEventSubscriber(_, _) => "TcpEventSubscriber",
+            ExecutionContext::Now(_) => "Now",
+            ExecutionContext::Ping(_, _) => "Ping",
+        }).finish()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StatePhase {
     Disconnected,
@@ -67,6 +79,7 @@ pub enum StatePhase {
     Connected(VoiceStreamType),
 }
 
+#[derive(Debug)]
 pub struct State {
     config: Config,
     server: Option<Server>,
@@ -87,9 +100,9 @@ impl State {
             config.audio.input_volume.unwrap_or(1.0),
             phase_watcher.1.clone(),
         )
-        .map_err(|e| StateError::AudioError(e))?;
+        .map_err(StateError::AudioError)?;
         let audio_output = AudioOutput::new(config.audio.output_volume.unwrap_or(1.0))
-            .map_err(|e| StateError::AudioError(e))?;
+            .map_err(StateError::AudioError)?;
         let mut state = Self {
             config,
             server: None,
@@ -305,7 +318,7 @@ impl State {
     }
 
     pub fn initialized(&self) {
-        self.broadcast_phase(StatePhase::Connected(VoiceStreamType::TCP));
+        self.broadcast_phase(StatePhase::Connected(VoiceStreamType::Tcp));
         self.audio_output
             .play_effect(NotificationEvents::ServerConnect);
     }
@@ -770,7 +783,7 @@ pub fn handle_command(
                         .unwrap()
                         .users()
                         .iter()
-                        .find(|(_, user)| user.name() == &name)
+                        .find(|(_, user)| user.name() == name)
                         .map(|(e, _)| *e);
 
                     let id = match id {

@@ -5,6 +5,7 @@ use tokio::sync::mpsc;
 
 pub type ServerSendError = mpsc::error::SendError<ControlPacket<Serverbound>>;
 
+#[derive(Debug)]
 pub enum TcpError {
     NoConnectionInfoReceived,
     TlsConnectorBuilderError(native_tls::Error),
@@ -40,6 +41,7 @@ impl From<ServerSendError> for TcpError {
     }
 }
 
+#[derive(Debug)]
 pub enum UdpError {
     NoConnectionInfoReceived,
     DisconnectBeforeCryptSetup,
@@ -53,6 +55,7 @@ impl From<std::io::Error> for UdpError {
     }
 }
 
+#[derive(Debug)]
 pub enum ClientError {
     TcpError(TcpError),
 }
@@ -65,6 +68,7 @@ impl fmt::Display for ClientError {
     }
 }
 
+#[derive(Debug)]
 pub enum AudioStream {
     Input,
     Output,
@@ -79,6 +83,7 @@ impl fmt::Display for AudioStream {
     }
 }
 
+#[derive(Debug)]
 pub enum AudioError {
     NoDevice(AudioStream),
     NoConfigs(AudioStream, cpal::SupportedStreamConfigsError),
@@ -105,6 +110,7 @@ impl fmt::Display for AudioError {
     }
 }
 
+#[derive(Debug)]
 pub enum StateError {
     AudioError(AudioError),
     ConfigError(ConfigError),

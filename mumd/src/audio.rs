@@ -17,6 +17,7 @@ use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
 use mumble_protocol::Serverbound;
 use mumlib::config::SoundEffect;
 use std::collections::{hash_map::Entry, HashMap};
+use std::fmt::Debug;
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
 
@@ -77,6 +78,16 @@ impl AudioInput {
     }
 }
 
+impl Debug for AudioInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AudioInput")
+            .field("device", &self.device)
+            .field("channel_receiver", &"receiver")
+            .finish()
+    }
+}
+
+#[derive(Debug)]
 /// Audio output state. The audio is received from each client over the network,
 /// decoded, merged and finally played to an [AudioOutputDevice] (e.g. speaker,
 /// headphones, ...).
