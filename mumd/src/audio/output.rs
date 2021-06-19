@@ -9,6 +9,7 @@ use dasp_ring_buffer::Bounded;
 use log::*;
 use mumble_protocol::voice::VoicePacketPayload;
 use std::collections::{HashMap, VecDeque};
+use std::iter;
 use std::ops::AddAssign;
 use std::sync::{Arc, Mutex};
 use tokio::sync::watch;
@@ -250,6 +251,7 @@ pub fn callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
     user_bufs: Arc<Mutex<ClientStream>>,
     output_volume_receiver: watch::Receiver<f32>,
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
+    output_channels: opus::Channels,
 ) -> impl FnMut(&mut [T], &OutputCallbackInfo) + Send + 'static {
     move |data: &mut [T], _info: &OutputCallbackInfo| {
         for sample in data.iter_mut() {
@@ -263,9 +265,9 @@ pub fn callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
         for (k, v) in user_bufs.buffer_clients.iter_mut() {
             let (user_volume, muted) = user_volumes.get(&k.1).cloned().unwrap_or((1.0, false));
             if !muted {
-                for sample in data.iter_mut() {
+                for (sample, val) in data.iter_mut().zip(v.buf.drain().chain(iter::repeat(0.0))) {
                     *sample = sample.saturating_add(Sample::from(
-                        &(v.buf.pop().unwrap_or(0.0) * volume * user_volume),
+                        &(val * volume * user_volume),
                     ));
                 }
             }
