@@ -90,13 +90,17 @@ pub fn load_sound_effects(overrides: &[SoundEffect], num_channels: usize) -> Has
     // effect (if omitted). We then use dasp to convert to the correct sample rate.
     NotificationEvents::iter()
         .map(|event| {
-            // Open the file if overriden, otherwise use the default sound effect.
             let file = overrides.get(&event);
+            // Try to open the file if overriden, otherwise use the default sound effect.
             let (data, kind) = file
-                .map(|file| (
-                    get_sfx(file),
-                    AudioFileKind::Wav
-                ))
+                .and_then(|file| {
+                    // Try to get the file kind from the extension.
+                    let kind = file
+                        .split('.')
+                        .last()
+                        .and_then(|ext| AudioFileKind::try_from(ext).ok())?;
+                    Some((get_sfx(file), kind))
+                })
                 .unwrap_or_else(|| (get_default_sfx(), AudioFileKind::Wav));
             // Unpack the samples.
             let (samples, spec) = unpack_audio(data, kind);
