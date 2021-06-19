@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fs::File;
+#[cfg(feature = "ogg")]
 use std::io::Cursor;
 use std::io::Read;
 use std::path::Path;
@@ -146,6 +147,7 @@ fn unpack_audio(data: Cow<[u8]>, kind: AudioFileKind) -> (Vec<f32>, AudioSpec) {
     }
 }
 
+#[cfg(feature = "ogg")]
 /// Unpack ogg data.
 fn unpack_ogg(data: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
     let mut reader = lewton::inside_ogg::OggStreamReader::new(Cursor::new(data.as_ref())).unwrap();
@@ -159,6 +161,12 @@ fn unpack_ogg(data: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
         sample_rate: reader.ident_hdr.audio_sample_rate,
     };
     (samples, spec)
+}
+
+#[cfg(not(feature = "ogg"))]
+fn unpack_ogg(_: Cow<[u8]>) -> (Vec<f32>, AudioSpec) {
+    warn!("Can't open .ogg without the ogg-feature enabled.");
+    unpack_wav(get_default_sfx())
 }
 
 /// Unpack wav data.
