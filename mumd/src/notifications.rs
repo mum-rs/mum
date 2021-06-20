@@ -1,3 +1,4 @@
+#[cfg(feature = "notifications")]
 use log::*;
 
 pub fn init() {

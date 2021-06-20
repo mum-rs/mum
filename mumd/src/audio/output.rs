@@ -183,7 +183,7 @@ impl DefaultAudioOutputDevice {
             .supported_output_configs()
             .map_err(|e| AudioError::NoConfigs(AudioStream::Output, e))?
             .find_map(|c| {
-                if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate {
+                if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate && c.channels() == 2 {
                     Some(c)
                 } else {
                     None
