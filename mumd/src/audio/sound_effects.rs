@@ -70,7 +70,6 @@ impl TryFrom<&str> for NotificationEvents {
             "deafen" => Ok(NotificationEvents::Deafen),
             "undeafen" => Ok(NotificationEvents::Undeafen),
             _ => {
-                warn!("Unknown notification event '{}' in config", s);
                 Err(())
             }
         }
@@ -87,6 +86,7 @@ pub fn load_sound_effects(overrides: &[SoundEffect], num_channels: usize) -> Has
             if let Ok(event) = NotificationEvents::try_from(event.as_str()) {
                 Some((event, file))
             } else {
+                warn!("Unknown notification event '{}'", event);
                 None
             }
         })
@@ -118,7 +118,7 @@ pub fn load_sound_effects(overrides: &[SoundEffect], num_channels: usize) -> Has
             // LRLRLR (or RLRLRL). Without this, mono audio would be played in
             // double speed.
             let iter: Box<dyn Iterator<Item = f32>> = match spec.channels {
-                1 => Box::new(samples.into_iter().flat_map(|e| vec![e, e])),
+                1 => Box::new(samples.into_iter().flat_map(|e| [e, e])),
                 2 => Box::new(samples.into_iter()),
                 _ => unimplemented!("Only mono and stereo sound is supported. See #80."),
             };
