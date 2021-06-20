@@ -238,6 +238,10 @@ impl fmt::Display for CliError {
 }
 
 fn main() {
+    if std::env::args().any(|s| s.as_str() == "--version" || s.as_str() == "-V") {
+        println!("mumctl {}", env!("VERSION"));
+        return;
+    }
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(LevelFilter::Info))
         .unwrap();

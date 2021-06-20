@@ -1,7 +1,10 @@
 use std::process::Command;
 
 fn main() {
-    let version = match commit_hash().as_deref() {
+    println!("cargo:rerun-if-env-changed=MUM_VERSION");
+
+    let env_version = std::env::var("MUM_VERSION").ok();
+    let version = match env_version.or_else(|| commit_hash()).as_deref() {
         None | Some("") => format!("v{}", env!("CARGO_PKG_VERSION")),
         Some(version) => version.to_string(),
     };
