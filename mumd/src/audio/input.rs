@@ -47,7 +47,7 @@ pub fn callback<T: Sample>(
 }
 
 /// Something that can listen to audio and send it somewhere.
-/// 
+///
 /// One sample is assumed to be an encoded opus frame. See [opus::Encoder].
 pub trait AudioInputDevice {
     /// Starts the device.
@@ -122,11 +122,11 @@ impl DefaultAudioInputDevice {
             SampleFormat::F32 => input_device.build_input_stream(
                 &input_config,
                 callback::<f32>(
-                    sample_sender, 
-                    transformers, 
+                    sample_sender,
+                    transformers,
                     opus_encoder,
                     buffer_size,
-                    input_volume_receiver, 
+                    input_volume_receiver,
                     phase_watcher
                 ),
                 err_fn,
@@ -134,11 +134,11 @@ impl DefaultAudioInputDevice {
             SampleFormat::I16 => input_device.build_input_stream(
                 &input_config,
                 callback::<i16>(
-                    sample_sender, 
-                    transformers, 
+                    sample_sender,
+                    transformers,
                     opus_encoder,
                     buffer_size,
-                    input_volume_receiver, 
+                    input_volume_receiver,
                     phase_watcher
                 ),
                 err_fn,
@@ -146,11 +146,11 @@ impl DefaultAudioInputDevice {
             SampleFormat::U16 => input_device.build_input_stream(
                 &input_config,
                 callback::<u16>(
-                    sample_sender, 
-                    transformers, 
+                    sample_sender,
+                    transformers,
                     opus_encoder,
                     buffer_size,
-                    input_volume_receiver, 
+                    input_volume_receiver,
                     phase_watcher
                 ),
                 err_fn,

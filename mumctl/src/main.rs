@@ -389,7 +389,7 @@ fn match_opt() -> Result<(), Error> {
             } else {
                 //TODO report volume of user
                 //     needs work on mumd
-                todo!();
+                warn!("Currently unimplemented");
             }
         }
         Command::Mute { user } => match user {
