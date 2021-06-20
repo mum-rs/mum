@@ -20,7 +20,7 @@ publish [compiled binaries on Github](https://github.com/sornas/mum/releases/).
 These are for Arch Linux. You might need other packages on other distributions
 and operating systems, or they might be named something different.
 
-- rust (stable)
+- rust (stable 1.53)
 - alsa-lib
 - openssl
 - opus
