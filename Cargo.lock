@@ -608,9 +608,9 @@ dependencies = [
 
 [[package]]
 name = "hermit-abi"
-version = "0.1.18"
+version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "322f4de77956e22ed0e5032c359a0f1273f1f7f0d79bfa3b8ffbc730d7fbcc5c"
+checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
 dependencies = [
  "libc",
 ]
@@ -823,10 +823,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "mumd"
+name = "mumd-core"
 version = "0.4.0"
 dependencies = [
- "bincode",
  "bytes",
  "chrono",
  "cpal",
@@ -848,6 +847,20 @@ dependencies = [
  "strum_macros",
  "tokio",
  "tokio-native-tls",
+ "tokio-util",
+]
+
+[[package]]
+name = "mumd-socket"
+version = "0.4.0"
+dependencies = [
+ "bincode",
+ "bytes",
+ "futures-util",
+ "log",
+ "mumd-core",
+ "mumlib",
+ "tokio",
  "tokio-util",
 ]
 
@@ -1080,9 +1093,9 @@ checksum = "28988d872ab76095a6e6ac88d99b54fd267702734fd7ffe610ca27f533ddb95a"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.64"
+version = "0.9.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "209efc2fe0e980c8849efacdb567f975a1c80245c4f6980d6f012733bfa851af"
+checksum = "7a7907e3bfa08bb85105209cdfcb6c63d109f8f6c1ed6ca318fff5c1853fbc1d"
 dependencies = [
  "autocfg",
  "cc",
