@@ -1,5 +1,5 @@
 
-use mumd_core::state::State;
+use mum::state::State;
 use bytes::{BufMut, BytesMut};
 use futures_util::{select, FutureExt, SinkExt, StreamExt};
 use log::*;
@@ -20,7 +20,7 @@ async fn main() {
     }
 
     setup_logger(std::io::stderr(), true);
-    mumd_core::notifications::init();
+    mum::notifications::init();
 
     // check if another instance is live
     let connection = UnixStream::connect(mumlib::SOCKET_PATH).await;
@@ -64,7 +64,7 @@ async fn main() {
     };
 
     let run = select! {
-        r = mumd_core::client::handle(state, command_receiver).fuse() => r,
+        r = mum::client::handle(state, command_receiver).fuse() => r,
         _ = receive_commands(command_sender).fuse() => Ok(()),
     };
 

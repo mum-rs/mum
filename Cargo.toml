@@ -3,8 +3,8 @@
 [workspace]
 
 members = [
-    "mumd-core",
-    "mumd-socket",
+    "mumd",
+    "mum",
     "mumctl",
     "mumlib"
 ]

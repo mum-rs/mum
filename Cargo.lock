@@ -797,33 +797,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mumble-protocol"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4071096f63c6e9853c32825096af49caf6667979ff67a765ba23dffcf3c77160"
-dependencies = [
- "byteorder",
- "bytes",
- "openssl",
- "protobuf",
- "protobuf-codegen-pure",
- "tokio-util",
-]
-
-[[package]]
-name = "mumctl"
-version = "0.4.0"
-dependencies = [
- "bincode",
- "colored",
- "log",
- "mumlib",
- "serde",
- "structopt",
-]
-
-[[package]]
-name = "mumd-core"
+name = "mum"
 version = "0.4.0"
 dependencies = [
  "bytes",
@@ -851,14 +825,40 @@ dependencies = [
 ]
 
 [[package]]
-name = "mumd-socket"
+name = "mumble-protocol"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4071096f63c6e9853c32825096af49caf6667979ff67a765ba23dffcf3c77160"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "openssl",
+ "protobuf",
+ "protobuf-codegen-pure",
+ "tokio-util",
+]
+
+[[package]]
+name = "mumctl"
+version = "0.4.0"
+dependencies = [
+ "bincode",
+ "colored",
+ "log",
+ "mumlib",
+ "serde",
+ "structopt",
+]
+
+[[package]]
+name = "mumd"
 version = "0.4.0"
 dependencies = [
  "bincode",
  "bytes",
  "futures-util",
  "log",
- "mumd-core",
+ "mum",
  "mumlib",
  "tokio",
  "tokio-util",
