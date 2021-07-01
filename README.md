@@ -54,9 +54,9 @@ them, build with --no-default-features. Features can then be enabled with
 The following features can be specified:
 
 | Name               | Needed for         |
-|--------------------+--------------------|
+|--------------------|--------------------|
 | mumd/notifications | Notifications      |
-| mumd/ogg           | .ogg sound effects |
+| mumd/ogg           | ogg sound effects  |
 
 If you're using Cargo 1.51 or later you can specify features directly from the
 workspace root:
