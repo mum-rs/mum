@@ -93,7 +93,7 @@ See `$ mumctl --help` or `documentation/*.txt` for more information.
 ### mumd
 
 Start the daemon with mumd. Currently it attaches to the terminal, so if you
-want to run it in the background you can detach it with e.g. (zsh): 
+want to run it in the background you can detach it with e.g. (zsh):
 
 ```sh
 $ mumd &>/dev/null &|
