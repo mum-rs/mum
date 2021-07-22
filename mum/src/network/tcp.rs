@@ -14,7 +14,7 @@ use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::{Clientbound, Serverbound};
 use mumlib::command::MumbleEventKind;
 use std::collections::HashMap;
-use std::convert::{Into, TryInto};
+use std::convert::Into;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};

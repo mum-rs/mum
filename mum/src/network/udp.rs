@@ -11,7 +11,6 @@ use mumble_protocol::ping::{PingPacket, PongPacket};
 use mumble_protocol::voice::VoicePacket;
 use mumble_protocol::Serverbound;
 use std::collections::{hash_map::Entry, HashMap};
-use std::convert::TryFrom;
 use std::net::{Ipv6Addr, SocketAddr};
 use std::sync::{
     atomic::{AtomicU64, Ordering},
