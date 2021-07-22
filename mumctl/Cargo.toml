@@ -3,7 +3,7 @@ name = "mumctl"
 version = "0.4.0"
 authors = ["Gustav Sörnäs <gustav@sornas.net>",
            "Eskil Queseth <eskilq@kth.se>"]
-edition = "2018"
+edition = "2021"
 description = """
 CLI controller for mumd.
 """
