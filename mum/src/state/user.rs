@@ -21,16 +21,8 @@ impl User {
     pub fn new(mut msg: msgs::UserState) -> Self {
         Self {
             channel: msg.get_channel_id(),
-            comment: if msg.has_comment() {
-                Some(msg.take_comment())
-            } else {
-                None
-            },
-            hash: if msg.has_hash() {
-                Some(msg.take_hash())
-            } else {
-                None
-            },
+            comment: msg.has_comment().then(|| msg.take_comment()),
+            hash: msg.has_hash().then(|| msg.take_hash()),
             name: msg.take_name(),
             priority_speaker: msg.has_priority_speaker() && msg.get_priority_speaker(),
             recording: msg.has_recording() && msg.get_recording(),
