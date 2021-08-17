@@ -415,16 +415,17 @@ async fn listen(
                         )
                         .await;
                 }
-                event_queue.resolve(TcpEventData::Connected(Ok(&msg)));
                 let mut state = state.write().unwrap();
                 let server = state.server_mut();
                 if let Server::Connecting(sb) = server {
-                    let s = sb.server_sync(*msg);
+                    let s = sb.server_sync(*msg.clone());
                     *server = Server::Connected(s);
                     state.initialized();
                 } else {
                     warn!("Got a ServerSync packet while not connecting. Current state is:\n{:#?}", server);
                 }
+                drop(state);
+                event_queue.resolve(TcpEventData::Connected(Ok(&msg)));
             }
             ControlPacket::Reject(msg) => {
                 debug!("Login rejected: {:?}", msg);
