@@ -1,6 +1,7 @@
 use crate::error::{ServerSendError, TcpError};
 use crate::network::ConnectionInfo;
 use crate::notifications;
+use crate::state::server::Server;
 use crate::state::{State, StatePhase};
 
 use futures_util::select;
@@ -374,8 +375,8 @@ async fn listen(
         match packet {
             ControlPacket::TextMessage(msg) => {
                 let mut state = state.write().unwrap();
-                let user = state
-                    .server()
+                let server = state.server();
+                let user = (if let Server::Connected(s) = server { Some(s) } else { None })
                     .and_then(|server| server.users().get(&msg.get_actor()))
                     .map(|user| user.name());
                 if let Some(user) = user {
@@ -416,16 +417,14 @@ async fn listen(
                 }
                 event_queue.resolve(TcpEventData::Connected(Ok(&msg)));
                 let mut state = state.write().unwrap();
-                let server = state.server_mut().unwrap();
-                server.parse_server_sync(*msg);
-                match &server.welcome_text {
-                    Some(s) => info!("Welcome: {}", s),
-                    None => info!("No welcome received"),
+                let server = state.server_mut();
+                if let Server::Connecting(sb) = server {
+                    let s = sb.server_sync(*msg);
+                    *server = Server::Connected(s);
+                    state.initialized();
+                } else {
+                    warn!("Got a ServerSync packet while not connecting. Current state is:\n{:#?}", server);
                 }
-                for channel in server.channels().values() {
-                    info!("Found channel {}", channel.name());
-                }
-                state.initialized();
             }
             ControlPacket::Reject(msg) => {
                 debug!("Login rejected: {:?}", msg);
@@ -441,27 +440,28 @@ async fn listen(
                 }
             }
             ControlPacket::UserState(msg) => {
-                state.write().unwrap().parse_user_state(*msg);
+                state.write().unwrap().user_state(*msg);
             }
             ControlPacket::UserRemove(msg) => {
-                state.write().unwrap().remove_client(*msg);
+                state.write().unwrap().remove_user(*msg);
             }
             ControlPacket::ChannelState(msg) => {
-                debug!("Channel state received");
-                state
+                if let Server::Connecting(sb)  = state
                     .write()
                     .unwrap()
-                    .server_mut()
-                    .unwrap()
-                    .parse_channel_state(*msg); //TODO parse initial if initial
+                    .server_mut() {
+                    sb.channel_state(*msg);       
+                }
             }
             ControlPacket::ChannelRemove(msg) => {
-                state
+                match state
                     .write()
                     .unwrap()
-                    .server_mut()
-                    .unwrap()
-                    .parse_channel_remove(*msg);
+                    .server_mut() {
+                    Server::Connecting(sb) => sb.channel_remove(*msg),
+                    Server::Connected(server) => server.channel_remove(*msg),
+                    Server::Disconnected => warn!("Got ChannelRemove packet while disconnected"),
+                }
             }
             ControlPacket::UDPTunnel(msg) => {
                 match *msg {
