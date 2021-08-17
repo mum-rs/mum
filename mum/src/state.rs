@@ -130,7 +130,7 @@ impl State {
                     .unwrap_or("<unnamed channel>")
                     .to_owned();
 
-                if let Some(user) = s.users().get(&msg.get_user_id()) {
+                if let Some(user) = s.users().get(&msg.get_session()) {
                     // we're updating a user
                     let from_channel = user.channel();
                     
