@@ -68,6 +68,14 @@ impl ServerBuilder {
             host: self.host.clone(),
         }
     }
+    
+    pub(crate) fn username(&self) -> &str {
+        &self.username
+    }
+    
+    pub(crate) fn password(&self) -> Option<&str> {
+        self.password.as_deref()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

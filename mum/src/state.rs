@@ -292,7 +292,7 @@ impl State {
     pub fn username(&self) -> Option<&str> {
         match self.server() {
             Server::Disconnected => None,
-            Server::Connecting(_) => None,
+            Server::Connecting(sb) => Some(sb.username()),
             Server::Connected(s) => Some(s.username()),
         }
     }
@@ -300,7 +300,7 @@ impl State {
     pub fn password(&self) -> Option<&str> {
         match self.server() {
             Server::Disconnected => None,
-            Server::Connecting(_) => None,
+            Server::Connecting(sb) => sb.password(),
             Server::Connected(s) => s.password(),
         }
     }
@@ -535,7 +535,7 @@ pub fn handle_command(
             password,
             accept_invalid_cert,
         } => {
-            if let Server::Connected(_) = state.server() {
+            if let Server::Disconnected = state.server() {
                 let server = ServerBuilder::new(format!("{}:{}", host, port), username, password);
                 state.server = Server::Connecting(server);
                 state.phase_watcher.0.send(StatePhase::Connecting).unwrap();
