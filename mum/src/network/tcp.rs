@@ -418,7 +418,7 @@ async fn listen(
                 let mut state = state.write().unwrap();
                 let server = state.server_mut();
                 if let Server::Connecting(sb) = server {
-                    let s = sb.server_sync(*msg.clone());
+                    let s = sb.clone().server_sync(*msg.clone());
                     *server = Server::Connected(s);
                     state.initialized();
                 } else {

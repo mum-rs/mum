@@ -55,7 +55,7 @@ impl ConnectingServer {
         self.users.remove(&msg.get_session());
     }
 
-    pub(crate) fn server_sync(&mut self, mut msg: msgs::ServerSync) -> ConnectedServer {
+    pub(crate) fn server_sync(self, mut msg: msgs::ServerSync) -> ConnectedServer {
         ConnectedServer {
             channels: self.channels.clone(),
             users: self.users.clone(),
