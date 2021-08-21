@@ -57,14 +57,14 @@ impl ConnectingServer {
 
     pub(crate) fn server_sync(self, mut msg: msgs::ServerSync) -> ConnectedServer {
         ConnectedServer {
-            channels: self.channels.clone(),
-            users: self.users.clone(),
+            channels: self.channels,
+            users: self.users,
             welcome_text: msg.has_welcome_text().then(|| msg.take_welcome_text()),
-            username: self.username.clone(),
+            username: self.username,
             session_id: msg.get_session(),
             muted: false,
             deafened: false,
-            host: self.host.clone(),
+            host: self.host,
         }
     }
 

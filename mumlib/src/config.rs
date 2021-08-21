@@ -113,12 +113,10 @@ impl ServerConfig {
     /// Returns `None` if no resolution could be made. See
     /// [std::net::ToSocketAddrs] for more information.
     pub fn to_socket_addr(&self) -> Option<SocketAddr> {
-        Some(
-            (self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
-                .to_socket_addrs()
-                .ok()?
-                .next()?,
-        )
+        (self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
+            .to_socket_addrs()
+            .ok()?
+            .next()
     }
 }
 
