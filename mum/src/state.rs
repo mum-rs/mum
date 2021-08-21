@@ -7,7 +7,7 @@ use crate::error::StateError;
 use crate::network::tcp::{DisconnectedReason, TcpEvent, TcpEventData};
 use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::notifications;
-use crate::state::server::{Server, ConnectingBuilder};
+use crate::state::server::{Server, ConnectingServer};
 use crate::state::user::User;
 
 use chrono::NaiveDateTime;
@@ -305,7 +305,7 @@ impl State {
         match self.server() {
             Server::Disconnected => None,
             Server::Connecting(sb) => sb.password(),
-            Server::Connected(s) => s.password(),
+            Server::Connected(_) => None,
         }
     }
 
@@ -540,7 +540,7 @@ pub fn handle_command(
             accept_invalid_cert,
         } => {
             if let Server::Disconnected = state.server() {
-                let server = ConnectingBuilder::new(format!("{}:{}", host, port), username, password);
+                let server = ConnectingServer::new(format!("{}:{}", host, port), username, password);
                 state.server = Server::Connecting(server);
                 state.phase_watcher.0.send(StatePhase::Connecting).unwrap();
 

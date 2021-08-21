@@ -61,7 +61,6 @@ impl ConnectingServer {
             users: self.users.clone(),
             welcome_text: msg.has_welcome_text().then(|| msg.take_welcome_text()),
             username: self.username.clone(),
-            password: self.password.clone(),
             session_id: msg.get_session(),
             muted: false,
             deafened: false,
@@ -85,7 +84,6 @@ pub(crate) struct ConnectedServer {
     welcome_text: Option<String>,
 
     username: String,
-    password: Option<String>, // do we need to store the password even after connecting?
     session_id: u32,
     muted: bool,
     deafened: bool,
@@ -173,10 +171,6 @@ impl ConnectedServer {
 
     pub(crate) fn username(&self) -> &str {
         &self.username
-    }
-
-    pub(crate) fn password(&self) -> Option<&str> {
-        self.password.as_deref()
     }
 
     pub(crate) fn muted(&self) -> bool {
