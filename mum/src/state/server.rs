@@ -11,12 +11,12 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) enum Server {
     Disconnected,
-    Connecting(ServerBuilder),
+    Connecting(ConnectingServer),
     Connected(ConnectedServer),
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub(crate) struct ServerBuilder {
+pub(crate) struct ConnectingServer {
     channels: HashMap<u32, Channel>,
     users: HashMap<u32, User>,
     welcome_text: Option<String>,
@@ -27,7 +27,7 @@ pub(crate) struct ServerBuilder {
     host: String,
 }
 
-impl ServerBuilder {
+impl ConnectingServer {
     pub(crate) fn new(host: String, username: String, password: Option<String>) -> Self {
         Self {
             channels: HashMap::new(),
