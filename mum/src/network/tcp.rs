@@ -53,9 +53,9 @@ pub enum TcpEvent {
 }
 
 /// When a [TcpEvent] occurs, this contains the data for the event.
-/// 
+///
 /// The events are picked up by a [crate::state::ExecutionContext].
-/// 
+///
 /// Having two different types might feel a bit confusing. Essentially, a
 /// callback _registers_ to a [TcpEvent] but _takes_ a [TcpEventData] as
 /// parameter.
@@ -172,7 +172,7 @@ pub async fn handle(
             connection_info.accept_invalid_cert,
         )
         .await;
-        
+
         let (mut sink, stream) = match connect_result {
             Ok(ok) => ok,
             Err(TcpError::TlsConnectError(_)) => {
@@ -451,7 +451,7 @@ async fn listen(
                     .write()
                     .unwrap()
                     .server_mut() {
-                    sb.channel_state(*msg);       
+                    sb.channel_state(*msg);
                 }
             }
             ControlPacket::ChannelRemove(msg) => {
@@ -506,7 +506,7 @@ async fn listen(
                         }
                     }
                 }
-                
+
                 if late != 0 || lost != 0 || resync != 0 {
                     debug!(
                         "Ping:{}{}{}",

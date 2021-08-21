@@ -38,23 +38,23 @@ impl ServerBuilder {
             host,
         }
     }
-    
-    pub(crate) fn channel_state(&mut self, msg: msgs::ChannelState) {            
+
+    pub(crate) fn channel_state(&mut self, msg: msgs::ChannelState) {
         channel_state(msg, &mut self.channels);
     }
 
     pub(crate) fn channel_remove(&mut self, msg: msgs::ChannelRemove) {
         channel_remove(msg, &mut self.channels);
     }
-    
+
     pub(crate) fn user_state(&mut self, msg: msgs::UserState) {
         user_state(msg, &mut self.users);
     }
-    
+
     pub(crate) fn user_remove(&mut self, msg: msgs::UserRemove) {
         self.users.remove(&msg.get_session());
     }
-    
+
     pub(crate) fn server_sync(&mut self, mut msg: msgs::ServerSync) -> ConnectedServer {
         ConnectedServer {
             channels: self.channels.clone(),
@@ -68,11 +68,11 @@ impl ServerBuilder {
             host: self.host.clone(),
         }
     }
-    
+
     pub(crate) fn username(&self) -> &str {
         &self.username
     }
-    
+
     pub(crate) fn password(&self) -> Option<&str> {
         self.password.as_deref()
     }
@@ -101,7 +101,7 @@ impl ConnectedServer {
     pub(crate) fn user_state(&mut self, msg: msgs::UserState) {
         user_state(msg, &mut self.users);
     }
-    
+
     pub(crate) fn user_remove(&mut self, msg: msgs::UserRemove) {
         self.users.remove(&msg.get_session());
     }
@@ -166,7 +166,7 @@ impl ConnectedServer {
     pub(crate) fn users(&self) -> &HashMap<u32, User> {
         &self.users
     }
-    
+
     pub(crate) fn users_mut(&mut self) -> &mut HashMap<u32, User> {
         &mut self.users
     }
@@ -194,7 +194,7 @@ impl ConnectedServer {
     pub(crate) fn set_deafened(&mut self, value: bool) {
         self.deafened = value;
     }
-    
+
     pub(crate) fn users_channel(&self, user: u32) -> u32 {
         self.users()
             .get(&user)
@@ -242,7 +242,7 @@ fn channel_remove(msg: msgs::ChannelRemove, channels: &mut HashMap<u32, Channel>
             e.remove();
         }
     }
-    
+
 }
 
 impl From<&ConnectedServer> for mumlib::state::Server {

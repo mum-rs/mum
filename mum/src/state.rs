@@ -162,7 +162,7 @@ impl State {
 
                         let mute = (msg.has_self_mute() && user.self_mute() != msg.get_self_mute()).then(|| msg.get_self_mute());
                         let deaf = (msg.has_self_deaf() && user.self_deaf() != msg.get_self_deaf()).then(|| msg.get_self_deaf());
-                        
+
                         //send notification if a user muted/unmuted
                         if mute != None || deaf != None {
                             let mut s = user.name().to_owned();
@@ -233,7 +233,7 @@ impl State {
                     self.push_event(event);
                 }
             },
-        } 
+        }
     }
 
     pub fn reload_config(&mut self) {
@@ -276,23 +276,23 @@ impl State {
     pub fn audio_input(&self) -> &AudioInput {
         &self.audio_input
     }
-    
+
     pub fn audio_output(&self) -> &AudioOutput {
         &self.audio_output
     }
-    
+
     pub fn phase_receiver(&self) -> watch::Receiver<StatePhase> {
         self.phase_watcher.1.clone()
     }
-    
+
     pub(crate) fn server(&self) -> &Server {
         &self.server
     }
-    
+
     pub(crate) fn server_mut(&mut self) -> &mut Server {
         &mut self.server
     }
-    
+
     pub fn username(&self) -> Option<&str> {
         match self.server() {
             Server::Disconnected => None,
@@ -300,7 +300,7 @@ impl State {
             Server::Connected(s) => Some(s.username()),
         }
     }
-    
+
     pub fn password(&self) -> Option<&str> {
         match self.server() {
             Server::Disconnected => None,
@@ -573,8 +573,8 @@ pub fn handle_command(
                                     } else {
                                         None
                                     },
-                                    server_state: if let Server::Connected(s) = &state.read().unwrap().server { 
-                                        mumlib::state::Server::from(s) 
+                                    server_state: if let Server::Connected(s) = &state.read().unwrap().server {
+                                        mumlib::state::Server::from(s)
                                     } else {
                                         unreachable!("Server should be set to connected when Tcp Connected events resolve")
                                     },
