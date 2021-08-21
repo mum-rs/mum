@@ -69,16 +69,17 @@ impl TryFrom<&str> for NotificationEvents {
             "unmute" => Ok(NotificationEvents::Unmute),
             "deafen" => Ok(NotificationEvents::Deafen),
             "undeafen" => Ok(NotificationEvents::Undeafen),
-            _ => {
-                Err(())
-            }
+            _ => Err(()),
         }
     }
 }
 
 /// Loads files into an "event -> data"-map, with support for overriding
 /// specific events with another sound file.
-pub fn load_sound_effects(overrides: &[SoundEffect], num_channels: usize) -> HashMap<NotificationEvents, Vec<f32>> {
+pub fn load_sound_effects(
+    overrides: &[SoundEffect],
+    num_channels: usize,
+) -> HashMap<NotificationEvents, Vec<f32>> {
     let overrides: HashMap<_, _> = overrides
         .iter()
         .filter_map(|sound_effect| {

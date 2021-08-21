@@ -15,7 +15,6 @@
 #![forbid(non_ascii_idents)]
 //! Shared items for crates that want to communicate with mumd and/or mumctl.
 
-
 pub mod command;
 pub mod config;
 pub mod error;

@@ -13,12 +13,17 @@ pub struct MumbleEvent {
     /// When the event occured.
     pub timestamp: NaiveDateTime,
     /// What occured.
-    pub kind: MumbleEventKind
+    pub kind: MumbleEventKind,
 }
 
 impl fmt::Display for MumbleEvent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}] {}", self.timestamp.format("%d %b %H:%M"), self.kind)
+        write!(
+            f,
+            "[{}] {}",
+            self.timestamp.format("%d %b %H:%M"),
+            self.kind
+        )
     }
 }
 
@@ -30,7 +35,7 @@ pub enum MumbleEventKind {
     /// A user disconnected from the server while in our channel. Contains `(user, channel)`.
     UserDisconnected(String, String),
     /// A user {un,}{muted,deafened}. Contains a rendered message with what changed and the user.
-    UserMuteStateChanged(String),  // This logic is kinda weird so we only store the rendered message.
+    UserMuteStateChanged(String), // This logic is kinda weird so we only store the rendered message.
     /// A text message was received. Contains who sent the message.
     TextMessageReceived(String),
     /// A user switched to our channel from some other channel. Contains `(user, previous-channel)`.
@@ -62,7 +67,6 @@ impl fmt::Display for MumbleEventKind {
             MumbleEventKind::UserLeftChannel(name, to) => {
                 write!(f, "{} moved to {}", name, to)
             }
-
         }
     }
 }
@@ -84,7 +88,7 @@ pub enum Command {
     /// Response: [CommandResponse::DeafenStatus]. Toggles if None.
     DeafenSelf(Option<bool>),
     Events {
-        block: bool
+        block: bool,
     },
     /// Set the outgoing audio volume (i.e. from you to the server). No response.
     InputVolumeSet(f32),
@@ -195,12 +199,12 @@ pub enum CommandResponse {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum ChannelTarget {
     Current,
-    Named(String)
+    Named(String),
 }
 
 /// Messages can be sent to either channels or specific users.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum MessageTarget {
-    Channel(Vec<(ChannelTarget, bool)>),  // (target, recursive)
+    Channel(Vec<(ChannelTarget, bool)>), // (target, recursive)
     User(Vec<String>),
 }

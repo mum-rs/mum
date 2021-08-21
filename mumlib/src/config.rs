@@ -109,19 +109,21 @@ pub struct ServerConfig {
 
 impl ServerConfig {
     /// Creates a [SocketAddr] for this server.
-    /// 
+    ///
     /// Returns `None` if no resolution could be made. See
     /// [std::net::ToSocketAddrs] for more information.
     pub fn to_socket_addr(&self) -> Option<SocketAddr> {
-        Some((self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
+        Some(
+            (self.host.as_str(), self.port.unwrap_or(DEFAULT_PORT))
                 .to_socket_addrs()
                 .ok()?
-                .next()?)
+                .next()?,
+        )
     }
 }
 
 /// Finds the default path of the configuration file.
-/// 
+///
 /// The user config dir is looked for first (cross-platform friendly) and
 /// `/etc/mumdrc` is used as a fallback.
 pub fn default_cfg_path() -> PathBuf {

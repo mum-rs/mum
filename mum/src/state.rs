@@ -2,20 +2,22 @@ pub mod channel;
 pub mod server;
 pub mod user;
 
-use crate::audio::{AudioInput, AudioOutput, sound_effects::NotificationEvents};
+use crate::audio::{sound_effects::NotificationEvents, AudioInput, AudioOutput};
 use crate::error::StateError;
 use crate::network::tcp::{DisconnectedReason, TcpEvent, TcpEventData};
 use crate::network::{ConnectionInfo, VoiceStreamType};
 use crate::notifications;
-use crate::state::server::{Server, ConnectingServer};
+use crate::state::server::{ConnectingServer, Server};
 use crate::state::user::User;
 
 use chrono::NaiveDateTime;
 use log::*;
-use mumble_protocol::control::{ControlPacket, msgs};
+use mumble_protocol::control::{msgs, ControlPacket};
 use mumble_protocol::ping::PongPacket;
 use mumble_protocol::voice::Serverbound;
-use mumlib::command::{ChannelTarget, Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind};
+use mumlib::command::{
+    ChannelTarget, Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind,
+};
 use mumlib::config::Config;
 use mumlib::Error;
 use std::fmt::Debug;
@@ -45,7 +47,7 @@ type TcpEventSubscriberCallback = Box<
     dyn FnMut(
         TcpEventData<'_>,
         &mut mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
-    ) -> bool
+    ) -> bool,
 >;
 
 //TODO give me a better name
@@ -68,7 +70,8 @@ impl Debug for ExecutionContext {
             ExecutionContext::TcpEventSubscriber(_, _) => "TcpEventSubscriber",
             ExecutionContext::Now(_) => "Now",
             ExecutionContext::Ping(_, _) => "Ping",
-        }).finish()
+        })
+        .finish()
     }
 }
 
@@ -143,9 +146,13 @@ impl State {
                                         user.name(),
                                         channel.name(),
                                     ));
-                                    events.push(MumbleEventKind::UserLeftChannel(user.name().to_owned(), channel.name().to_owned()));
+                                    events.push(MumbleEventKind::UserLeftChannel(
+                                        user.name().to_owned(),
+                                        channel.name().to_owned(),
+                                    ));
                                 }
-                                self.audio_output.play_effect(NotificationEvents::UserLeftChannel);
+                                self.audio_output
+                                    .play_effect(NotificationEvents::UserLeftChannel);
                             } else if to_channel == this_channel {
                                 // User moved from somewhere else to our channel
                                 if let Some(channel) = s.channels().get(&from_channel) {
@@ -154,14 +161,20 @@ impl State {
                                         user.name(),
                                         channel.name(),
                                     ));
-                                    events.push(MumbleEventKind::UserJoinedChannel(user.name().to_owned(), channel.name().to_owned()));
+                                    events.push(MumbleEventKind::UserJoinedChannel(
+                                        user.name().to_owned(),
+                                        channel.name().to_owned(),
+                                    ));
                                 }
-                                self.audio_output.play_effect(NotificationEvents::UserJoinedChannel);
+                                self.audio_output
+                                    .play_effect(NotificationEvents::UserJoinedChannel);
                             }
                         }
 
-                        let mute = (msg.has_self_mute() && user.self_mute() != msg.get_self_mute()).then(|| msg.get_self_mute());
-                        let deaf = (msg.has_self_deaf() && user.self_deaf() != msg.get_self_deaf()).then(|| msg.get_self_deaf());
+                        let mute = (msg.has_self_mute() && user.self_mute() != msg.get_self_mute())
+                            .then(|| msg.get_self_mute());
+                        let deaf = (msg.has_self_deaf() && user.self_deaf() != msg.get_self_deaf())
+                            .then(|| msg.get_self_deaf());
 
                         //send notification if a user muted/unmuted
                         if mute != None || deaf != None {
@@ -187,8 +200,12 @@ impl State {
                                 msg.get_name(),
                                 this_channel_name,
                             ));
-                            events.push(MumbleEventKind::UserConnected(msg.get_name().to_string(), this_channel_name));
-                            self.audio_output.play_effect(NotificationEvents::UserConnected);
+                            events.push(MumbleEventKind::UserConnected(
+                                msg.get_name().to_string(),
+                                this_channel_name,
+                            ));
+                            self.audio_output
+                                .play_effect(NotificationEvents::UserConnected);
                         }
                     }
                 }
@@ -197,13 +214,13 @@ impl State {
                 for event in events {
                     self.push_event(event);
                 }
-            },
+            }
             Server::Disconnected => warn!("Tried to parse a user state while disconnected"),
         }
     }
 
     pub fn remove_user(&mut self, msg: msgs::UserRemove) {
-       match &mut self.server {
+        match &mut self.server {
             Server::Disconnected => warn!("Tried to remove user while disconnected"),
             Server::Connecting(sb) => sb.user_remove(msg),
             Server::Connected(s) => {
@@ -225,14 +242,15 @@ impl State {
                         .to_owned();
                     notifications::send(format!("{} disconnected", user_name));
                     events.push(MumbleEventKind::UserDisconnected(user_name, channel_name));
-                    self.audio_output.play_effect(NotificationEvents::UserDisconnected);
+                    self.audio_output
+                        .play_effect(NotificationEvents::UserDisconnected);
                 }
 
                 s.user_remove(msg);
                 for event in events {
                     self.push_event(event);
                 }
-            },
+            }
         }
     }
 
@@ -255,7 +273,8 @@ impl State {
     }
 
     pub fn register_message(&mut self, msg: (String, u32)) {
-        self.message_buffer.push((chrono::Local::now().naive_local(), msg.0, msg.1));
+        self.message_buffer
+            .push((chrono::Local::now().naive_local(), msg.0, msg.1));
     }
 
     pub fn broadcast_phase(&self, phase: StatePhase) {
@@ -270,7 +289,10 @@ impl State {
 
     /// Store a new event
     pub fn push_event(&mut self, kind: MumbleEventKind) {
-        self.events.push(MumbleEvent { timestamp: chrono::Local::now().naive_local(), kind });
+        self.events.push(MumbleEvent {
+            timestamp: chrono::Local::now().naive_local(),
+            kind,
+        });
     }
 
     pub fn audio_input(&self) -> &AudioInput {
@@ -316,12 +338,13 @@ impl State {
         match &self.server {
             Server::Disconnected => None,
             Server::Connecting(_) => None,
-            Server::Connected(s) => Some(s
-                .users()
-                .get(&user)
-                .map(User::name)
-                .map(ToOwned::to_owned)
-                .unwrap_or(format!("Unknown user {}", user))),
+            Server::Connected(s) => Some(
+                s.users()
+                    .get(&user)
+                    .map(User::name)
+                    .map(ToOwned::to_owned)
+                    .unwrap_or(format!("Unknown user {}", user)),
+            ),
         }
     }
 }
@@ -339,7 +362,9 @@ pub fn handle_command(
             if let Server::Connected(s) = state.server() {
                 let id = match s.channel_name(&channel_identifier) {
                     Ok((id, _)) => id,
-                    Err(e) => return now!(Err(Error::ChannelIdentifierError(channel_identifier, e))),
+                    Err(e) => {
+                        return now!(Err(Error::ChannelIdentifierError(channel_identifier, e)))
+                    }
                 };
 
                 let mut msg = msgs::UserState::new();
@@ -417,7 +442,6 @@ pub fn handle_command(
             } else {
                 now!(Err(Error::Disconnected))
             }
-
         }
         Command::Events { block } => {
             if block {
@@ -427,7 +451,11 @@ pub fn handle_command(
                 let events: Vec<_> = state
                     .events
                     .iter()
-                    .map(|event| Ok(Some(CommandResponse::Event { event: event.clone() })))
+                    .map(|event| {
+                        Ok(Some(CommandResponse::Event {
+                            event: event.clone(),
+                        }))
+                    })
                     .collect();
                 ExecutionContext::Now(Box::new(move || Box::new(events.into_iter())))
             }
@@ -540,7 +568,8 @@ pub fn handle_command(
             accept_invalid_cert,
         } => {
             if let Server::Disconnected = state.server() {
-                let server = ConnectingServer::new(format!("{}:{}", host, port), username, password);
+                let server =
+                    ConnectingServer::new(format!("{}:{}", host, port), username, password);
                 state.server = Server::Connecting(server);
                 state.phase_watcher.0.send(StatePhase::Connecting).unwrap();
 
@@ -620,13 +649,11 @@ pub fn handle_command(
                 }
             }),
             Box::new(move |pong| {
-                Ok(pong.map(|pong| {
-                    CommandResponse::ServerStatus {
-                        version: pong.version,
-                        users: pong.users,
-                        max_users: pong.max_users,
-                        bandwidth: pong.bandwidth,
-                    }
+                Ok(pong.map(|pong| CommandResponse::ServerStatus {
+                    version: pong.version,
+                    users: pong.users,
+                    max_users: pong.max_users,
+                    bandwidth: pong.bandwidth,
                 }))
             }),
         ),
@@ -686,7 +713,9 @@ pub fn handle_command(
                     let messages = std::mem::take(&mut state.message_buffer);
                     let messages: Vec<_> = messages
                         .into_iter()
-                        .map(|(timestamp, msg, user)| (timestamp, msg, state.get_user_name(user).unwrap()))
+                        .map(|(timestamp, msg, user)| {
+                            (timestamp, msg, state.get_user_name(user).unwrap())
+                        })
                         .map(|e| Ok(Some(CommandResponse::PastMessage { message: e })))
                         .collect();
 
@@ -703,37 +732,43 @@ pub fn handle_command(
                 msg.set_message(message);
 
                 match targets {
-                    MessageTarget::Channel(channels) => for (channel, recursive) in channels {
-                        let channel_id = if let ChannelTarget::Named(name) = channel {
-                            let channel = s.channel_name(&name);
-                            match channel {
-                                Ok(channel) => channel.0,
-                                Err(e) => return now!(Err(Error::ChannelIdentifierError(name, e))),
-                            }
-                        } else {
-                            s.current_channel().0
-                        };
+                    MessageTarget::Channel(channels) => {
+                        for (channel, recursive) in channels {
+                            let channel_id = if let ChannelTarget::Named(name) = channel {
+                                let channel = s.channel_name(&name);
+                                match channel {
+                                    Ok(channel) => channel.0,
+                                    Err(e) => {
+                                        return now!(Err(Error::ChannelIdentifierError(name, e)))
+                                    }
+                                }
+                            } else {
+                                s.current_channel().0
+                            };
 
-                        let ids = if recursive {
-                            msg.mut_tree_id()
-                        } else {
-                            msg.mut_channel_id()
-                        };
-                        ids.push(channel_id);
+                            let ids = if recursive {
+                                msg.mut_tree_id()
+                            } else {
+                                msg.mut_channel_id()
+                            };
+                            ids.push(channel_id);
+                        }
                     }
-                    MessageTarget::User(names) => for name in names {
-                        let id = s
-                            .users()
-                            .iter()
-                            .find(|(_, user)| user.name() == name)
-                            .map(|(e, _)| *e);
+                    MessageTarget::User(names) => {
+                        for name in names {
+                            let id = s
+                                .users()
+                                .iter()
+                                .find(|(_, user)| user.name() == name)
+                                .map(|(e, _)| *e);
 
-                        let id = match id {
-                            Some(id) => id,
-                            None => return now!(Err(Error::InvalidUsername(name))),
-                        };
+                            let id = match id {
+                                Some(id) => id,
+                                None => return now!(Err(Error::InvalidUsername(name))),
+                            };
 
-                        msg.mut_session().push(id);
+                            msg.mut_session().push(id);
+                        }
                     }
                 }
                 packet_sender.send(msg.into()).unwrap();

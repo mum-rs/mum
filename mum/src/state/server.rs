@@ -190,10 +190,7 @@ impl ConnectedServer {
     }
 
     pub(crate) fn users_channel(&self, user: u32) -> u32 {
-        self.users()
-            .get(&user)
-            .unwrap()
-            .channel()
+        self.users().get(&user).unwrap().channel()
     }
 }
 
@@ -236,7 +233,6 @@ fn channel_remove(msg: msgs::ChannelRemove, channels: &mut HashMap<u32, Channel>
             e.remove();
         }
     }
-
 }
 
 impl From<&ConnectedServer> for mumlib::state::Server {

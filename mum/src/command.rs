@@ -4,7 +4,13 @@ use crate::state::{ExecutionContext, State};
 use log::*;
 use mumble_protocol::{control::ControlPacket, Serverbound};
 use mumlib::command::{Command, CommandResponse};
-use std::{rc::Rc, sync::{Arc, RwLock, atomic::{AtomicBool, AtomicU64, Ordering}}};
+use std::{
+    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc, RwLock,
+    },
+};
 use tokio::sync::{mpsc, watch};
 
 pub async fn handle(

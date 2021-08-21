@@ -2,7 +2,10 @@
 pub trait Transformer {
     /// Do the transform. Returning `None` is interpreted as "the buffer is unwanted".
     /// The implementor is free to modify the buffer however it wants to.
-    fn transform<'a>(&mut self, buf: (opus::Channels, &'a mut [f32])) -> Option<(opus::Channels, &'a mut [f32])>;
+    fn transform<'a>(
+        &mut self,
+        buf: (opus::Channels, &'a mut [f32]),
+    ) -> Option<(opus::Channels, &'a mut [f32])>;
 }
 
 /// A struct representing a noise gate transform.
@@ -26,10 +29,17 @@ impl NoiseGate {
 }
 
 impl Transformer for NoiseGate {
-    fn transform<'a>(&mut self, (channels, buf): (opus::Channels, &'a mut [f32])) -> Option<(opus::Channels, &'a mut [f32])> {
+    fn transform<'a>(
+        &mut self,
+        (channels, buf): (opus::Channels, &'a mut [f32]),
+    ) -> Option<(opus::Channels, &'a mut [f32])> {
         const MUTE_PERCENTAGE: f32 = 0.1;
 
-        let max = buf.iter().map(|e| e.abs()).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+        let max = buf
+            .iter()
+            .map(|e| e.abs())
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap();
 
         if max > self.alltime_high {
             self.alltime_high = max;

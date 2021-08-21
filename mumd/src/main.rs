@@ -1,8 +1,7 @@
-
-use mum::state::State;
 use bytes::{BufMut, BytesMut};
 use futures_util::{select, FutureExt, SinkExt, StreamExt};
 use log::*;
+use mum::state::State;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
 use std::io::ErrorKind;

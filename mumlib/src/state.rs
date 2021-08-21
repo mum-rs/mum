@@ -33,11 +33,7 @@ pub struct Channel {
 
 impl Channel {
     /// Create a new Channel representation.
-    pub fn new(
-        name: String,
-        description: Option<String>,
-        max_users: u32,
-    ) -> Self {
+    pub fn new(name: String, description: Option<String>, max_users: u32) -> Self {
         Self {
             description,
             max_users,
