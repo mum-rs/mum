@@ -53,16 +53,23 @@ impl ClientAudioData {
             .expect("Error decoding");
         out.truncate(parsed);
         match (packet_channels, self.output_channels) {
-            (opus::Channels::Mono, opus::Channels::Mono) | (opus::Channels::Stereo, opus::Channels::Stereo) => for sample in out {
-                self.buf.push(sample);
-            },
-            (opus::Channels::Mono, opus::Channels::Stereo) => for sample in out {
-                self.buf.push(sample);
-                self.buf.push(sample);
-            },
-            (opus::Channels::Stereo, opus::Channels::Mono) => for sample in out.into_iter().step_by(2) {
-                self.buf.push(sample);
-            },
+            (opus::Channels::Mono, opus::Channels::Mono)
+            | (opus::Channels::Stereo, opus::Channels::Stereo) => {
+                for sample in out {
+                    self.buf.push(sample);
+                }
+            }
+            (opus::Channels::Mono, opus::Channels::Stereo) => {
+                for sample in out {
+                    self.buf.push(sample);
+                    self.buf.push(sample);
+                }
+            }
+            (opus::Channels::Stereo, opus::Channels::Mono) => {
+                for sample in out.into_iter().step_by(2) {
+                    self.buf.push(sample);
+                }
+            }
         }
     }
 }
@@ -92,9 +99,9 @@ impl ClientStream {
     }
 
     fn get_client(&mut self, client: ClientStreamKey) -> &mut ClientAudioData {
-        self.buffer_clients.entry(client).or_insert(
-            ClientAudioData::new(self.sample_rate, self.output_channels)
-        )
+        self.buffer_clients
+            .entry(client)
+            .or_insert(ClientAudioData::new(self.sample_rate, self.output_channels))
     }
 
     /// Decodes a voice packet.
@@ -116,7 +123,7 @@ impl ClientStream {
 }
 
 /// Adds two values in some saturating way.
-/// 
+///
 /// Since we support [f32], [i16] and [u16] we need some way of adding two values
 /// without peaking above/below the edge values. This trait ensures that we can
 /// use all three primitive types as a generic parameter.
@@ -183,7 +190,10 @@ impl DefaultAudioOutputDevice {
             .supported_output_configs()
             .map_err(|e| AudioError::NoConfigs(AudioStream::Output, e))?
             .find_map(|c| {
-                if c.min_sample_rate() <= sample_rate && c.max_sample_rate() >= sample_rate && c.channels() == 2 {
+                if c.min_sample_rate() <= sample_rate
+                    && c.max_sample_rate() >= sample_rate
+                    && c.channels() == 2
+                {
                     Some(c)
                 } else {
                     None
@@ -244,15 +254,11 @@ impl DefaultAudioOutputDevice {
 
 impl AudioOutputDevice for DefaultAudioOutputDevice {
     fn play(&self) -> Result<(), AudioError> {
-        self.stream
-            .play()
-            .map_err(AudioError::OutputPlayError)
+        self.stream.play().map_err(AudioError::OutputPlayError)
     }
 
     fn pause(&self) -> Result<(), AudioError> {
-        self.stream
-            .pause()
-            .map_err(AudioError::OutputPauseError)
+        self.stream.pause().map_err(AudioError::OutputPauseError)
     }
 
     fn set_volume(&self, volume: f32) {
@@ -288,9 +294,7 @@ pub fn callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
             let (user_volume, muted) = user_volumes.get(&k.1).cloned().unwrap_or((1.0, false));
             if !muted {
                 for (sample, val) in data.iter_mut().zip(v.buf.drain().chain(iter::repeat(0.0))) {
-                    *sample = sample.saturating_add(Sample::from(
-                        &(val * volume * user_volume),
-                    ));
+                    *sample = sample.saturating_add(Sample::from(&(val * volume * user_volume)));
                 }
             }
         }

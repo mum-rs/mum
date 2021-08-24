@@ -175,6 +175,9 @@ impl AudioOutput {
     /// Queues a sound effect.
     pub fn play_effect(&self, effect: NotificationEvents) {
         let samples = self.sounds.get(&effect).unwrap();
-        self.client_streams.lock().unwrap().add_sound_effect(samples);
+        self.client_streams
+            .lock()
+            .unwrap()
+            .add_sound_effect(samples);
     }
 }

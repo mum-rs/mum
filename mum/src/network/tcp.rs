@@ -1,6 +1,7 @@
 use crate::error::{ServerSendError, TcpError};
 use crate::network::ConnectionInfo;
 use crate::notifications;
+use crate::state::server::Server;
 use crate::state::{State, StatePhase};
 
 use futures_util::select;
@@ -46,15 +47,15 @@ pub enum DisconnectedReason {
 /// Something a callback can register to. Data is sent via a respective [TcpEventData].
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TcpEvent {
-    Connected,    //fires when the client has connected to a server
+    Connected,                        //fires when the client has connected to a server
     Disconnected(DisconnectedReason), //fires when the client has disconnected from a server
-    TextMessage,  //fires when a text message comes in
+    TextMessage,                      //fires when a text message comes in
 }
 
 /// When a [TcpEvent] occurs, this contains the data for the event.
-/// 
+///
 /// The events are picked up by a [crate::state::ExecutionContext].
-/// 
+///
 /// Having two different types might feel a bit confusing. Essentially, a
 /// callback _registers_ to a [TcpEvent] but _takes_ a [TcpEventData] as
 /// parameter.
@@ -142,8 +143,7 @@ impl TcpEventQueue {
 
 impl Debug for TcpEventQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TcpEventQueue")
-            .finish()
+        f.debug_struct("TcpEventQueue").finish()
     }
 }
 
@@ -171,12 +171,15 @@ pub async fn handle(
             connection_info.accept_invalid_cert,
         )
         .await;
-        
+
         let (mut sink, stream) = match connect_result {
             Ok(ok) => ok,
             Err(TcpError::TlsConnectError(_)) => {
                 warn!("Invalid TLS");
-                state.read().unwrap().broadcast_phase(StatePhase::Disconnected);
+                state
+                    .read()
+                    .unwrap()
+                    .broadcast_phase(StatePhase::Disconnected);
                 event_queue.resolve(TcpEventData::Disconnected(DisconnectedReason::InvalidTls));
                 continue;
             }
@@ -374,15 +377,20 @@ async fn listen(
         match packet {
             ControlPacket::TextMessage(msg) => {
                 let mut state = state.write().unwrap();
-                let user = state
-                    .server()
-                    .and_then(|server| server.users().get(&msg.get_actor()))
-                    .map(|user| user.name());
+                let server = state.server();
+                let user = (if let Server::Connected(s) = server {
+                    Some(s)
+                } else {
+                    None
+                })
+                .and_then(|server| server.users().get(&msg.get_actor()))
+                .map(|user| user.name());
                 if let Some(user) = user {
                     notifications::send(format!("{}: {}", user, msg.get_message()));
                     //TODO: probably want a config flag for this
                     let user = user.to_string();
-                    state.push_event(MumbleEventKind::TextMessageReceived(user)) //TODO also include message target
+                    state.push_event(MumbleEventKind::TextMessageReceived(user))
+                    //TODO also include message target
                 }
                 state.register_message((msg.get_message().to_owned(), msg.get_actor()));
                 drop(state);
@@ -414,18 +422,20 @@ async fn listen(
                         )
                         .await;
                 }
-                event_queue.resolve(TcpEventData::Connected(Ok(&msg)));
                 let mut state = state.write().unwrap();
-                let server = state.server_mut().unwrap();
-                server.parse_server_sync(*msg);
-                match &server.welcome_text {
-                    Some(s) => info!("Welcome: {}", s),
-                    None => info!("No welcome received"),
+                let server = state.server_mut();
+                if let Server::Connecting(sb) = server {
+                    let s = sb.clone().server_sync(*msg.clone());
+                    *server = Server::Connected(s);
+                    state.initialized();
+                } else {
+                    warn!(
+                        "Got a ServerSync packet while not connecting. Current state is:\n{:#?}",
+                        server
+                    );
                 }
-                for channel in server.channels().values() {
-                    info!("Found channel {}", channel.name());
-                }
-                state.initialized();
+                drop(state);
+                event_queue.resolve(TcpEventData::Connected(Ok(&msg)));
             }
             ControlPacket::Reject(msg) => {
                 debug!("Login rejected: {:?}", msg);
@@ -441,28 +451,21 @@ async fn listen(
                 }
             }
             ControlPacket::UserState(msg) => {
-                state.write().unwrap().parse_user_state(*msg);
+                state.write().unwrap().user_state(*msg);
             }
             ControlPacket::UserRemove(msg) => {
-                state.write().unwrap().remove_client(*msg);
+                state.write().unwrap().remove_user(*msg);
             }
             ControlPacket::ChannelState(msg) => {
-                debug!("Channel state received");
-                state
-                    .write()
-                    .unwrap()
-                    .server_mut()
-                    .unwrap()
-                    .parse_channel_state(*msg); //TODO parse initial if initial
+                if let Server::Connecting(sb) = state.write().unwrap().server_mut() {
+                    sb.channel_state(*msg);
+                }
             }
-            ControlPacket::ChannelRemove(msg) => {
-                state
-                    .write()
-                    .unwrap()
-                    .server_mut()
-                    .unwrap()
-                    .parse_channel_remove(*msg);
-            }
+            ControlPacket::ChannelRemove(msg) => match state.write().unwrap().server_mut() {
+                Server::Connecting(sb) => sb.channel_remove(*msg),
+                Server::Connected(server) => server.channel_remove(*msg),
+                Server::Disconnected => warn!("Got ChannelRemove packet while disconnected"),
+            },
             ControlPacket::UDPTunnel(msg) => {
                 match *msg {
                     VoicePacket::Ping { .. } => {}
@@ -503,9 +506,9 @@ async fn listen(
                         } else {
                             String::new()
                         }
-                    }
+                    };
                 }
-                
+
                 if late != 0 || lost != 0 || resync != 0 {
                     debug!(
                         "Ping:{}{}{}",

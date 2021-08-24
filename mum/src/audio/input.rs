@@ -5,8 +5,8 @@ use log::*;
 use std::fmt::Debug;
 use tokio::sync::watch;
 
-use crate::audio::SAMPLE_RATE;
 use crate::audio::transformers::{NoiseGate, Transformer};
+use crate::audio::SAMPLE_RATE;
 use crate::error::{AudioError, AudioStream};
 use crate::state::StatePhase;
 
@@ -32,7 +32,9 @@ pub fn callback<T: Sample>(
             buffer.extend(data.by_ref().take(buffer_size - buffer.len()));
             let encoded = transformers
                 .iter_mut()
-                .try_fold((opus::Channels::Mono, &mut buffer[..]), |acc, e| e.transform(acc))
+                .try_fold((opus::Channels::Mono, &mut buffer[..]), |acc, e| {
+                    e.transform(acc)
+                })
                 .map(|buf| opus_encoder.encode_vec_float(&*buf.1, buffer_size).unwrap());
 
             if let Some(encoded) = encoded {
@@ -109,14 +111,18 @@ impl DefaultAudioInputDevice {
             match input_config.channels {
                 1 => opus::Channels::Mono,
                 2 => opus::Channels::Stereo,
-                _ => unimplemented!("Only 1 or 2 channels supported, got {}", input_config.channels),
+                _ => unimplemented!(
+                    "Only 1 or 2 channels supported, got {}",
+                    input_config.channels
+                ),
             },
             opus::Application::Voip,
         )
         .unwrap();
         let buffer_size = (sample_rate.0 * frame_size / 400) as usize;
 
-        let transformers = vec![Box::new(NoiseGate::new(50)) as Box<dyn Transformer + Send + 'static>];
+        let transformers =
+            vec![Box::new(NoiseGate::new(50)) as Box<dyn Transformer + Send + 'static>];
 
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(
@@ -127,7 +133,7 @@ impl DefaultAudioInputDevice {
                     opus_encoder,
                     buffer_size,
                     input_volume_receiver,
-                    phase_watcher
+                    phase_watcher,
                 ),
                 err_fn,
             ),
@@ -139,7 +145,7 @@ impl DefaultAudioInputDevice {
                     opus_encoder,
                     buffer_size,
                     input_volume_receiver,
-                    phase_watcher
+                    phase_watcher,
                 ),
                 err_fn,
             ),
@@ -151,7 +157,7 @@ impl DefaultAudioInputDevice {
                     opus_encoder,
                     buffer_size,
                     input_volume_receiver,
-                    phase_watcher
+                    phase_watcher,
                 ),
                 err_fn,
             ),
@@ -170,15 +176,11 @@ impl DefaultAudioInputDevice {
 
 impl AudioInputDevice for DefaultAudioInputDevice {
     fn play(&self) -> Result<(), AudioError> {
-        self.stream
-            .play()
-            .map_err(AudioError::InputPlayError)
+        self.stream.play().map_err(AudioError::InputPlayError)
     }
 
     fn pause(&self) -> Result<(), AudioError> {
-        self.stream
-            .pause()
-            .map_err(AudioError::InputPauseError)
+        self.stream.pause().map_err(AudioError::InputPauseError)
     }
 
     fn set_volume(&self, volume: f32) {

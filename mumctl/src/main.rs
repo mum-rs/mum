@@ -14,7 +14,7 @@
 #![forbid(non_ascii_idents)]
 
 use colored::Colorize;
-use log::{Level, LevelFilter, Metadata, Record, error, warn};
+use log::{error, warn, Level, LevelFilter, Metadata, Record};
 use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
@@ -263,7 +263,6 @@ fn match_opt() -> Result<(), Error> {
         } => {
             let port = port.unwrap_or(mumlib::DEFAULT_PORT);
 
-
             let (host, username, password, port, server_accept_invalid_cert) =
                 match config.servers.iter().find(|e| e.name == host) {
                     Some(server) => (
@@ -286,19 +285,24 @@ fn match_opt() -> Result<(), Error> {
                     ),
                 };
 
-            let config_accept_invalid_cert = server_accept_invalid_cert
-                .or(config.allow_invalid_server_cert);
-            let specified_accept_invalid_cert = cli_accept_invalid_cert || config_accept_invalid_cert.is_some();
+            let config_accept_invalid_cert =
+                server_accept_invalid_cert.or(config.allow_invalid_server_cert);
+            let specified_accept_invalid_cert =
+                cli_accept_invalid_cert || config_accept_invalid_cert.is_some();
 
             let response = send_command(MumCommand::ServerConnect {
                 host: host.to_string(),
                 port,
                 username: username.to_string(),
                 password: password.map(|x| x.to_string()),
-                accept_invalid_cert: cli_accept_invalid_cert || config_accept_invalid_cert.unwrap_or(false),
+                accept_invalid_cert: cli_accept_invalid_cert
+                    || config_accept_invalid_cert.unwrap_or(false),
             })?;
             match response {
-                Ok(Some(CommandResponse::ServerConnect { welcome_message , server_state })) => {
+                Ok(Some(CommandResponse::ServerConnect {
+                    welcome_message,
+                    server_state,
+                })) => {
                     parse_state(&server_state);
                     if let Some(message) = welcome_message {
                         println!("\nWelcome: {}", message);
@@ -313,7 +317,10 @@ fn match_opt() -> Result<(), Error> {
                         eprintln!("  3. Permantently trust all invalid certificates by setting accept_all_invalid_certs=true globally");
                     }
                 }
-                Ok(other) => unreachable!("Response should only be a ServerConnect or ServerCertReject. Got {:?}", other),
+                Ok(other) => unreachable!(
+                    "Response should only be a ServerConnect or ServerCertReject. Got {:?}",
+                    other
+                ),
                 Err(e) => return Err(e.into()),
             }
         }
@@ -418,7 +425,12 @@ fn match_opt() -> Result<(), Error> {
             for response in send_command_multi(MumCommand::PastMessages { block: follow })? {
                 match response {
                     Ok(Some(CommandResponse::PastMessage { message })) => {
-                        println!("[{}] {}: {}", message.0.format("%d %b %H:%M"), message.2, message.1)
+                        println!(
+                            "[{}] {}: {}",
+                            message.0.format("%d %b %H:%M"),
+                            message.2,
+                            message.1
+                        )
                     }
                     Ok(_) => unreachable!("Response should only be a Some(PastMessages)"),
                     Err(e) => error!("{}", e),
@@ -440,7 +452,7 @@ fn match_opt() -> Result<(), Error> {
                             names
                                 .into_iter()
                                 .map(|name| (ChannelTarget::Named(name), recursive))
-                                .collect()
+                                .collect(),
                         )
                     },
                 };
@@ -527,7 +539,10 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                             .unwrap_or_else(|| "".to_string()),
                         server
                             .accept_invalid_cert
-                            .map(|b| format!("accept_invalid_cert: {}\n", if b { "true" } else { "false" }))
+                            .map(|b| format!(
+                                "accept_invalid_cert: {}\n",
+                                if b { "true" } else { "false" }
+                            ))
                             .unwrap_or_else(|| "".to_string()),
                     );
                 }
@@ -540,7 +555,9 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                 (Some("port"), None) => {
                     println!(
                         "{}",
-                        server.port.ok_or_else(|| CliError::NotSet("port".to_string()))?
+                        server
+                            .port
+                            .ok_or_else(|| CliError::NotSet("port".to_string()))?
                     );
                 }
                 (Some("username"), None) => {
@@ -586,12 +603,10 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
                     server.password = Some(value);
                     //TODO ask stdin if empty
                 }
-                (Some("accept_invalid_cert"), Some(value)) => {
-                    match value.parse() {
-                        Ok(b) => server.accept_invalid_cert = Some(b),
-                        Err(e) => warn!("{}", e)
-                    }
-                }
+                (Some("accept_invalid_cert"), Some(value)) => match value.parse() {
+                    Ok(b) => server.accept_invalid_cert = Some(b),
+                    Err(e) => warn!("{}", e),
+                },
                 (Some(_), _) => {
                     return Err(CliError::ConfigKeyNotFound(key.unwrap()).into());
                 }
