@@ -25,5 +25,5 @@ bytes = "1"
 futures-util = { version = "0.3", features = ["sink"]}
 log = "0.4"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
-tokio-util = { version = "0.6", features = ["codec"] }
+tokio-util = { version = "0.7", features = ["codec"] }
 bincode = "1"

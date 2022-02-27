@@ -33,8 +33,8 @@ mumble-protocol = "0.4"
 native-tls = "0.2"
 opus = "0.2"
 serde = { version = "1", features = ["derive"] }
-strum = "0.20"
-strum_macros = "0.20"
+strum = "0.24"
+strum_macros = "0.24"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "net", "time", "fs"] }
 tokio-native-tls = "0.3"
 tokio-util = { version = "0.6", features = ["codec", "net"] }
