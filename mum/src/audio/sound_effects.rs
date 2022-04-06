@@ -4,7 +4,6 @@ use log::warn;
 use mumlib::config::SoundEffect;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::fs::File;
 #[cfg(feature = "ogg")]
 use std::io::Cursor;

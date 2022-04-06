@@ -5,7 +5,6 @@ use crate::DEFAULT_PORT;
 
 use log::*;
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 use std::fs;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
