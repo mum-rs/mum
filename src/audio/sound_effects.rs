@@ -1,7 +1,8 @@
+use crate::mumlib::config::SoundEffect;
+
 use dasp_interpolate::linear::Linear;
 use dasp_signal::{self as signal, Signal};
 use log::warn;
-use mumlib::config::SoundEffect;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs::File;

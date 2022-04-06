@@ -1,19 +1,4 @@
-#![warn(elided_lifetimes_in_paths)]
-#![warn(meta_variable_misuse)]
-#![warn(missing_debug_implementations)]
-#![warn(single_use_lifetimes)]
-#![warn(unreachable_pub)]
-#![warn(unused_crate_dependencies)]
-#![warn(unused_import_braces)]
-#![warn(unused_lifetimes)]
-#![warn(unused_qualifications)]
-// #![warn(missing_docs)] may be enabled later when more is documented
-#![deny(macro_use_extern_crate)]
-#![deny(missing_abi)]
-#![deny(future_incompatible)]
-#![forbid(unsafe_code)]
-#![forbid(non_ascii_idents)]
-//! Shared items for crates that want to communicate with mumd and/or mumctl.
+//! Shared items for communication between mumd/mumctl.
 
 pub mod command;
 pub mod config;

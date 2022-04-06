@@ -1,7 +1,7 @@
 //! Representations of the mumdrc configuration file.
 
-use crate::error::ConfigError;
-use crate::DEFAULT_PORT;
+use super::error::ConfigError;
+use super::DEFAULT_PORT;
 
 use log::*;
 use serde::{Deserialize, Serialize};

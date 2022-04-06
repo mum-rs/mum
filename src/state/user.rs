@@ -1,3 +1,5 @@
+use crate::mumlib;
+
 use mumble_protocol::control::msgs;
 use serde::{Deserialize, Serialize};
 

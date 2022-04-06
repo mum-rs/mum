@@ -2,6 +2,8 @@ pub mod channel;
 pub mod server;
 pub mod user;
 
+use crate::mumlib;
+
 use crate::audio::{sound_effects::NotificationEvents, AudioInput, AudioOutput};
 use crate::error::StateError;
 use crate::network::tcp::{DisconnectedReason, TcpEvent, TcpEventData};

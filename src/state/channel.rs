@@ -1,3 +1,5 @@
+use crate::mumlib;
+
 use crate::state::user::User;
 
 use mumble_protocol::control::msgs;

@@ -8,6 +8,7 @@ pub mod sound_effects;
 pub mod transformers;
 
 use crate::error::AudioError;
+use crate::mumlib::config::SoundEffect;
 use crate::network::VoiceStreamType;
 use crate::state::StatePhase;
 
@@ -15,7 +16,6 @@ use futures_util::stream::Stream;
 use futures_util::StreamExt;
 use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
 use mumble_protocol::Serverbound;
-use mumlib::config::SoundEffect;
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::Debug;
 use std::sync::{Arc, Mutex};

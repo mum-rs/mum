@@ -1,13 +1,52 @@
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package]
+name = "mum"
+version = "0.4.0"
+authors = ["Gustav Sörnäs <gustav@sornas.net>",
+           "Eskil Queseth <eskilq@kth.se>"]
+edition = "2021"
+description = """
+Core functionality to build a Mumble client.
+"""
+repository = "https://github.com/sornas/mum"
+license = "MIT"
+readme = "../README.md"
 
-[workspace]
+[features]
+default = ["notifications", "ogg"]
 
-members = [
-    "mumd",
-    "mum",
-    "mumctl",
-    "mumlib"
-]
+notifications = ["libnotify"]
+ogg = ["lewton"]
 
-[profile.release]
-lto = "thin"
+[dependencies]
+
+bincode = "1"
+bytes = "1"
+chrono = { version = "0.4", features = [ "serde" ] }
+colored = "2"
+cpal = "0.13"
+dasp_interpolate = { version = "0.11", features = ["linear"] }
+dasp_ring_buffer = "0.11"
+dasp_signal = "0.11"
+dirs = "4"
+fern = "0.6"
+futures-channel = "0.3"
+futures-util = { version = "0.3", features = ["sink"]}
+hound = "3"
+log = "0.4"
+mumble-protocol = "0.4"
+native-tls = "0.2"
+opus = "0.2"
+serde = { version = "1", features = ["derive"] }
+structopt = "0.3"
+strum = "0.24"
+strum_macros = "0.24"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "net", "time", "fs"] }
+tokio-native-tls = "0.3"
+tokio-util = { version = "0.6", features = ["codec", "net"] }
+toml = "0.5"
+
+libnotify = { version = "1", optional = true }
+lewton = { version = "0.10", optional = true }
+
+#compressor = "0.3"
+#daemonize = "0.4"

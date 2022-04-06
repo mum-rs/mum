@@ -1,5 +1,6 @@
+use crate::mumlib::error::ConfigError;
+
 use mumble_protocol::{control::ControlPacket, Serverbound};
-use mumlib::error::ConfigError;
 use std::fmt;
 use tokio::sync::mpsc;
 

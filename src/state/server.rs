@@ -1,3 +1,5 @@
+use crate::mumlib;
+
 use crate::state::channel::{into_channel, Channel};
 use crate::state::user::User;
 

@@ -1,7 +1,7 @@
 //! [Command]s can be sent from a controller to mumd which might respond with a
 //! [CommandResponse].
 
-use crate::state::{Channel, Server};
+use super::state::{Channel, Server};
 
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
