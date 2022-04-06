@@ -14,7 +14,7 @@ readme = "../README.md"
 [dependencies]
 colored = "2"
 chrono = { version = "0.4", features = [ "serde" ] }
-dirs = "3"
+dirs = "4"
 fern = "0.6"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
