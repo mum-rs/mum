@@ -7,13 +7,18 @@ Mumble daemon with controller (think `mpd(1)`/`mpc(1)`) written in Rust.
 mumd and mumctl are available on crates.io and can be installed with
 
 ```sh
-$ cargo install mumd
-$ cargo install mumctl
+$ cargo install mum
 ```
 
-They are also
-[available on the AUR](https://aur.archlinux.org/packages/mum-git/). Thirdly, we
-publish [compiled binaries on Github](https://github.com/sornas/mum/releases/).
+You can also install the latest version from Github directly via cargo:
+
+```sh
+$ cargo install mum --git=https://github.com/mum-rs/mum
+```
+
+There is also a package [available on the
+AUR](https://aur.archlinux.org/packages/mum-git/), and we sometimes publish
+[compiled binaries on Github](https://github.com/mum-rs/mum/releases/).
 
 ### Requirements
 
@@ -33,18 +38,6 @@ is IPC communication which is (currently) done via the crate ipc-channel.
 We only "guarantee" compilation on latest Rust stable. Open a ticket if this is
 an issue for you and we'll see what we can do.
 
-### Installation
-
-1. Build the binaries
-2. (wait)
-3. Copy/symlink to somewhere nice (or don't).
-
-```sh
-$ cargo build --release
-$ ln -s $PWD/target/release/mumctl $HOME/.local/bin/
-$ ln -s $PWD/target/release/mumd $HOME/.local/bin/
-```
-
 ### Optional features
 
 mum contains optional features that are enabled by default. To compile without
@@ -53,27 +46,10 @@ them, build with --no-default-features. Features can then be enabled with
 
 The following features can be specified:
 
-| Name               | Needed for         |
-|--------------------|--------------------|
-| mumd/notifications | Notifications      |
-| mumd/ogg           | ogg sound effects  |
-
-If you're using Cargo 1.51 or later you can specify features directly from the
-workspace root:
-
-```sh
-$ cargo build [--release] --no-default-features
-```
-
-Older versions need to build the packages separately:
-
-```sh
-$ cd mumd
-$ cargo build --release --no-default-features
-$ cd ../mumctl
-$ cargo build --release --no-default-features  # technically unneeded
-                                               # since no features exist
-```
+| Name          | Needed for         |
+|---------------|--------------------|
+| notifications | Notifications      |
+| ogg           | ogg sound effects  |
 
 ### man-pages
 
@@ -117,17 +93,11 @@ ServerRoot
 $ mumctl channel connect Channel2
 ```
 
-## Known issues
+## Bugs and new features
 
 The main hub for issues is [our issue
-tracker](https://github.com/mum-rs/mum/issues). Additionally, there are some
-features that aren't present on the issue tracker:
-
-- Administration tools. See [the admin tools
-  project](https://github.com/mum-rs/mum/projects/1).
-- Surround output. If this is something you want, [open an
-  issue](https://github.com/mum-rs/mum/issues/new) so we can take a look at
-  implementing it.
+tracker](https://github.com/mum-rs/mum/issues). The development rate comes and
+goes but at least one developer uses it as a daily driver.
 
 ## Why?
 
