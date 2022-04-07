@@ -22,6 +22,8 @@ ogg = ["lewton"]
 bincode = "1"
 bytes = "1"
 chrono = { version = "0.4", features = [ "serde" ] }
+clap = { version = "3.1.8", features = ["derive"] }
+clap_complete = "3.1.1"
 colored = "2"
 cpal = "0.13"
 dasp_interpolate = { version = "0.11", features = ["linear"] }
@@ -37,7 +39,6 @@ mumble-protocol = "0.4"
 native-tls = "0.2"
 opus = "0.2"
 serde = { version = "1", features = ["derive"] }
-structopt = "0.3"
 strum = "0.24"
 strum_macros = "0.24"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "net", "time", "fs"] }
