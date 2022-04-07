@@ -49,14 +49,14 @@ fn main() {
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(LevelFilter::Info))
         .unwrap();
-    if let Err(e) = match_opt() {
+    if let Err(e) = match_opt(Mum::from_args()) {
         error!("{}", e);
     }
 }
-fn match_opt() -> Result<(), Error> {
+
+fn match_opt(opt: Mum) -> Result<(), Error> {
     let mut config = config::read_cfg(&config::default_cfg_path())?;
 
-    let opt = Mum::from_args();
     match opt.command {
         Command::Connect {
             host,
