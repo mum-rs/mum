@@ -13,6 +13,7 @@
 #![forbid(non_ascii_idents)]
 
 pub mod audio;
+pub mod cli;
 pub mod client;
 pub mod command;
 pub mod error;
