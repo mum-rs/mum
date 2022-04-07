@@ -802,8 +802,10 @@ dependencies = [
 name = "mum"
 version = "0.4.0"
 dependencies = [
+ "bincode",
  "bytes",
  "chrono",
+ "colored",
  "cpal",
  "dasp_interpolate",
  "dasp_ring_buffer",
@@ -819,11 +821,12 @@ dependencies = [
  "native-tls",
  "opus",
  "serde",
+ "structopt",
  "strum",
  "strum_macros",
  "tokio",
  "tokio-native-tls",
- "tokio-util 0.6.9",
+ "tokio-util",
 ]
 
 [[package]]
@@ -837,33 +840,7 @@ dependencies = [
  "openssl",
  "protobuf",
  "protobuf-codegen-pure",
- "tokio-util 0.6.9",
-]
-
-[[package]]
-name = "mumctl"
-version = "0.4.0"
-dependencies = [
- "bincode",
- "colored",
- "log",
- "mumlib",
- "serde",
- "structopt",
-]
-
-[[package]]
-name = "mumd"
-version = "0.4.0"
-dependencies = [
- "bincode",
- "bytes",
- "futures-util",
- "log",
- "mum",
- "mumlib",
- "tokio",
- "tokio-util 0.7.0",
+ "tokio-util",
 ]
 
 [[package]]
@@ -1595,20 +1572,6 @@ name = "tokio-util"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e99e1983e5d376cd8eb4b66604d2e99e79f5bd988c3055891dcd8c9e2604cc0"
-dependencies = [
- "bytes",
- "futures-core",
- "futures-sink",
- "log",
- "pin-project-lite",
- "tokio",
-]
-
-[[package]]
-name = "tokio-util"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64910e1b9c1901aaf5375561e35b9c057d95ff41a44ede043a03e09279eabaf1"
 dependencies = [
  "bytes",
  "futures-core",

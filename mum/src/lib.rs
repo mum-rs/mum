@@ -3,7 +3,6 @@
 #![warn(missing_debug_implementations)]
 #![warn(single_use_lifetimes)]
 #![warn(unreachable_pub)]
-#![warn(unused_crate_dependencies)]
 #![warn(unused_import_braces)]
 #![warn(unused_lifetimes)]
 #![warn(unused_qualifications)]

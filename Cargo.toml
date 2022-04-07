@@ -3,9 +3,7 @@
 [workspace]
 
 members = [
-    "mumd",
     "mum",
-    "mumctl",
     "mumlib"
 ]
 
