@@ -50,3 +50,6 @@ lewton = { version = "0.10", optional = true }
 
 #compressor = "0.3"
 #daemonize = "0.4"
+
+[profile.release]
+lto = "thin"
