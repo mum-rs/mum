@@ -37,6 +37,7 @@ native-tls = "0.2.10"
 opus = "0.2.1"
 rustyline = "9.1.0"
 serde = { version = "1.0.136", features = ["derive"] }
+shell-words = "1.1.0"
 structopt = "0.3.26"
 strum = "0.24.0"
 strum_macros = "0.24.0"
