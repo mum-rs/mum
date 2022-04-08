@@ -567,7 +567,7 @@ pub fn handle_command(
             password,
             accept_invalid_cert,
         } => {
-            if let Server::Disconnected = state.server() {
+            if matches!(state.server(), Server::Disconnected | Server::Connecting(_)) {
                 let server =
                     ConnectingServer::new(format!("{}:{}", host, port), username, password);
                 state.server = Server::Connecting(server);

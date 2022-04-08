@@ -5,7 +5,6 @@ use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, Mes
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
 use serde::de::DeserializeOwned;
-use std::fmt;
 use std::io::{self, BufRead, Read, Write};
 use std::iter;
 use std::marker::PhantomData;
