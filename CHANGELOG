@@ -5,9 +5,6 @@ This changelog is inspired by https://keepachangelog.com/en/1.1.0/[Keep a
 Changelog]. We follow https://semver.org/spec/v2.0.0.html[semver], but since
 we're in 0.x it's a lawless land anyway.
 
-+mumctl+ and +mumd+ will follow the same version numberings at least through
-0.x, which we will revisit following 1.0.
-
 Points under "unreleased" currently exist on main and will be part of the next
 release.
 
@@ -25,6 +22,9 @@ Fixed
 
 Other
 ~~~~~
+
+ * Instead of four crates we now have only two. mumd and mumctl were merged
+ * into mum as binary targets.
 
 0.4.0 - 2021-06-19
 ------------------
@@ -125,7 +125,7 @@ Added
 Links
 -----
 
-[0.3.2]: https://github.com/mum-rs/mum/tree/v0.3.2
+[0.4.0]: https://github.com/mum-rs/mum/tree/v0.4.0
 [0.3.1]: https://github.com/mum-rs/mum/tree/v0.3.1
 [0.3.0]: https://github.com/mum-rs/mum/tree/v0.3.0
 [0.2.0]: https://github.com/mum-rs/mum/tree/v0.2.0
