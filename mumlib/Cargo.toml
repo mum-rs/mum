@@ -12,10 +12,10 @@ license = "MIT"
 readme = "../README.md"
 
 [dependencies]
-colored = "2"
-chrono = { version = "0.4", features = [ "serde" ] }
-dirs = "4"
-fern = "0.6"
-log = "0.4"
-serde = { version = "1", features = ["derive"] }
-toml = "0.5"
+colored = "2.0.0"
+chrono = { version = "0.4.19", features = [ "serde" ] }
+dirs = "4.0.0"
+fern = "0.6.0"
+log = "0.4.16"
+serde = { version = "1.0.136", features = ["derive"] }
+toml = "0.5.8"
