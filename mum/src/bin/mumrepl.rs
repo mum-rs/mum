@@ -1,23 +1,18 @@
-use futures_util::FutureExt;
-use mum::cli::Error;
-use mum::cli::Mum;
+use mum::cli::{Channel, CliError, Command, Error, Mum, Server, Target};
 use mum::state::State;
-use mumlib::command::CommandResponse;
-use mumlib::config;
-use rustyline::error::ReadlineError;
-use rustyline::Editor;
-use tokio::select;
-use tokio::sync::mpsc;
+use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse,  MessageTarget};
+use mumlib::config::{self, Config, ServerConfig};
+use mumlib::state::Channel as MumChannel;
 
 use colored::Colorize;
+use futures_util::FutureExt;
 use log::{error, warn};
-use mum::cli::{Channel, CliError, Command, Server, Target};
-use mumlib::command::{ChannelTarget, Command as MumCommand, MessageTarget};
-use mumlib::config::{Config, ServerConfig};
-use mumlib::state::Channel as MumChannel;
+use readline_async::Editor;
 use std::io::BufRead;
 use std::iter;
 use structopt::StructOpt;
+use tokio::select;
+use tokio::sync::mpsc;
 
 const INDENTATION: &str = "  ";
 
@@ -51,41 +46,32 @@ type CommandSender = mpsc::UnboundedSender<(
 )>;
 
 async fn handle_repl(command_sender: CommandSender) {
-    let mut rl = Editor::<()>::new();
+    let (mut editor, lines) = Editor::new();
+    readline_async::enable_raw_mode().unwrap();
     loop {
-        let readline;
-        (rl, readline) = tokio::task::spawn_blocking(move || {
-            let readline = rl.readline(">> ");
-            (rl, readline)
+        let (line, err);
+        (editor, (line, err)) = tokio::task::spawn(async move {
+            let readline = editor.readline().await;
+            (editor, readline)
         })
         .await
         .unwrap();
 
-        match readline {
-            Ok(line) => {
-                rl.add_history_entry(line.as_str());
-                let sender = command_sender.clone();
-                let mut args = shell_words::split(&line).unwrap();
-                args.insert(0, String::from("mumrepl"));
-                let opt = Mum::from_iter_safe(args);
-                println!("{:?}", opt);
-                tokio::spawn(async move {
-                    println!("{:?}", match_opt(opt.unwrap(), sender).await);
-                });
-            }
-            Err(ReadlineError::Interrupted) => {
-                println!("CTRL-C");
-                break;
-            }
-            Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
-                break;
-            }
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break;
-            }
+        if let Err(e) = err {
+            readline_async::disable_raw_mode().unwrap();
+            println!("\n{e:?}");
+            break;
         }
+        let sender = command_sender.clone();
+        let mut args = shell_words::split(&line).unwrap();
+        args.insert(0, String::from("mumrepl"));
+        let opt = Mum::from_iter_safe(args);
+        let lines = lines.clone();
+        lines.unbounded_send(format!(">> {}", line)).unwrap(); // TODO
+        lines.unbounded_send(format!("{:?}", opt)).unwrap(); // TODO
+        tokio::spawn(async move {
+            lines.unbounded_send(format!("{:?}", match_opt(opt.unwrap(), sender).await)).unwrap(); // TODO
+        });
     }
 }
 
