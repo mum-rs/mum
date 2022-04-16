@@ -1,18 +1,14 @@
-use mum::cli::{Channel, CliError, Command, Error, Mum, Server, Target, match_args};
-use mum::state::State;
-use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse,  MessageTarget};
-use mumlib::config::{self, Config, ServerConfig};
-use mumlib::state::Channel as MumChannel;
-
-use colored::Colorize;
 use futures_util::FutureExt;
-use log::{error, warn};
+use mum::cli::{Mum, match_args};
+use mum::state::State;
+use mumlib::command::{Command as MumCommand, CommandResponse};
 use readline_async::Editor;
-use std::io::BufRead;
-use std::iter;
 use structopt::StructOpt;
 use tokio::select;
 use tokio::sync::mpsc;
+
+#[allow(unused_imports)]
+use log::{debug, error, info, warn};
 
 #[tokio::main]
 async fn main() {

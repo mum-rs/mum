@@ -1,17 +1,14 @@
-use crate::state::State;
+use colored::Colorize;
 use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse,  MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
-
-use colored::Colorize;
-use futures_util::FutureExt;
-use log::{debug, error, warn};
 use std::fmt;
-use std::io::BufRead;
 use std::iter;
 use structopt::StructOpt;
-use tokio::select;
 use tokio::sync::mpsc;
+
+#[allow(unused_imports)]
+use log::{debug, error, warn};
 
 const INDENTATION: &str = "  ";
 
@@ -254,7 +251,7 @@ pub async fn match_args(opt: Mum, command_sender: CommandSender, output: mpsc::U
 
             let config_accept_invalid_cert =
                 server_accept_invalid_cert.or(config.allow_invalid_server_cert);
-            let specified_accept_invalid_cert =
+            let _specified_accept_invalid_cert =
                 cli_accept_invalid_cert || config_accept_invalid_cert.is_some();
 
             send_command!(MumCommand::ServerConnect {

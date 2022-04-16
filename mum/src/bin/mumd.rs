@@ -5,10 +5,8 @@ use mum::state::State;
 use mumlib::command::{Command, CommandResponse};
 use mumlib::setup_logger;
 use std::io::ErrorKind;
-use tokio::{
-    net::{UnixListener, UnixStream},
-    sync::mpsc,
-};
+use tokio::net::{UnixListener, UnixStream};
+use tokio::sync::mpsc;
 use tokio_util::codec::{FramedRead, FramedWrite, LengthDelimitedCodec};
 
 #[tokio::main]

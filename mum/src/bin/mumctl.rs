@@ -1,21 +1,16 @@
-use colored::Colorize;
-use log::{debug, error, info, warn, Level, LevelFilter, Metadata, Record};
-use mum::cli::{Channel, CliError, Command, Completions, Error, Mum, Server, Target, match_args};
-use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
-use mumlib::config::{self, Config, ServerConfig};
-use mumlib::state::Channel as MumChannel;
+use mum::cli::{CliError, Mum, match_args};
+use mumlib::command::{Command as MumCommand, CommandResponse};
 use serde::de::DeserializeOwned;
-use std::io::{self, BufRead, Read, Write};
-use std::iter;
+use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::os::unix::net::UnixStream;
-use std::thread;
-use structopt::{clap::Shell, StructOpt};
-
+use structopt::StructOpt;
 use tokio::select;
 use tokio::sync::mpsc;
 
-const INDENTATION: &str = "  ";
+#[allow(unused_imports)]
+use log::{debug, error, info, warn};
+
 
 type CommandSender = mpsc::UnboundedSender<(
     MumCommand,
