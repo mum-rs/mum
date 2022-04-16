@@ -22,6 +22,8 @@ mumlib = { version = "0.4", path = "../mumlib" }
 
 readline-async = { git = "https://gitlab.com/sornas/readline-async.git" }
 
+openssl = { version = "*", features = ["vendored"] }
+
 bincode = "1.3.3"
 bytes = "1.1.0"
 chrono = { version = "0.4.19", features = [ "serde" ] }
