@@ -16,17 +16,17 @@ default = ["notifications", "ogg"]
 
 notifications = ["libnotify"]
 ogg = ["lewton"]
+vendored_openssl = ["openssl/vendored"]
 
 [dependencies]
 mumlib = { version = "0.4", path = "../mumlib" }
 
 readline-async = { git = "https://gitlab.com/sornas/readline-async.git" }
 
-openssl = { version = "*", features = ["vendored"] }
-
 bincode = "1.3.3"
 bytes = "1.1.0"
 chrono = { version = "0.4.19", features = [ "serde" ] }
+color-eyre = "0.5.7"
 colored = "2.0.0"
 cpal = "0.13.5"
 dasp_interpolate = { version = "0.11.0", features = ["linear"] }
@@ -51,6 +51,7 @@ tokio-util = { version = "0.6.9", features = ["codec", "net"] }
 
 libnotify = { version = "1.0.3", optional = true }
 lewton = { version = "0.10.2", optional = true }
+openssl = { version = "*" }
 
 #compressor = "0.3"
 #daemonize = "0.4"
