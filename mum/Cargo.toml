@@ -21,8 +21,6 @@ vendored_openssl = ["openssl/vendored"]
 [dependencies]
 mumlib = { version = "0.4", path = "../mumlib" }
 
-readline-async = { git = "https://gitlab.com/sornas/readline-async.git" }
-
 bincode = "1.3.3"
 bytes = "1.1.0"
 chrono = { version = "0.4.19", features = [ "serde" ] }
@@ -39,7 +37,7 @@ log = "0.4.16"
 mumble-protocol = "0.4.1"
 native-tls = "0.2.10"
 opus = "0.2.1"
-rustyline = "9.1.0"
+readline-async = "0.1.0"
 serde = { version = "1.0.136", features = ["derive"] }
 shell-words = "1.1.0"
 structopt = "0.3.26"
