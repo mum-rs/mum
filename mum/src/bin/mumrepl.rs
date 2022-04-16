@@ -1,5 +1,5 @@
 use futures_util::FutureExt;
-use mum::cli::{Mum, match_args};
+use mum::cli::{match_args, Mum};
 use mum::state::State;
 use mumlib::command::{Command as MumCommand, CommandResponse};
 use readline_async::Editor;
@@ -66,7 +66,9 @@ async fn handle_repl(command_sender: CommandSender) {
         let args = match Mum::from_iter_safe(args) {
             Ok(args) => args,
             Err(e) => {
-                lines.unbounded_send(format!("command error: {}", e)).unwrap();
+                lines
+                    .unbounded_send(format!("command error: {}", e))
+                    .unwrap();
                 continue;
             }
         };

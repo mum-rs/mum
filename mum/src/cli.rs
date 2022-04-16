@@ -1,5 +1,5 @@
 use colored::Colorize;
-use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse,  MessageTarget};
+use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
 use std::fmt;
@@ -200,7 +200,11 @@ type CommandSender = mpsc::UnboundedSender<(
     mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
 )>;
 
-pub async fn match_args(opt: Mum, command_sender: CommandSender, output: mpsc::UnboundedSender<String>) -> Result<(), Error> {
+pub async fn match_args(
+    opt: Mum,
+    command_sender: CommandSender,
+    output: mpsc::UnboundedSender<String>,
+) -> Result<(), Error> {
     let (tx, mut rx) = mpsc::unbounded_channel();
 
     macro_rules! send_command {
@@ -391,14 +395,14 @@ pub async fn match_args(opt: Mum, command_sender: CommandSender, output: mpsc::U
             send_command!(MumCommand::PastMessages { block: follow });
             while let Some(response) = rx.recv().await {
                 match response {
-                    Ok(Some(CommandResponse::PastMessage { message })) => {
-                        output.send(format!(
+                    Ok(Some(CommandResponse::PastMessage { message })) => output
+                        .send(format!(
                             "[{}] {}: {}",
                             message.0.format("%d %b %H:%M"),
                             message.2,
                             message.1
-                        )).unwrap()
-                    }
+                        ))
+                        .unwrap(),
                     Ok(_) => unreachable!("Response should only be a Some(PastMessages)"),
                     Err(e) => output.send(format!("error: {}", e)).unwrap(),
                 }
@@ -486,31 +490,33 @@ async fn match_server_command(
 
             match (key.as_deref(), value) {
                 (None, _) => {
-                    output.send(format!(
-                        "{}{}{}{}{}",
-                        format!("host: {}", server.host.to_string()),
-                        server
-                            .port
-                            .map(|s| format!("port: {}\n", s))
-                            .unwrap_or_else(|| "".to_string()),
-                        server
-                            .username
-                            .as_ref()
-                            .map(|s| format!("username: {}\n", s))
-                            .unwrap_or_else(|| "".to_string()),
-                        server
-                            .password
-                            .as_ref()
-                            .map(|s| format!("password: {}\n", s))
-                            .unwrap_or_else(|| "".to_string()),
-                        server
-                            .accept_invalid_cert
-                            .map(|b| format!(
-                                "accept_invalid_cert: {}\n",
-                                if b { "true" } else { "false" }
-                            ))
-                            .unwrap_or_else(|| "".to_string()),
-                    )).unwrap();
+                    output
+                        .send(format!(
+                            "{}{}{}{}{}",
+                            format!("host: {}", server.host.to_string()),
+                            server
+                                .port
+                                .map(|s| format!("port: {}\n", s))
+                                .unwrap_or_else(|| "".to_string()),
+                            server
+                                .username
+                                .as_ref()
+                                .map(|s| format!("username: {}\n", s))
+                                .unwrap_or_else(|| "".to_string()),
+                            server
+                                .password
+                                .as_ref()
+                                .map(|s| format!("password: {}\n", s))
+                                .unwrap_or_else(|| "".to_string()),
+                            server
+                                .accept_invalid_cert
+                                .map(|b| format!(
+                                    "accept_invalid_cert: {}\n",
+                                    if b { "true" } else { "false" }
+                                ))
+                                .unwrap_or_else(|| "".to_string()),
+                        ))
+                        .unwrap();
                 }
                 (Some("name"), None) => {
                     output.send(format!("{}", server.name)).unwrap();
@@ -519,39 +525,49 @@ async fn match_server_command(
                     output.send(format!("{}", server.host)).unwrap();
                 }
                 (Some("port"), None) => {
-                    output.send(format!(
-                        "{}",
-                        server
-                            .port
-                            .ok_or_else(|| CliError::NotSet("port".to_string()))?
-                    )).unwrap();
+                    output
+                        .send(format!(
+                            "{}",
+                            server
+                                .port
+                                .ok_or_else(|| CliError::NotSet("port".to_string()))?
+                        ))
+                        .unwrap();
                 }
                 (Some("username"), None) => {
-                    output.send(format!(
-                        "{}",
-                        server
-                            .username
-                            .as_ref()
-                            .ok_or_else(|| CliError::NotSet("username".to_string()))?
-                    )).unwrap();
+                    output
+                        .send(format!(
+                            "{}",
+                            server
+                                .username
+                                .as_ref()
+                                .ok_or_else(|| CliError::NotSet("username".to_string()))?
+                        ))
+                        .unwrap();
                 }
                 (Some("password"), None) => {
-                    output.send(format!(
-                        "{}",
-                        server
-                            .password
-                            .as_ref()
-                            .ok_or_else(|| CliError::NotSet("password".to_string()))?
-                    )).unwrap();
+                    output
+                        .send(format!(
+                            "{}",
+                            server
+                                .password
+                                .as_ref()
+                                .ok_or_else(|| CliError::NotSet("password".to_string()))?
+                        ))
+                        .unwrap();
                 }
                 (Some("accept_invalid_cert"), None) => {
-                    output.send(format!(
-                        "{}",
-                        server
-                            .accept_invalid_cert
-                            .map(|b| b.to_string())
-                            .ok_or_else(|| CliError::NotSet("accept_invalid_cert".to_string()))?
-                    )).unwrap();
+                    output
+                        .send(format!(
+                            "{}",
+                            server
+                                .accept_invalid_cert
+                                .map(|b| b.to_string())
+                                .ok_or_else(|| CliError::NotSet(
+                                    "accept_invalid_cert".to_string()
+                                ))?
+                        ))
+                        .unwrap();
                 }
                 (Some("name"), Some(_)) => {
                     return Err(CliError::UseServerRename.into());
@@ -643,10 +659,12 @@ async fn match_server_command(
                     users, max_users, ..
                 } = response.unwrap()
                 {
-                    output.send(format!(
-                        "{0:<1$} [{2:}/{3:}]",
-                        server.name, longest, users, max_users
-                    )).unwrap();
+                    output
+                        .send(format!(
+                            "{0:<1$} [{2:}/{3:}]",
+                            server.name, longest, users, max_users
+                        ))
+                        .unwrap();
                 } else {
                     unreachable!();
                 }
@@ -657,28 +675,36 @@ async fn match_server_command(
 }
 
 fn parse_state(server_state: &mumlib::state::Server, output: mpsc::UnboundedSender<String>) {
-    output.send(format!(
-        "Connected to {} as {}",
-        server_state.host, server_state.username
-    )).unwrap();
+    output
+        .send(format!(
+            "Connected to {} as {}",
+            server_state.host, server_state.username
+        ))
+        .unwrap();
     let own_channel = server_state
         .channels
         .iter()
         .find(|e| e.users.iter().any(|e| e.name == server_state.username))
         .unwrap();
-    output.send(format!(
-        "Currently in {} with {} other client{}:",
-        own_channel.name,
-        own_channel.users.len() - 1,
-        if own_channel.users.len() == 2 {
-            ""
-        } else {
-            "s"
-        }
-    )).unwrap();
-    output.send(format!("{}{}", INDENTATION, own_channel.name)).unwrap();
+    output
+        .send(format!(
+            "Currently in {} with {} other client{}:",
+            own_channel.name,
+            own_channel.users.len() - 1,
+            if own_channel.users.len() == 2 {
+                ""
+            } else {
+                "s"
+            }
+        ))
+        .unwrap();
+    output
+        .send(format!("{}{}", INDENTATION, own_channel.name))
+        .unwrap();
     for user in &own_channel.users {
-        output.send(format!("{}{}{}", INDENTATION, INDENTATION, user)).unwrap();
+        output
+            .send(format!("{}{}{}", INDENTATION, INDENTATION, user))
+            .unwrap();
     }
 }
 

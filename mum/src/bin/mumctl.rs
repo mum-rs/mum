@@ -1,4 +1,4 @@
-use mum::cli::{CliError, Mum, match_args};
+use mum::cli::{match_args, CliError, Mum};
 use mumlib::command::{Command as MumCommand, CommandResponse};
 use serde::de::DeserializeOwned;
 use std::io::{Read, Write};
@@ -10,7 +10,6 @@ use tokio::sync::mpsc;
 
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
-
 
 type CommandSender = mpsc::UnboundedSender<(
     MumCommand,
@@ -124,4 +123,3 @@ where
         bincode::deserialize_from(&mut self.reader).ok()
     }
 }
-
