@@ -203,7 +203,7 @@ type CommandSender = mpsc::UnboundedSender<(
     mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
 )>;
 
-pub async fn match_opt(opt: Mum, command_sender: CommandSender, output: mpsc::UnboundedSender<String>) -> Result<(), Error> {
+pub async fn match_args(opt: Mum, command_sender: CommandSender, output: mpsc::UnboundedSender<String>) -> Result<(), Error> {
     let (tx, mut rx) = mpsc::unbounded_channel();
 
     macro_rules! send_command {

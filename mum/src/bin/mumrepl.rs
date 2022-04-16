@@ -1,4 +1,4 @@
-use mum::cli::{Channel, CliError, Command, Error, Mum, Server, Target, match_opt};
+use mum::cli::{Channel, CliError, Command, Error, Mum, Server, Target, match_args};
 use mum::state::State;
 use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse,  MessageTarget};
 use mumlib::config::{self, Config, ServerConfig};
@@ -67,15 +67,15 @@ async fn handle_repl(command_sender: CommandSender) {
         lines.unbounded_send(format!(">> {}", line)).unwrap(); // TODO
         let mut args = shell_words::split(&line).unwrap();
         args.insert(0, String::from("mumrepl"));
-        let opt = match Mum::from_iter_safe(args) {
-            Ok(opt) => opt,
+        let args = match Mum::from_iter_safe(args) {
+            Ok(args) => args,
             Err(e) => {
                 lines.unbounded_send(format!("command error: {}", e)).unwrap();
                 continue;
             }
         };
 
-        if let Err(e) = match_opt(opt, sender, output_tx).await {
+        if let Err(e) = match_args(args, sender, output_tx).await {
             lines.unbounded_send(format!("mum error: {}", e)).unwrap();
         }
 
