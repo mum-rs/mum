@@ -1,6 +1,18 @@
 # mum
 
-Mumble daemon with controller (think `mpd(1)`/`mpc(1)`) written in Rust.
+A small Mumble client split into frontend and backend written in Rust.
+
+Two different frontends are included for different needs and wants.
+
+- Daemon and controller pair (think `mpd(1)`/`mpc(1)`).
+- REPL.
+
+The daemon/controller-pair only runs on Unix due to Unix-sockets. The REPL runs
+on both Unix and Windows and works more like what you expect from mainstream
+Mumble clients.
+
+The backend is event-driven and pretty 1:1 with the CLI. The goal is for it to
+be able to function as a bot library but we're not fully there yet. Stay tuned!
 
 ## Building (CURRENTLY OUT OF DATE)
 
@@ -24,18 +36,11 @@ publish [compiled binaries on Github](https://github.com/sornas/mum/releases/).
 These are for Arch Linux. You might need other packages on other distributions
 and operating systems, or they might be named something different.
 
-- rust (stable 1.53)
+- rust (stable, no guaranteed minimum version)
 - alsa-lib
 - openssl
 - opus
 - libnotify (optional, needed in default configuration)
-
-Windows is not currently supported but could be in the future. macOS should work.
-Other operating systems haven't been tested. The limiting factor on Windows
-is IPC communication which is (currently) done via the crate ipc-channel.
-
-We only "guarantee" compilation on latest Rust stable. Open a ticket if this is
-an issue for you and we'll see what we can do.
 
 ### Installation
 
@@ -46,7 +51,7 @@ $ cargo install --path=mum
 ### Optional features
 
 mum contains optional features that are enabled by default. To compile without
-them, build with --no-default-features. Features can then be enabled separately with
+them, build/install with --no-default-features. Features can then be enabled separately with
 --features "FEATURES".
 
 The following features can be specified:
@@ -55,10 +60,6 @@ The following features can be specified:
 |-------------------|--------------------|
 | mum/notifications | Notifications      |
 | mum/ogg           | ogg sound effects  |
-
-```sh
-$ cargo build [--release] --no-default-features
-```
 
 ### man-pages
 
@@ -70,7 +71,7 @@ with
 $ asciidoctor -b manpage *.txt
 ```
 
-## Usage
+## Usage (Daemon/controller)
 
 This describes how to connect to a server and join different channels.
 See `$ mumctl --help` or `documentation/*.txt` for more information.
@@ -92,6 +93,7 @@ Interfacing with the daemon is done through mumctl. Some examples:
 
 ```sh
 $ mumctl connect 127.0.0.1 spock # connect to 127.0.0.1 with username 'spock'
+...
 $ mumctl channel list
 ServerRoot
   -user1
@@ -102,17 +104,28 @@ ServerRoot
 $ mumctl channel connect Channel2
 ```
 
+## Usage (REPL)
+
+This describes how to connect to a server and join different channels.
+
+```sh
+$ mumrepl
+>> server connect 127.0.0.1 spock
+...
+>> channel list
+ServerRoot
+  -user1
+  -user2
+  -user2
+  Channel2
+  Channel3
+>> channel connect Channel2
+```
+
 ## Known issues
 
 The main hub for issues is [our issue
-tracker](https://github.com/mum-rs/mum/issues). Additionally, there are some
-features that aren't present on the issue tracker:
-
-- Administration tools. See [the admin tools
-  project](https://github.com/mum-rs/mum/projects/1).
-- Surround output. If this is something you want, [open an
-  issue](https://github.com/mum-rs/mum/issues/new) so we can take a look at
-  implementing it.
+tracker](https://github.com/mum-rs/mum/issues).
 
 ## Why?
 
