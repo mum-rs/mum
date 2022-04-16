@@ -17,32 +17,6 @@ use tokio::sync::mpsc;
 
 const INDENTATION: &str = "  ";
 
-struct SimpleLogger;
-
-impl log::Log for SimpleLogger {
-    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        metadata.level() <= Level::Info
-    }
-
-    fn log(&self, record: &Record<'_>) {
-        if self.enabled(record.metadata()) {
-            println!(
-                "{}{}",
-                match record.level() {
-                    Level::Error => "error: ".red(),
-                    Level::Warn => "warning: ".yellow(),
-                    _ => "".normal(),
-                },
-                record.args()
-            );
-        }
-    }
-
-    fn flush(&self) {}
-}
-
-static LOGGER: SimpleLogger = SimpleLogger;
-
 type CommandSender = mpsc::UnboundedSender<(
     MumCommand,
     mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
@@ -50,16 +24,14 @@ type CommandSender = mpsc::UnboundedSender<(
 
 #[tokio::main]
 async fn main() {
+    mumlib::setup_logger(std::io::stderr(), true);
+
     if std::env::args().any(|s| s.as_str() == "--version" || s.as_str() == "-V") {
         println!("mumctl {}", env!("VERSION"));
         return;
     }
     color_eyre::install().unwrap();
-    log::set_logger(&LOGGER)
-        .map(|()| log::set_max_level(LevelFilter::Info))
-        .unwrap();
 
-    debug!("let args");
     let args = Mum::from_args();
 
     // create communication channels:
@@ -83,7 +55,6 @@ async fn main() {
                 Some((command, response_tx)) = command_rx.recv() => {
                     // send command to mumd and receive some responses
                     // it is perfectly fine to block here
-                    // (well, .await at least)
                     let mut responses = send_command(command).unwrap();
                     while let Some(response) = responses.next() {
                         debug!("got response {:?}", response);
@@ -99,7 +70,6 @@ async fn main() {
         }
     });
 
-    debug!("match_args");
     // parse args
     if let Err(e) = match_args(args, command_tx, lines_tx.clone()).await {
         error!("{}", e);

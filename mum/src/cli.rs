@@ -5,7 +5,7 @@ use mumlib::state::Channel as MumChannel;
 
 use colored::Colorize;
 use futures_util::FutureExt;
-use log::{error, warn};
+use log::{debug, error, warn};
 use std::fmt;
 use std::io::BufRead;
 use std::iter;
