@@ -2,7 +2,11 @@
 
 Mumble daemon with controller (think `mpd(1)`/`mpc(1)`) written in Rust.
 
-## Building
+## Building (CURRENTLY OUT OF DATE)
+
+**NOTE**: This is out of date as we are chaning the internal crate layout. It
+will be fixed when the new layout is merged and we have time to update on crates
+and the AUR.
 
 mumd and mumctl are available on crates.io and can be installed with
 
@@ -35,44 +39,25 @@ an issue for you and we'll see what we can do.
 
 ### Installation
 
-1. Build the binaries
-2. (wait)
-3. Copy/symlink to somewhere nice (or don't).
-
 ```sh
-$ cargo build --release
-$ ln -s $PWD/target/release/mumctl $HOME/.local/bin/
-$ ln -s $PWD/target/release/mumd $HOME/.local/bin/
+$ cargo install --path=mum
 ```
 
 ### Optional features
 
 mum contains optional features that are enabled by default. To compile without
-them, build with --no-default-features. Features can then be enabled with
+them, build with --no-default-features. Features can then be enabled separately with
 --features "FEATURES".
 
 The following features can be specified:
 
-| Name               | Needed for         |
-|--------------------|--------------------|
-| mumd/notifications | Notifications      |
-| mumd/ogg           | ogg sound effects  |
-
-If you're using Cargo 1.51 or later you can specify features directly from the
-workspace root:
+| Name              | Needed for         |
+|-------------------|--------------------|
+| mum/notifications | Notifications      |
+| mum/ogg           | ogg sound effects  |
 
 ```sh
 $ cargo build [--release] --no-default-features
-```
-
-Older versions need to build the packages separately:
-
-```sh
-$ cd mumd
-$ cargo build --release --no-default-features
-$ cd ../mumctl
-$ cargo build --release --no-default-features  # technically unneeded
-                                               # since no features exist
 ```
 
 ### man-pages

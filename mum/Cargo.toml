@@ -1,6 +1,6 @@
 [package]
 name = "mum"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Gustav Sörnäs <gustav@sornas.net>",
            "Eskil Queseth <eskilq@kth.se>"]
 edition = "2021"
@@ -20,28 +20,31 @@ ogg = ["lewton"]
 [dependencies]
 mumlib = { version = "0.4", path = "../mumlib" }
 
-cpal = "0.13"
-bytes = "1"
-dasp_interpolate = { version = "0.11", features = ["linear"] }
-dasp_signal = "0.11"
-dasp_ring_buffer = "0.11"
-futures-util = { version = "0.3", features = ["sink"]}
-futures-channel = "0.3"
-hound = "3"
-log = "0.4"
-mumble-protocol = "0.4"
-native-tls = "0.2"
-opus = "0.2"
-serde = { version = "1", features = ["derive"] }
-strum = "0.24"
-strum_macros = "0.24"
-tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "net", "time", "fs"] }
-tokio-native-tls = "0.3"
-tokio-util = { version = "0.6", features = ["codec", "net"] }
-chrono = "0.4"
+bincode = "1.3.3"
+bytes = "1.1.0"
+chrono = { version = "0.4.19", features = [ "serde" ] }
+colored = "2.0.0"
+cpal = "0.13.5"
+dasp_interpolate = { version = "0.11.0", features = ["linear"] }
+dasp_ring_buffer = "0.11.0"
+dasp_signal = "0.11.0"
+futures-channel = "0.3.21"
+futures-util = { version = "0.3.21", features = ["sink"]}
+hound = "3.4.0"
+log = "0.4.16"
+mumble-protocol = "0.4.1"
+native-tls = "0.2.10"
+opus = "0.2.1"
+serde = { version = "1.0.136", features = ["derive"] }
+structopt = "0.3.26"
+strum = "0.24.0"
+strum_macros = "0.24.0"
+tokio = { version = "1.17.0", features = ["macros", "rt", "rt-multi-thread", "sync", "net", "time", "fs"] }
+tokio-native-tls = "0.3.0"
+tokio-util = { version = "0.6.9", features = ["codec", "net"] }
 
-libnotify = { version = "1", optional = true }
-lewton = { version = "0.10", optional = true }
+libnotify = { version = "1.0.3", optional = true }
+lewton = { version = "0.10.2", optional = true }
 
 #compressor = "0.3"
 #daemonize = "0.4"
