@@ -41,9 +41,11 @@ pub struct AudioInput {
 impl AudioInput {
     pub fn new(
         input_volume: f32,
+        disable_noise_gate: bool,
         phase_watcher: watch::Receiver<StatePhase>,
     ) -> Result<Self, AudioError> {
-        let mut default = DefaultAudioInputDevice::new(input_volume, phase_watcher, 4)?;
+        let mut default =
+            DefaultAudioInputDevice::new(input_volume, disable_noise_gate, phase_watcher, 4)?;
 
         let opus_stream = default
             .sample_receiver()

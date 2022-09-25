@@ -11,9 +11,10 @@ use std::path::{Path, PathBuf};
 use toml::value::Array;
 use toml::Value;
 
+// FIXME: We shouldn't need the split between TOMLConfig and Config.
+
 /// A TOML-friendly version of [Config].
-///
-/// Values need to be placed before tables due to how TOML works.
+// Values need to be placed before tables due to how TOML works.
 #[derive(Debug, Deserialize, Serialize)]
 struct TOMLConfig {
     // Values
@@ -87,6 +88,8 @@ pub struct AudioConfig {
     pub output_volume: Option<f32>,
     /// Overriden sound effects.
     pub sound_effects: Option<Vec<SoundEffect>>,
+    /// If we should disable the noise gate, i.e. send _all_ data from the input to the server.
+    pub disable_noise_gate: Option<bool>,
 }
 
 /// A saved server.
