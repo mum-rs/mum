@@ -75,6 +75,7 @@ impl DefaultAudioInputDevice {
     /// Initializes the default audio input.
     pub fn new(
         input_volume: f32,
+        disable_noise_gate: bool,
         phase_watcher: watch::Receiver<StatePhase>,
         frame_size: u32, // blocks of 2.5 ms
     ) -> Result<Self, AudioError> {
@@ -121,8 +122,11 @@ impl DefaultAudioInputDevice {
         .unwrap();
         let buffer_size = (sample_rate.0 * frame_size / 400) as usize;
 
-        let transformers =
-            vec![Box::new(NoiseGate::new(50)) as Box<dyn Transformer + Send + 'static>];
+        let transformers = if disable_noise_gate {
+            vec![]
+        } else {
+            vec![Box::new(NoiseGate::new(50)) as Box<dyn Transformer + Send + 'static>]
+        };
 
         let input_stream = match input_supported_sample_format {
             SampleFormat::F32 => input_device.build_input_stream(

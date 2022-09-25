@@ -1,4 +1,4 @@
-/// A trait that represents a transform of a audio buffer in some way.
+/// A trait that represents a transform of an audio buffer in some way.
 pub trait Transformer {
     /// Do the transform. Returning `None` is interpreted as "the buffer is unwanted".
     /// The implementor is free to modify the buffer however it wants to.
