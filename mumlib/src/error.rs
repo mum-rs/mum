@@ -56,8 +56,9 @@ impl std::error::Error for ChannelIdentifierError {}
 #[derive(Debug)]
 pub enum ConfigError {
     InvalidConfig,
-    TOMLErrorSer(toml::ser::Error),
-    TOMLErrorDe(toml::de::Error),
+    TomlError(toml_edit::TomlError),
+    TomlErrorSer(toml_edit::ser::Error),
+    TomlErrorDe(toml_edit::de::Error),
 
     WontCreateFile,
     IOError(std::io::Error),
@@ -69,8 +70,9 @@ impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConfigError::InvalidConfig => write!(f, "Invalid configuration"),
-            ConfigError::TOMLErrorSer(e) => write!(f, "Invalid TOML when serializing: {}", e),
-            ConfigError::TOMLErrorDe(e) => write!(f, "Invalid TOML when deserializing: {}", e),
+            ConfigError::TomlError(e) => write!(f, "Invalid TOML: {}", e),
+            ConfigError::TomlErrorSer(e) => write!(f, "Invalid TOML when serializing: {}", e),
+            ConfigError::TomlErrorDe(e) => write!(f, "Invalid TOML when deserializing: {}", e),
             ConfigError::WontCreateFile => {
                 write!(f, "File does not exist but caller didn't allow creation")
             }
@@ -85,14 +87,20 @@ impl From<std::io::Error> for ConfigError {
     }
 }
 
-impl From<toml::ser::Error> for ConfigError {
-    fn from(e: toml::ser::Error) -> Self {
-        ConfigError::TOMLErrorSer(e)
+impl From<toml_edit::ser::Error> for ConfigError {
+    fn from(e: toml_edit::ser::Error) -> Self {
+        ConfigError::TomlErrorSer(e)
     }
 }
 
-impl From<toml::de::Error> for ConfigError {
-    fn from(e: toml::de::Error) -> Self {
-        ConfigError::TOMLErrorDe(e)
+impl From<toml_edit::de::Error> for ConfigError {
+    fn from(e: toml_edit::de::Error) -> Self {
+        ConfigError::TomlErrorDe(e)
+    }
+}
+
+impl From<toml_edit::TomlError> for ConfigError {
+    fn from(e: toml_edit::TomlError) -> Self {
+        ConfigError::TomlError(e)
     }
 }

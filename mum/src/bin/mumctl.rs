@@ -1,7 +1,7 @@
 use colored::Colorize;
 use log::{error, warn, Level, LevelFilter, Metadata, Record};
 use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
-use mumlib::config::{self, Config, ServerConfig};
+use mumlib::config::{self, Config, ConfigEdit, ServerConfig};
 use mumlib::state::Channel as MumChannel;
 use serde::de::DeserializeOwned;
 use std::fmt;
@@ -235,7 +235,8 @@ fn main() {
     }
 }
 fn match_opt() -> Result<(), Error> {
-    let mut config = config::read_cfg(&config::default_cfg_path())?;
+    let config = config::read_cfg(&config::default_cfg_path())?;
+    let mut config_edit = None;
 
     let opt = Mum::from_args();
     match opt.command {
@@ -313,7 +314,7 @@ fn match_opt() -> Result<(), Error> {
             send_command(MumCommand::ServerDisconnect)??;
         }
         Command::Server(server_command) => {
-            match_server_command(server_command, &mut config)?;
+            match_server_command(server_command, &config, &mut config_edit)?;
         }
         Command::Channel(channel_command) => {
             match channel_command {
@@ -343,18 +344,27 @@ fn match_opt() -> Result<(), Error> {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse() {
                     send_command(MumCommand::InputVolumeSet(volume))??;
-                    config.audio.input_volume = Some(volume);
+                    config_edit = Some(ConfigEdit::SetField(
+                        vec!["audio".to_string(), "input_volume".to_string()],
+                        (volume as f64).into(),
+                    ));
                 }
             }
             "audio.output_volume" => {
                 if let Ok(volume) = value.parse() {
                     send_command(MumCommand::OutputVolumeSet(volume))??;
-                    config.audio.output_volume = Some(volume);
+                    config_edit = Some(ConfigEdit::SetField(
+                        vec!["audio".to_string(), "output_volume".to_string()],
+                        (volume as f64).into(),
+                    ));
                 }
             }
             "accept_all_invalid_certs" => {
-                if let Ok(b) = value.parse() {
-                    config.allow_invalid_server_cert = Some(b);
+                if let Ok(b) = value.parse::<bool>() {
+                    config_edit = Some(ConfigEdit::SetField(
+                        vec!["allow_invalid_servert_cert".to_string()],
+                        b.into(),
+                    ));
                 }
             }
             _ => {
@@ -464,24 +474,30 @@ fn match_opt() -> Result<(), Error> {
         }
     }
 
-    let config_path = config::default_cfg_path();
-    if !config_path.exists() {
-        println!(
-            "Config file not found. Create one in {}? [Y/n]",
-            config_path.display(),
-        );
-        let stdin = std::io::stdin();
-        let response = stdin.lock().lines().next();
-        if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
-            config.write(&config_path, true)?;
+    if let Some(config_edit) = config_edit {
+        let config_path = config::default_cfg_path();
+        if !config_path.exists() {
+            println!(
+                "Config file not found. Create one in {}? [Y/n]",
+                config_path.display(),
+            );
+            let stdin = std::io::stdin();
+            let response = stdin.lock().lines().next();
+            if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
+                config.apply_edit(config_edit, true)
+            }
+        } else {
+            config.apply_edit(config_edit, false)
         }
-    } else {
-        config.write(&config_path, false)?;
     }
     Ok(())
 }
 
-fn match_server_command(server_command: Server, config: &mut Config) -> Result<(), Error> {
+fn match_server_command(
+    server_command: Server,
+    config: &Config,
+    config_edit: &mut Option<ConfigEdit>,
+) -> Result<(), Error> {
     match server_command {
         Server::Config {
             server_name,
@@ -499,7 +515,7 @@ fn match_server_command(server_command: Server, config: &mut Config) -> Result<(
             };
             let server = config
                 .servers
-                .iter_mut()
+                .iter()
                 .find(|s| s.name == server_name)
                 .ok_or(CliError::NoServerFound(server_name))?;
 
