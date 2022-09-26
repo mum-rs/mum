@@ -160,12 +160,26 @@ impl TryFrom<TOMLConfig> for Config {
 
 impl From<Config> for TOMLConfig {
     fn from(config: Config) -> Self {
+        // Only write the AudioConfig if any field is Some. (Otherwise we'd have a lone [audio].)
+        let AudioConfig {
+            input_volume,
+            output_volume,
+            disable_noise_gate,
+            sound_effects,
+        } = &config.audio;
+
+        let audio = if input_volume.is_some()
+            || output_volume.is_some()
+            || disable_noise_gate.is_some()
+            || sound_effects.is_some()
+        {
+            Some(config.audio)
+        } else {
+            None
+        };
+
         TOMLConfig {
-            audio: if config.audio.output_volume.is_some() || config.audio.input_volume.is_some() {
-                Some(config.audio)
-            } else {
-                None
-            },
+            audio,
             servers: Some(
                 config
                     .servers
