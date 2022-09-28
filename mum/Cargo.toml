@@ -45,6 +45,7 @@ tokio-util = { version = "0.6.9", features = ["codec", "net"] }
 
 libnotify = { version = "1.0.3", optional = true }
 lewton = { version = "0.10.2", optional = true }
+toml_edit = { version = "0.14.4", features = ["serde"] }
 
 #compressor = "0.3"
 #daemonize = "0.4"

@@ -1,7 +1,7 @@
 use colored::Colorize;
 use log::{error, warn, Level, LevelFilter, Metadata, Record};
 use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
-use mumlib::config::{self, Config, ConfigEdit, ServerConfig};
+use mumlib::config::{self, Config, ServerConfig};
 use mumlib::state::Channel as MumChannel;
 use serde::de::DeserializeOwned;
 use std::fmt;
@@ -9,8 +9,11 @@ use std::io::{self, BufRead, Read, Write};
 use std::iter;
 use std::marker::PhantomData;
 use std::os::unix::net::UnixStream;
+use std::path::Path;
 use std::thread;
 use structopt::{clap::Shell, StructOpt};
+use toml_edit::ser::to_item;
+use toml_edit::{value as toml_value, Document, Value};
 
 const INDENTATION: &str = "  ";
 
@@ -234,9 +237,53 @@ fn main() {
         error!("{}", e);
     }
 }
+
+// Pass create = true if you want the file to be created if it doesn't already exist.
+fn write(path: impl AsRef<Path>, content: impl AsRef<str>, create: bool) -> Result<bool, Error> {
+    let path = path.as_ref();
+    // Possible race here. It's fine since it shows when:
+    //   1) the file doesn't exist when checked and is then created
+    //   2) the file exists when checked but is then removed
+    // If 1) we don't do anything anyway so it's fine, and if 2) we
+    // immediately re-create the file which, while not perfect, at least
+    // should work. Unless the file is removed AND the permissions
+    // change, but then we don't have permissions so we can't
+    // do anything anyways.
+
+    if !create && !path.exists() {
+        return Ok(false);
+    }
+
+    std::fs::write(path, content.as_ref())?;
+    Ok(true)
+}
+
+fn maybe_write_config(
+    config_path: impl AsRef<Path>,
+    content: impl AsRef<str>,
+) -> Result<(), Error> {
+    let config_path = config_path.as_ref();
+    if !config_path.exists() {
+        println!(
+            "Config file not found. Create one in {}? [Y/n]",
+            config_path.display(),
+        );
+        let stdin = std::io::stdin();
+        let response = stdin.lock().lines().next();
+        if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
+            write(config_path, content, true)?;
+        }
+    } else {
+        write(config_path, content, false)?;
+    }
+    Ok(())
+}
+
 fn match_opt() -> Result<(), Error> {
-    let config = config::read_cfg(&config::default_cfg_path())?;
-    let mut config_edit = None;
+    let config_path = config::default_cfg_path();
+    let config_str = std::fs::read_to_string(&config_path)?;
+    let mut document = config_str.parse::<Document>()?;
+    let config: Config = toml_edit::de::from_document(document.clone())?;
 
     let opt = Mum::from_args();
     match opt.command {
@@ -314,7 +361,7 @@ fn match_opt() -> Result<(), Error> {
             send_command(MumCommand::ServerDisconnect)??;
         }
         Command::Server(server_command) => {
-            match_server_command(server_command, &config, &mut config_edit)?;
+            match_server_command(server_command, &config, &config_path, &mut document)?;
         }
         Command::Channel(channel_command) => {
             match channel_command {
@@ -344,27 +391,21 @@ fn match_opt() -> Result<(), Error> {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse() {
                     send_command(MumCommand::InputVolumeSet(volume))??;
-                    config_edit = Some(ConfigEdit::SetField(
-                        vec!["audio".to_string(), "input_volume".to_string()],
-                        (volume as f64).into(),
-                    ));
+                    document["audio"]["input_volume"] = toml_value(volume as f64);
+                    maybe_write_config(&config_path, document.to_string())?;
                 }
             }
             "audio.output_volume" => {
                 if let Ok(volume) = value.parse() {
                     send_command(MumCommand::OutputVolumeSet(volume))??;
-                    config_edit = Some(ConfigEdit::SetField(
-                        vec!["audio".to_string(), "output_volume".to_string()],
-                        (volume as f64).into(),
-                    ));
+                    document["audio"]["output_volume"] = toml_value(volume as f64);
+                    maybe_write_config(&config_path, document.to_string())?;
                 }
             }
             "accept_all_invalid_certs" => {
                 if let Ok(b) = value.parse::<bool>() {
-                    config_edit = Some(ConfigEdit::SetField(
-                        vec!["allow_invalid_servert_cert".to_string()],
-                        b.into(),
-                    ));
+                    document["allow_invalid_server_cert"] = toml_value(b);
+                    maybe_write_config(&config_path, document.to_string())?;
                 }
             }
             _ => {
@@ -474,29 +515,14 @@ fn match_opt() -> Result<(), Error> {
         }
     }
 
-    if let Some(config_edit) = config_edit {
-        let config_path = config::default_cfg_path();
-        if !config_path.exists() {
-            println!(
-                "Config file not found. Create one in {}? [Y/n]",
-                config_path.display(),
-            );
-            let stdin = std::io::stdin();
-            let response = stdin.lock().lines().next();
-            if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
-                config.apply_edit(config_edit, true)
-            }
-        } else {
-            config.apply_edit(config_edit, false)
-        }
-    }
     Ok(())
 }
 
 fn match_server_command(
     server_command: Server,
     config: &Config,
-    config_edit: &mut Option<ConfigEdit>,
+    config_path: impl AsRef<Path>,
+    document: &mut Document,
 ) -> Result<(), Error> {
     match server_command {
         Server::Config {
@@ -513,11 +539,19 @@ fn match_server_command(
                     return Ok(());
                 }
             };
-            let server = config
+            let (server_index, server) = config
                 .servers
                 .iter()
-                .find(|s| s.name == server_name)
+                .enumerate()
+                .find(|(_, s)| s.name == server_name)
                 .ok_or(CliError::NoServerFound(server_name))?;
+            let server_document = document["servers"]
+                .as_array_mut()
+                .unwrap()
+                .get_mut(server_index)
+                .unwrap()
+                .as_inline_table_mut()
+                .unwrap();
 
             match (key.as_deref(), value) {
                 (None, _) => {
@@ -592,20 +626,24 @@ fn match_server_command(
                     return Err(CliError::UseServerRename.into());
                 }
                 (Some("host"), Some(value)) => {
-                    server.host = value;
+                    server_document["host"] = Value::from(value);
+                    maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("port"), Some(value)) => {
-                    server.port = Some(value.parse().unwrap());
+                    server_document["port"] = Value::from(value.parse::<i64>().unwrap());
+                    maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("username"), Some(value)) => {
-                    server.username = Some(value);
+                    server_document["username"] = Value::from(value);
+                    maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("password"), Some(value)) => {
-                    server.password = Some(value);
+                    server_document["password"] = Value::from(value);
+                    maybe_write_config(&config_path, document.to_string())?;
                     //TODO ask stdin if empty
                 }
-                (Some("accept_invalid_cert"), Some(value)) => match value.parse() {
-                    Ok(b) => server.accept_invalid_cert = Some(b),
+                (Some("accept_invalid_cert"), Some(value)) => match value.parse::<bool>() {
+                    Ok(b) => server_document["accept_invalid_cert"] = Value::from(b),
                     Err(e) => warn!("{}", e),
                 },
                 (Some(_), _) => {
@@ -614,12 +652,17 @@ fn match_server_command(
             }
         }
         Server::Rename { old_name, new_name } => {
-            config
-                .servers
+            document["servers"]
+                .as_array_mut()
+                .unwrap()
                 .iter_mut()
-                .find(|s| s.name == old_name)
+                .find(|server| {
+                    server.as_inline_table().unwrap()["name"].as_str().unwrap() == old_name
+                })
                 .ok_or(CliError::NoServerFound(old_name))?
-                .name = new_name;
+                .as_inline_table_mut()
+                .unwrap()["name"] = Value::from(new_name);
+            maybe_write_config(&config_path, document.to_string())?;
         }
         Server::Add {
             name,
@@ -631,14 +674,20 @@ fn match_server_command(
             if config.servers.iter().any(|s| s.name == name) {
                 return Err(CliError::ServerAlreadyExists(name).into());
             } else {
-                config.servers.push(ServerConfig {
-                    name,
-                    host,
-                    port,
-                    username,
-                    password,
-                    accept_invalid_cert: None,
-                });
+                document["servers"].as_array_mut().unwrap().push(
+                    to_item(&ServerConfig {
+                        name,
+                        host,
+                        port,
+                        username,
+                        password,
+                        accept_invalid_cert: None,
+                    })
+                    .unwrap()
+                    .as_value()
+                    .unwrap(),
+                );
+                maybe_write_config(&config_path, document.to_string())?;
             }
         }
         Server::Remove { name } => {
@@ -647,7 +696,8 @@ fn match_server_command(
                 .iter()
                 .position(|s| s.name == name)
                 .ok_or(CliError::NoServerFound(name))?;
-            config.servers.remove(idx);
+            document["servers"].as_array_mut().unwrap().remove(idx);
+            maybe_write_config(&config_path, document.to_string())?;
         }
         Server::List => {
             if config.servers.is_empty() {

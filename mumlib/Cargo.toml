@@ -18,5 +18,4 @@ dirs = "4.0.0"
 fern = "0.6.0"
 log = "0.4.16"
 serde = { version = "1.0.136", features = ["derive"] }
-toml = "0.5.8"
 toml_edit = { version = "0.14.4", features = ["serde"] }

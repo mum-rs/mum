@@ -879,6 +879,7 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-util",
+ "toml_edit",
 ]
 
 [[package]]
@@ -905,7 +906,6 @@ dependencies = [
  "fern",
  "log",
  "serde",
- "toml",
  "toml_edit",
 ]
 
