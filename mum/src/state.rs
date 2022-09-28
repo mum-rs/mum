@@ -101,6 +101,7 @@ impl State {
         let phase_watcher = watch::channel(StatePhase::Disconnected);
         let audio_input = AudioInput::new(
             config.audio.input_volume.unwrap_or(1.0),
+            config.audio.disable_noise_gate.unwrap_or(false),
             phase_watcher.1.clone(),
         )
         .map_err(StateError::AudioError)?;
