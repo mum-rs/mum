@@ -9,7 +9,7 @@ use std::fs;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 
-/// Our representation of the mumdrc config file.
+/// The mumdrc config file.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
     /// General audio configuration.
