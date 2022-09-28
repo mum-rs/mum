@@ -28,11 +28,26 @@ pub type PingRequest = (u64, SocketAddr, Box<dyn FnOnce(Option<PongPacket>) + Se
 type UdpSender = SplitSink<UdpFramed<ClientCryptState>, (VoicePacket<Serverbound>, SocketAddr)>;
 type UdpReceiver = SplitStream<UdpFramed<ClientCryptState>>;
 
+pub fn pending() -> impl futures_util::Future<Output = Result<(), UdpError>> {
+    futures_util::future::pending()
+}
+
 pub async fn handle(
     state: Arc<RwLock<State>>,
+    force_tcp: bool,
     mut connection_info_receiver: watch::Receiver<Option<ConnectionInfo>>,
     mut crypt_state_receiver: mpsc::Receiver<ClientCryptState>,
 ) -> Result<(), UdpError> {
+    if force_tcp {
+        state
+            .read()
+            .unwrap()
+            .broadcast_phase(StatePhase::Connected(VoiceStreamType::Tcp));
+        loop {
+            futures_util::pending!();
+        }
+    }
+
     let receiver = state.read().unwrap().audio_input().receiver();
 
     loop {

@@ -54,7 +54,8 @@ async fn main() {
 
     let (command_sender, command_receiver) = mpsc::unbounded_channel();
 
-    let state = match State::new() {
+    let config = mumlib::config::read_cfg(&mumlib::config::default_cfg_path()).unwrap();
+    let state = match State::new(config.clone()) {
         Ok(s) => s,
         Err(e) => {
             error!("Error instantiating mumd: {}", e);
@@ -63,7 +64,7 @@ async fn main() {
     };
 
     let run = select! {
-        r = mum::client::handle(state, command_receiver).fuse() => r,
+        r = mum::client::handle(state, &config, command_receiver).fuse() => r,
         _ = receive_commands(command_sender).fuse() => Ok(()),
     };
 

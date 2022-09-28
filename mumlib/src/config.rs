@@ -88,8 +88,10 @@ pub struct AudioConfig {
     pub output_volume: Option<f32>,
     /// Overriden sound effects.
     pub sound_effects: Option<Vec<SoundEffect>>,
-    /// If we should disable the noise gate, i.e. send _all_ data from the input to the server.
+    /// Disable the noise gate, i.e. send _all_ data from the input to the server.
     pub disable_noise_gate: Option<bool>,
+    /// Send all voice data over TCP.
+    pub force_tcp: Option<bool>,
 }
 
 /// A saved server.
@@ -166,12 +168,14 @@ impl From<Config> for TOMLConfig {
             output_volume,
             disable_noise_gate,
             sound_effects,
+            force_tcp,
         } = &config.audio;
 
         let audio = if input_volume.is_some()
             || output_volume.is_some()
             || disable_noise_gate.is_some()
             || sound_effects.is_some()
+            || force_tcp.is_some()
         {
             Some(config.audio)
         } else {

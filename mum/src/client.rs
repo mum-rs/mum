@@ -6,11 +6,13 @@ use crate::{command, network::tcp::TcpEventQueue};
 use futures_util::{select, FutureExt};
 use mumble_protocol::{control::ControlPacket, crypt::ClientCryptState, Serverbound};
 use mumlib::command::{Command, CommandResponse};
+use mumlib::config::Config;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, watch};
 
 pub async fn handle(
     state: State,
+    config: &Config,
     command_receiver: mpsc::UnboundedReceiver<(
         Command,
         mpsc::UnboundedSender<mumlib::error::Result<Option<CommandResponse>>>,
@@ -36,6 +38,7 @@ pub async fn handle(
         ).fuse() => r.map_err(ClientError::TcpError),
         _ = udp::handle(
             Arc::clone(&state),
+            config.audio.force_tcp.unwrap_or(false),
             connection_info_receiver.clone(),
             crypt_state_receiver,
         ).fuse() => Ok(()),

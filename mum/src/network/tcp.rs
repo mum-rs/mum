@@ -321,6 +321,7 @@ async fn send_voice(
                 break;
             }
         }
+        debug!("Sending voice over TCP");
         run_until(
             |phase| !matches!(phase, StatePhase::Connected(VoiceStreamType::Tcp)),
             async {
@@ -340,6 +341,7 @@ async fn send_voice(
         )
         .await
         .unwrap_or(Ok::<(), ServerSendError>(()))?;
+        debug!("No longer sending voice over TCP");
     }
 }
 
