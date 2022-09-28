@@ -103,6 +103,9 @@ pub enum Command {
     /// No response.
     OutputVolumeSet(f32),
 
+    /// Request packet stats. Response: [CommandResponse::PacketStats]
+    PacketStats,
+
     /// Request a list of past messages. Blocks while waiting for more messages
     /// if block is true. Response: multiple [CommandResponse::PastMessage].
     PastMessages {
@@ -169,6 +172,17 @@ pub enum CommandResponse {
 
     MuteStatus {
         is_muted: bool,
+    },
+
+    PacketStats {
+        good: u32,
+        late: u32,
+        lost: u32,
+        resync: u32,
+        total_good: u32,
+        total_late: u32,
+        total_lost: u32,
+        total_resync: u32,
     },
 
     PastMessage {
