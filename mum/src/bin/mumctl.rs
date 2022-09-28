@@ -65,7 +65,10 @@ enum Command {
     /// Handle channels in the connected server
     Channel(Channel),
     /// Show current status
-    Status,
+    Status {
+        #[structopt(long)]
+        stats: bool,
+    },
     /// Change config values
     Config { key: String, value: String },
     /// Reload the config file
@@ -333,12 +336,42 @@ fn match_opt() -> Result<(), Error> {
                 }
             }
         }
-        Command::Status => match send_command(MumCommand::Status)?? {
-            Some(CommandResponse::Status { server_state }) => {
-                parse_state(&server_state);
+        Command::Status { stats } => {
+            match send_command(MumCommand::Status)?? {
+                Some(CommandResponse::Status { server_state }) => {
+                    parse_state(&server_state);
+                }
+                _ => unreachable!("Response should only be a Status"),
             }
-            _ => unreachable!("Response should only be a Status"),
-        },
+            if stats {
+                println!("Waiting up to 10 seconds for a ping...");
+                match send_command(MumCommand::PacketStats)?? {
+                    Some(CommandResponse::PacketStats {
+                        good,
+                        late,
+                        lost,
+                        resync,
+                        total_good,
+                        total_late,
+                        total_lost,
+                        total_resync,
+                    }) => {
+                        // TODO table
+                        dbg!(
+                            good,
+                            late,
+                            lost,
+                            resync,
+                            total_good,
+                            total_late,
+                            total_lost,
+                            total_resync
+                        );
+                    }
+                    _ => unreachable!("Response should only be PacketStats"),
+                }
+            }
+        }
         Command::Config { key, value } => match key.as_str() {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse() {

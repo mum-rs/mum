@@ -779,5 +779,40 @@ pub fn handle_command(
                 now!(Err(Error::Disconnected))
             }
         }
+        Command::PacketStats => {
+            // send a ping
+            // subscribe for the result
+            // in the callback, send a commandresponse
+            at!(
+                TcpEvent::Ping => move |res| {
+                    if let TcpEventData::Ping {
+                        good,
+                        late,
+                        lost,
+                        resync,
+                        total_good,
+                        total_late,
+                        total_lost,
+                        total_resync,
+                    } = res {
+                        Box::new(iter::once(
+                            Ok(Some(CommandResponse::PacketStats {
+                                good,
+                                late,
+                                lost,
+                                resync,
+                                total_good,
+                                total_late,
+                                total_lost,
+                                total_resync,
+                            }))
+                        ))
+                    } else {
+                        // TODO: let-else
+                        unreachable!("callback should be provided with a TcpEventData::PacketStats")
+                    }
+                }
+            )
+        }
     }
 }

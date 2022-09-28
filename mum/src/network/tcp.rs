@@ -47,9 +47,10 @@ pub enum DisconnectedReason {
 /// Something a callback can register to. Data is sent via a respective [TcpEventData].
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TcpEvent {
-    Connected,                        //fires when the client has connected to a server
-    Disconnected(DisconnectedReason), //fires when the client has disconnected from a server
-    TextMessage,                      //fires when a text message comes in
+    Connected,                        // fires when the client has connected to a server
+    Disconnected(DisconnectedReason), // fires when the client has disconnected from a server
+    TextMessage,                      // fires when a text message comes in
+    Ping,                             // fires when the server sends a ping with packet stats
 }
 
 /// When a [TcpEvent] occurs, this contains the data for the event.
@@ -64,6 +65,16 @@ pub enum TcpEventData<'a> {
     Connected(Result<&'a msgs::ServerSync, mumlib::Error>),
     Disconnected(DisconnectedReason),
     TextMessage(&'a msgs::TextMessage),
+    Ping {
+        good: u32,
+        late: u32,
+        lost: u32,
+        resync: u32,
+        total_good: u32,
+        total_late: u32,
+        total_lost: u32,
+        total_resync: u32,
+    },
 }
 
 impl From<&TcpEventData<'_>> for TcpEvent {
@@ -72,6 +83,7 @@ impl From<&TcpEventData<'_>> for TcpEvent {
             TcpEventData::Connected(_) => TcpEvent::Connected,
             TcpEventData::Disconnected(reason) => TcpEvent::Disconnected(*reason),
             TcpEventData::TextMessage(_) => TcpEvent::TextMessage,
+            TcpEventData::Ping { .. } => TcpEvent::Ping,
         }
     }
 }
@@ -352,9 +364,10 @@ async fn listen(
     let mut crypt_state = None;
     let mut crypt_state_sender = Some(crypt_state_sender);
 
-    let mut last_late = 0;
-    let mut last_lost = 0;
-    let mut last_resync = 0;
+    let mut total_good = 0;
+    let mut total_late = 0;
+    let mut total_lost = 0;
+    let mut total_resync = 0;
 
     loop {
         let packet = match stream.next().await {
@@ -487,17 +500,34 @@ async fn listen(
             ControlPacket::Ping(msg) => {
                 trace!("Received Ping {:?}", *msg);
 
-                let late = msg.get_late();
-                let lost = msg.get_lost();
-                let resync = msg.get_resync();
+                // The packets contain the sums.
+                let new_good = msg.get_good();
+                let new_late = msg.get_late();
+                let new_lost = msg.get_lost();
+                let new_resync = msg.get_resync();
 
-                let late = late - last_late;
-                let lost = lost - last_lost;
-                let resync = resync - last_resync;
+                // Changes since the last ping.
+                let good = new_good - total_good;
+                let late = new_late - total_late;
+                let lost = new_lost - total_lost;
+                let resync = new_resync - total_resync;
 
-                last_late += late;
-                last_lost += lost;
-                last_resync += resync;
+                // Totals for this session.
+                total_good = new_good;
+                total_late = new_late;
+                total_lost = new_lost;
+                total_resync = new_resync;
+
+                event_queue.resolve(TcpEventData::Ping {
+                    good,
+                    late,
+                    lost,
+                    resync,
+                    total_good,
+                    total_late,
+                    total_lost,
+                    total_resync,
+                });
 
                 macro_rules! format_if_nonzero {
                     ($value:expr) => {
