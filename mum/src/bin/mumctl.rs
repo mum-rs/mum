@@ -158,7 +158,6 @@ enum Channel {
 
 #[derive(Debug, Parser)]
 struct Completions {
-    #[clap(arg_enum)]
     shell: Shell,
 }
 
@@ -225,7 +224,7 @@ impl fmt::Display for CliError {
     }
 }
 
-fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command<'_>) {
+fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
     clap_complete::generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
 
