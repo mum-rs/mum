@@ -389,16 +389,16 @@ fn match_opt() -> Result<(), Error> {
         },
         Command::Config { key, value } => match key.as_str() {
             "audio.input_volume" => {
-                if let Ok(volume) = value.parse() {
-                    send_command(MumCommand::InputVolumeSet(volume))??;
-                    document["audio"]["input_volume"] = toml_value(volume as f64);
+                if let Ok(volume) = value.parse::<f64>() {
+                    send_command(MumCommand::InputVolumeSet(volume as f32))??;
+                    document["audio"]["input_volume"] = toml_value(volume);
                     maybe_write_config(&config_path, document.to_string())?;
                 }
             }
             "audio.output_volume" => {
-                if let Ok(volume) = value.parse() {
-                    send_command(MumCommand::OutputVolumeSet(volume))??;
-                    document["audio"]["output_volume"] = toml_value(volume as f64);
+                if let Ok(volume) = value.parse::<f64>() {
+                    send_command(MumCommand::OutputVolumeSet(volume as f32))??;
+                    document["audio"]["output_volume"] = toml_value(volume);
                     maybe_write_config(&config_path, document.to_string())?;
                 }
             }
