@@ -155,7 +155,7 @@ impl TcpEventQueue {
 
 impl Debug for TcpEventQueue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TcpEventQueue").finish()
+        f.debug_struct("TcpEventQueue").finish_non_exhaustive()
     }
 }
 
