@@ -1,6 +1,6 @@
 [package]
 name = "mumlib"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Gustav Sörnäs <gustav@sornas.net>",
            "Eskil Queseth <eskilq@kth.se>"]
 edition = "2021"

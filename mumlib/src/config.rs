@@ -11,9 +11,10 @@ use std::path::{Path, PathBuf};
 use toml::value::Array;
 use toml::Value;
 
+// FIXME: We shouldn't need the split between TOMLConfig and Config.
+
 /// A TOML-friendly version of [Config].
-///
-/// Values need to be placed before tables due to how TOML works.
+// Values need to be placed before tables due to how TOML works.
 #[derive(Debug, Deserialize, Serialize)]
 struct TOMLConfig {
     // Values
@@ -87,6 +88,8 @@ pub struct AudioConfig {
     pub output_volume: Option<f32>,
     /// Overriden sound effects.
     pub sound_effects: Option<Vec<SoundEffect>>,
+    /// If we should disable the noise gate, i.e. send _all_ data from the input to the server.
+    pub disable_noise_gate: Option<bool>,
 }
 
 /// A saved server.
@@ -157,12 +160,26 @@ impl TryFrom<TOMLConfig> for Config {
 
 impl From<Config> for TOMLConfig {
     fn from(config: Config) -> Self {
+        // Only write the AudioConfig if any field is Some. (Otherwise we'd have a lone [audio].)
+        let AudioConfig {
+            input_volume,
+            output_volume,
+            disable_noise_gate,
+            sound_effects,
+        } = &config.audio;
+
+        let audio = if input_volume.is_some()
+            || output_volume.is_some()
+            || disable_noise_gate.is_some()
+            || sound_effects.is_some()
+        {
+            Some(config.audio)
+        } else {
+            None
+        };
+
         TOMLConfig {
-            audio: if config.audio.output_volume.is_some() || config.audio.input_volume.is_some() {
-                Some(config.audio)
-            } else {
-                None
-            },
+            audio,
             servers: Some(
                 config
                     .servers
