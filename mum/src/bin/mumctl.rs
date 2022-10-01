@@ -1,3 +1,5 @@
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{Generator, Shell};
 use colored::Colorize;
 use log::{error, warn, Level, LevelFilter, Metadata, Record};
 use mumlib::command::{ChannelTarget, Command as MumCommand, CommandResponse, MessageTarget};
@@ -10,7 +12,6 @@ use std::iter;
 use std::marker::PhantomData;
 use std::os::unix::net::UnixStream;
 use std::thread;
-use structopt::{clap::Shell, StructOpt};
 
 const INDENTATION: &str = "  ";
 
@@ -40,29 +41,31 @@ impl log::Log for SimpleLogger {
 
 static LOGGER: SimpleLogger = SimpleLogger;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 struct Mum {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     command: Command,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 enum Command {
     /// Connect to a server
     Connect {
         host: String,
         username: Option<String>,
         password: Option<String>,
-        #[structopt(short = "p", long = "port")]
+        #[clap(short = 'p', long = "port")]
         port: Option<u16>,
-        #[structopt(long = "accept-invalid-cert")]
+        #[clap(long = "accept-invalid-cert")]
         accept_invalid_cert: bool,
     },
     /// Disconnect from the currently connected server
     Disconnect,
     /// Handle servers
+    #[clap(subcommand)]
     Server(Server),
     /// Handle channels in the connected server
+    #[clap(subcommand)]
     Channel(Channel),
     /// Show current status
     Status,
@@ -84,25 +87,26 @@ enum Command {
     Undeafen,
     /// Get messages sent to the server you're currently connected to
     Messages {
-        #[structopt(short = "f", long = "follow")]
+        #[clap(short = 'f', long = "follow")]
         follow: bool,
     },
     /// Send a message to a channel or a user
+    #[clap(subcommand)]
     Message(Target),
     /// Get events that have happened since we connected
     Events {
-        #[structopt(short = "f", long = "follow")]
+        #[clap(short = 'f', long = "follow")]
         follow: bool,
     },
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 enum Target {
     Channel {
         /// The message to send
         message: String,
         /// If the message should be sent recursively to sub-channels
-        #[structopt(short = "r", long = "recursive")]
+        #[clap(short = 'r', long = "recursive")]
         recursive: bool,
         /// Which channels to send to. Defaults to current channel if left empty
         names: Vec<String>,
@@ -115,7 +119,7 @@ enum Target {
     },
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 enum Server {
     /// Configure a saved server
     Config {
@@ -129,10 +133,10 @@ enum Server {
     Add {
         name: String,
         host: String,
-        #[structopt(short = "p", long = "port")]
+        #[clap(short = 'p', long = "port")]
         port: Option<u16>,
         username: Option<String>,
-        #[structopt(requires = "username")]
+        #[clap(requires = "username")]
         password: Option<String>,
     },
     /// Remove a saved server
@@ -141,10 +145,10 @@ enum Server {
     List,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Subcommand)]
 enum Channel {
     List {
-        #[structopt(short = "s", long = "short")]
+        #[clap(short = 's', long = "short")]
         short: bool,
     },
     Connect {
@@ -152,11 +156,9 @@ enum Channel {
     },
 }
 
-#[derive(Debug, StructOpt)]
-enum Completions {
-    Zsh,
-    Bash,
-    Fish,
+#[derive(Debug, Parser)]
+struct Completions {
+    shell: Shell,
 }
 
 #[derive(Debug)]
@@ -222,6 +224,10 @@ impl fmt::Display for CliError {
     }
 }
 
+fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
+    clap_complete::generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
+}
+
 fn main() {
     if std::env::args().any(|s| s.as_str() == "--version" || s.as_str() == "-V") {
         println!("mumctl {}", env!("VERSION"));
@@ -237,7 +243,7 @@ fn main() {
 fn match_opt() -> Result<(), Error> {
     let mut config = config::read_cfg(&config::default_cfg_path())?;
 
-    let opt = Mum::from_args();
+    let opt = Mum::parse();
     match opt.command {
         Command::Connect {
             host,
@@ -365,15 +371,8 @@ fn match_opt() -> Result<(), Error> {
             send_command(MumCommand::ConfigReload)??;
         }
         Command::Completions(completions) => {
-            Mum::clap().gen_completions_to(
-                "mumctl",
-                match completions {
-                    Completions::Bash => Shell::Bash,
-                    Completions::Fish => Shell::Fish,
-                    _ => Shell::Zsh,
-                },
-                &mut io::stdout(),
-            );
+            let mut cmd = Mum::command();
+            print_completions(completions.shell, &mut cmd);
         }
         Command::Volume { user, volume } => {
             if let Some(volume) = volume {
