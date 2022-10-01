@@ -2,7 +2,7 @@ use crate::state::channel::{into_channel, Channel};
 use crate::state::user::User;
 
 use log::*;
-use mumble_protocol::control::msgs;
+use mumble_protocol_2x::control::msgs;
 use mumlib::error::ChannelIdentifierError;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;

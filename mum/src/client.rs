@@ -4,7 +4,7 @@ use crate::state::State;
 use crate::{command, network::tcp::TcpEventQueue};
 
 use futures_util::{select, FutureExt};
-use mumble_protocol::{control::ControlPacket, crypt::ClientCryptState, Serverbound};
+use mumble_protocol_2x::{control::ControlPacket, crypt::ClientCryptState, Serverbound};
 use mumlib::command::{Command, CommandResponse};
 use mumlib::config::Config;
 use std::sync::{Arc, RwLock};

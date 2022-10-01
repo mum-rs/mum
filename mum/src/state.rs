@@ -12,9 +12,9 @@ use crate::state::user::User;
 
 use chrono::NaiveDateTime;
 use log::*;
-use mumble_protocol::control::{msgs, ControlPacket};
-use mumble_protocol::ping::PongPacket;
-use mumble_protocol::voice::Serverbound;
+use mumble_protocol_2x::control::{msgs, ControlPacket};
+use mumble_protocol_2x::ping::PongPacket;
+use mumble_protocol_2x::voice::Serverbound;
 use mumlib::command::{
     ChannelTarget, Command, CommandResponse, MessageTarget, MumbleEvent, MumbleEventKind,
 };

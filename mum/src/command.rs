@@ -2,7 +2,7 @@ use crate::network::{tcp::TcpEventQueue, udp::PingRequest, ConnectionInfo};
 use crate::state::{ExecutionContext, State};
 
 use log::*;
-use mumble_protocol::{control::ControlPacket, Serverbound};
+use mumble_protocol_2x::{control::ControlPacket, Serverbound};
 use mumlib::command::{Command, CommandResponse};
 use std::{
     rc::Rc,

@@ -818,7 +818,7 @@ dependencies = [
  "lewton",
  "libnotify",
  "log",
- "mumble-protocol",
+ "mumble-protocol-2x",
  "mumlib",
  "native-tls",
  "opus",
@@ -832,13 +832,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "mumble-protocol"
-version = "0.4.1"
+name = "mumble-protocol-2x"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4071096f63c6e9853c32825096af49caf6667979ff67a765ba23dffcf3c77160"
+checksum = "a6e4417cbe77af1cf604a6b5c729621a1e3a2ccdaa154c5a38c8b0a1d5a093b2"
 dependencies = [
  "byteorder",
  "bytes",
+ "cfg-if",
  "openssl",
  "protobuf",
  "protobuf-codegen-pure",

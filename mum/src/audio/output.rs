@@ -9,7 +9,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{OutputCallbackInfo, Sample, SampleFormat, SampleRate, StreamConfig};
 use dasp_ring_buffer::Bounded;
 use log::*;
-use mumble_protocol::voice::VoicePacketPayload;
+use mumble_protocol_2x::voice::VoicePacketPayload;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::Debug;
 use std::iter;

@@ -13,8 +13,8 @@ use crate::state::StatePhase;
 
 use futures_util::stream::Stream;
 use futures_util::StreamExt;
-use mumble_protocol::voice::{VoicePacket, VoicePacketPayload};
-use mumble_protocol::Serverbound;
+use mumble_protocol_2x::voice::{VoicePacket, VoicePacketPayload};
+use mumble_protocol_2x::Serverbound;
 use mumlib::config::SoundEffect;
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::Debug;

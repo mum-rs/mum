@@ -1,4 +1,4 @@
-use mumble_protocol::{control::ControlPacket, Serverbound};
+use mumble_protocol_2x::{control::ControlPacket, Serverbound};
 use mumlib::error::ConfigError;
 use std::fmt;
 use tokio::sync::mpsc;

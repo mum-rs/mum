@@ -32,7 +32,7 @@ futures-channel = "0.3.21"
 futures-util = { version = "0.3.21", features = ["sink"]}
 hound = "3.4.0"
 log = "0.4.16"
-mumble-protocol = "0.4.1"
+mumble-protocol-2x = "0.5.0"
 native-tls = "0.2.10"
 opus = "0.2.1"
 serde = { version = "1.0.136", features = ["derive"] }

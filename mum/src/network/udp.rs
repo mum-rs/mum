@@ -6,10 +6,10 @@ use futures_util::future::join4;
 use futures_util::stream::{SplitSink, SplitStream, Stream};
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use log::*;
-use mumble_protocol::crypt::ClientCryptState;
-use mumble_protocol::ping::{PingPacket, PongPacket};
-use mumble_protocol::voice::VoicePacket;
-use mumble_protocol::Serverbound;
+use mumble_protocol_2x::crypt::ClientCryptState;
+use mumble_protocol_2x::ping::{PingPacket, PongPacket};
+use mumble_protocol_2x::voice::VoicePacket;
+use mumble_protocol_2x::Serverbound;
 use std::collections::{hash_map::Entry, HashMap};
 use std::net::{Ipv6Addr, SocketAddr};
 use std::sync::{

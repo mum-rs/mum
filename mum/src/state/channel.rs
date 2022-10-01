@@ -1,6 +1,6 @@
 use crate::state::user::User;
 
-use mumble_protocol::control::msgs;
+use mumble_protocol_2x::control::msgs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
