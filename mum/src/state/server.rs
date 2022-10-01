@@ -111,16 +111,6 @@ impl ConnectedServer {
     /// Takes a channel name and returns either a tuple with the channel id and a reference to the
     /// channel struct if the channel name unambiguosly refers to a channel, or an error describing
     /// if the channel identifier was ambigous or invalid.
-    /// ```
-    /// use crate::state::channel::Channel;
-    /// let mut server = Server::new();
-    /// let channel = Channel {
-    ///     name: "Foobar".to_owned(),
-    ///     ..Default::default(),
-    /// };
-    /// server.channels.insert(0, channel.clone);
-    /// assert_eq!(server.channel_name("Foobar"), Ok((0, &channel)));
-    /// ```
     pub(crate) fn channel_name(
         &self,
         channel_name: &str,
