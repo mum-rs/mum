@@ -308,11 +308,9 @@ pub fn callback<T: Sample + AddAssign + SaturatingAdd + std::fmt::Display>(
 
 impl Debug for DefaultAudioOutputDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DefaultAudioInputDevice")
+        f.debug_struct("DefaultAudioOutputDevice")
             .field("client_streams", &self.client_streams)
             .field("config", &self.config)
-            .field("volume_sender", &self.volume_sender)
-            .field("stream", &"cpal::Stream")
-            .finish()
+            .finish_non_exhaustive()
     }
 }

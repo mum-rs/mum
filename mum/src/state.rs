@@ -104,8 +104,10 @@ impl State {
             phase_watcher.1.clone(),
         )
         .map_err(StateError::AudioError)?;
+        debug!("audio input: {:#?}", audio_input.device);
         let audio_output = AudioOutput::new(config.audio.output_volume.unwrap_or(1.0))
             .map_err(StateError::AudioError)?;
+        debug!("audio output: {:#?}", audio_output.device);
         let mut state = Self {
             config,
             server: Server::Disconnected,

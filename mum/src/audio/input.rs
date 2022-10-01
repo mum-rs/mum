@@ -205,8 +205,6 @@ impl Debug for DefaultAudioInputDevice {
         f.debug_struct("DefaultAudioInputDevice")
             .field("sample_receiver", &self.sample_receiver)
             .field("channels", &self.channels)
-            .field("volume_sender", &self.volume_sender)
-            .field("stream", &"cpal::Stream")
-            .finish()
+            .finish_non_exhaustive()
     }
 }

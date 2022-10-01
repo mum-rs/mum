@@ -31,7 +31,7 @@ const SAMPLE_RATE: u32 = 48000;
 /// Input audio state. Input audio is picket up from an [AudioInputDevice] (e.g.
 /// a microphone) and sent over the network.
 pub struct AudioInput {
-    device: DefaultAudioInputDevice,
+    pub(crate) device: DefaultAudioInputDevice,
 
     /// Outgoing voice packets that should be sent over the network.
     channel_receiver:
@@ -89,12 +89,11 @@ impl Debug for AudioInput {
     }
 }
 
-#[derive(Debug)]
 /// Audio output state. The audio is received from each client over the network,
 /// decoded, merged and finally played to an [AudioOutputDevice] (e.g. speaker,
 /// headphones, ...).
 pub struct AudioOutput {
-    device: DefaultAudioOutputDevice,
+    pub(crate) device: DefaultAudioOutputDevice,
     /// The volume and mute-status of a user ID.
     user_volumes: Arc<Mutex<HashMap<u32, (f32, bool)>>>,
 
@@ -105,6 +104,15 @@ pub struct AudioOutput {
 
     /// Which sound effect should be played on an event.
     sounds: HashMap<NotificationEvents, Vec<f32>>,
+}
+
+impl Debug for AudioOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AudioOutput")
+            .field("device", &self.device)
+            .field("user_volumes", &self.user_volumes)
+            .finish()
+    }
 }
 
 impl AudioOutput {
