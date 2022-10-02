@@ -105,6 +105,11 @@ impl State {
                 .as_ref()
                 .and_then(|audio| audio.input_volume)
                 .unwrap_or(1.0),
+            config
+                .audio
+                .as_ref()
+                .and_then(|audio| audio.disable_noise_gate)
+                .unwrap_or(false),
             phase_watcher.1.clone(),
         )
         .map_err(StateError::AudioError)?;

@@ -24,7 +24,9 @@ Other
 ~~~~~
 
  * Instead of four crates we now have only two. mumd and mumctl were merged
- * into mum as binary targets.
+   into mum as binary targets.
+ * You can now disable the noise gate by setting `audio.disable_noise_gate =
+   true` in the configuration file.
 
 0.4.0 - 2021-06-19
 ------------------

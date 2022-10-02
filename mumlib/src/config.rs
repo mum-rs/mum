@@ -41,6 +41,8 @@ pub struct AudioConfig {
     pub output_volume: Option<f32>,
     /// Overridden sound effects.
     pub sound_effects: Option<Vec<SoundEffect>>,
+    /// If we should disable the noise gate, i.e. send _all_ data from the input to the server.
+    pub disable_noise_gate: Option<bool>,
 }
 
 /// A saved server.
