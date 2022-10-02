@@ -100,11 +100,11 @@ impl State {
         let config = mumlib::config::read_cfg(&mumlib::config::default_cfg_path())?;
         let phase_watcher = watch::channel(StatePhase::Disconnected);
         let audio_input = AudioInput::new(
-            config.audio.input_volume.unwrap_or(1.0),
+            config.audio.as_ref().and_then(|audio| audio.input_volume).unwrap_or(1.0),
             phase_watcher.1.clone(),
         )
         .map_err(StateError::AudioError)?;
-        let audio_output = AudioOutput::new(config.audio.output_volume.unwrap_or(1.0))
+        let audio_output = AudioOutput::new(config.audio.as_ref().and_then(|audio| audio.output_volume).unwrap_or(1.0))
             .map_err(StateError::AudioError)?;
         let mut state = Self {
             config,
@@ -261,13 +261,13 @@ impl State {
             }
             Err(e) => error!("Couldn't read config: {}", e),
         }
-        if let Some(input_volume) = self.config.audio.input_volume {
+        if let Some(input_volume) = self.config.audio.as_ref().and_then(|audio| audio.input_volume) {
             self.audio_input.set_volume(input_volume);
         }
-        if let Some(output_volume) = self.config.audio.output_volume {
+        if let Some(output_volume) = self.config.audio.as_ref().and_then(|audio| audio.output_volume) {
             self.audio_output.set_volume(output_volume);
         }
-        if let Some(sound_effects) = &self.config.audio.sound_effects {
+        if let Some(sound_effects) = self.config.audio.as_ref().and_then(|audio| audio.sound_effects.as_ref()) {
             self.audio_output.load_sound_effects(sound_effects);
         }
     }

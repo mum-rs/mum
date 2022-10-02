@@ -238,50 +238,34 @@ fn main() {
     }
 }
 
-// Pass create = true if you want the file to be created if it doesn't already exist.
-fn write(path: impl AsRef<Path>, content: impl AsRef<str>, create: bool) -> Result<bool, Error> {
-    let path = path.as_ref();
-    // Possible race here. It's fine since it shows when:
-    //   1) the file doesn't exist when checked and is then created
-    //   2) the file exists when checked but is then removed
-    // If 1) we don't do anything anyway so it's fine, and if 2) we
-    // immediately re-create the file which, while not perfect, at least
-    // should work. Unless the file is removed AND the permissions
-    // change, but then we don't have permissions so we can't
-    // do anything anyways.
-
-    if !create && !path.exists() {
-        return Ok(false);
-    }
-
-    std::fs::write(path, content.as_ref())?;
-    Ok(true)
-}
-
 fn maybe_write_config(
     config_path: impl AsRef<Path>,
     content: impl AsRef<str>,
 ) -> Result<(), Error> {
     let config_path = config_path.as_ref();
     if !config_path.exists() {
-        println!(
-            "Config file not found. Create one in {}? [Y/n]",
+        print!(
+            "Config file not found. Create one at {}? [Y/n] ",
             config_path.display(),
         );
+        std::io::stdout().flush()?;
         let stdin = std::io::stdin();
         let response = stdin.lock().lines().next();
-        if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "Y")) {
-            write(config_path, content, true)?;
+        if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "n")) {
+            println!("Not creating config file");
+        } else {
+            println!("Config file created at {}", config_path.display());
+            std::fs::write(config_path, content.as_ref())?;
         }
     } else {
-        write(config_path, content, false)?;
+        std::fs::write(config_path, content.as_ref())?;
     }
     Ok(())
 }
 
 fn match_opt() -> Result<(), Error> {
     let config_path = config::default_cfg_path();
-    let config_str = std::fs::read_to_string(&config_path)?;
+    let config_str = std::fs::read_to_string(&config_path).unwrap_or_else(|_| String::new());
     let mut document = config_str.parse::<Document>()?;
     let config: Config = toml_edit::de::from_document(document.clone())?;
 
@@ -297,7 +281,7 @@ fn match_opt() -> Result<(), Error> {
             let port = port.unwrap_or(mumlib::DEFAULT_PORT);
 
             let (host, username, password, port, server_accept_invalid_cert) =
-                match config.servers.iter().find(|e| e.name == host) {
+                match config.servers.iter().flatten().find(|e| e.name == host) {
                     Some(server) => (
                         &server.host,
                         server
@@ -533,7 +517,7 @@ fn match_server_command(
             let server_name = match server_name {
                 Some(server_name) => server_name,
                 None => {
-                    for server in config.servers.iter() {
+                    for server in config.servers.iter().flatten() {
                         println!("{}", server.name);
                     }
                     return Ok(());
@@ -542,6 +526,7 @@ fn match_server_command(
             let (server_index, server) = config
                 .servers
                 .iter()
+                .flatten()
                 .enumerate()
                 .find(|(_, s)| s.name == server_name)
                 .ok_or(CliError::NoServerFound(server_name))?;
@@ -671,7 +656,7 @@ fn match_server_command(
             username,
             password,
         } => {
-            if config.servers.iter().any(|s| s.name == name) {
+            if config.servers.iter().flatten().any(|s| s.name == name) {
                 return Err(CliError::ServerAlreadyExists(name).into());
             } else {
                 document["servers"].as_array_mut().unwrap().push(
@@ -694,19 +679,21 @@ fn match_server_command(
             let idx = config
                 .servers
                 .iter()
+                .flatten()
                 .position(|s| s.name == name)
                 .ok_or(CliError::NoServerFound(name))?;
             document["servers"].as_array_mut().unwrap().remove(idx);
             maybe_write_config(&config_path, document.to_string())?;
         }
         Server::List => {
-            if config.servers.is_empty() {
+            if config.servers.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
                 return Err(CliError::NoServers.into());
             }
 
             let longest = config
                 .servers
                 .iter()
+                .flatten()
                 .map(|s| s.name.len())
                 .max()
                 .unwrap()  // ok since !config.servers.is_empty() above
@@ -715,6 +702,7 @@ fn match_server_command(
             let queries: Vec<_> = config
                 .servers
                 .iter()
+                .flatten()
                 .map(|s| {
                     let query = MumCommand::ServerStatus {
                         host: s.host.clone(),
@@ -724,7 +712,7 @@ fn match_server_command(
                 })
                 .collect();
 
-            for (server, response) in config.servers.iter().zip(queries) {
+            for (server, response) in config.servers.iter().flatten().zip(queries) {
                 match response.join().unwrap() {
                     Ok(Ok(Some(response))) => {
                         if let CommandResponse::ServerStatus {

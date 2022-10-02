@@ -12,15 +12,15 @@ use std::path::{Path, PathBuf};
 /// The mumdrc config file.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
-    /// General audio configuration.
-    #[serde(default)]
-    pub audio: AudioConfig,
-    /// Saved servers.
-    pub servers: Vec<ServerConfig>,
     /// Whether we allow connecting to servers with invalid server certificates.
     ///
     /// None implies false but we can show a better message to the user.
     pub allow_invalid_server_cert: Option<bool>,
+    /// General audio configuration.
+    #[serde(default)]
+    pub audio: Option<AudioConfig>,
+    /// Saved servers.
+    pub servers: Option<Vec<ServerConfig>>,
 }
 
 /// Overwrite a specific sound effect with a file that should be played instead.
@@ -39,7 +39,7 @@ pub struct AudioConfig {
     pub input_volume: Option<f32>,
     /// The output main gain.
     pub output_volume: Option<f32>,
-    /// Overriden sound effects.
+    /// Overridden sound effects.
     pub sound_effects: Option<Vec<SoundEffect>>,
 }
 
@@ -48,7 +48,7 @@ pub struct AudioConfig {
 pub struct ServerConfig {
     /// The alias of the server.
     pub name: String,
-    /// The host (URL or IP-adress) of the server.
+    /// The host (URL or IP-address) of the server.
     pub host: String,
     /// The port, if non-default.
     pub port: Option<u16>,
