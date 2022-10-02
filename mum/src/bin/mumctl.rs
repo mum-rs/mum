@@ -686,7 +686,12 @@ fn match_server_command(
             maybe_write_config(&config_path, document.to_string())?;
         }
         Server::List => {
-            if config.servers.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+            if config
+                .servers
+                .as_ref()
+                .map(|s| s.is_empty())
+                .unwrap_or(true)
+            {
                 return Err(CliError::NoServers.into());
             }
 
