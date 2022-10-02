@@ -260,8 +260,8 @@ fn maybe_write_config(
         if let Some(Ok(true)) = response.map(|e| e.map(|e| &e == "n")) {
             println!("Not creating config file");
         } else {
-            println!("Config file created at {}", config_path.display());
             std::fs::write(config_path, content.as_ref())?;
+            println!("Config file created at {}", config_path.display());
         }
     } else {
         std::fs::write(config_path, content.as_ref())?;
