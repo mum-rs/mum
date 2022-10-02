@@ -14,7 +14,7 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::thread;
 use toml_edit::ser::to_item;
-use toml_edit::{value as toml_value, Document, Value};
+use toml_edit::{value as toml_value, Document, Item as TomlItem, Table, Value as TomlValue};
 
 const INDENTATION: &str = "  ";
 
@@ -381,14 +381,16 @@ fn match_opt() -> Result<(), Error> {
             "audio.input_volume" => {
                 if let Ok(volume) = value.parse::<f64>() {
                     send_command(MumCommand::InputVolumeSet(volume as f32))??;
-                    document["audio"]["input_volume"] = toml_value(volume);
+                    document["audio"].or_insert(TomlItem::Table(Table::new()))["input_volume"] =
+                        toml_value(volume);
                     maybe_write_config(&config_path, document.to_string())?;
                 }
             }
             "audio.output_volume" => {
                 if let Ok(volume) = value.parse::<f64>() {
                     send_command(MumCommand::OutputVolumeSet(volume as f32))??;
-                    document["audio"]["output_volume"] = toml_value(volume);
+                    document["audio"].or_insert(TomlItem::Table(Table::new()))["output_volume"] =
+                        toml_value(volume);
                     maybe_write_config(&config_path, document.to_string())?;
                 }
             }
@@ -610,24 +612,24 @@ fn match_server_command(
                     return Err(CliError::UseServerRename.into());
                 }
                 (Some("host"), Some(value)) => {
-                    server_document["host"] = Value::from(value);
+                    server_document["host"] = TomlValue::from(value);
                     maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("port"), Some(value)) => {
-                    server_document["port"] = Value::from(value.parse::<i64>().unwrap());
+                    server_document["port"] = TomlValue::from(value.parse::<i64>().unwrap());
                     maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("username"), Some(value)) => {
-                    server_document["username"] = Value::from(value);
+                    server_document["username"] = TomlValue::from(value);
                     maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("password"), Some(value)) => {
-                    server_document["password"] = Value::from(value);
+                    server_document["password"] = TomlValue::from(value);
                     maybe_write_config(&config_path, document.to_string())?;
                     //TODO ask stdin if empty
                 }
                 (Some("accept_invalid_cert"), Some(value)) => match value.parse::<bool>() {
-                    Ok(b) => server_document["accept_invalid_cert"] = Value::from(b),
+                    Ok(b) => server_document["accept_invalid_cert"] = TomlValue::from(b),
                     Err(e) => warn!("{}", e),
                 },
                 (Some(_), _) => {
@@ -645,7 +647,7 @@ fn match_server_command(
                 })
                 .ok_or(CliError::NoServerFound(old_name))?
                 .as_inline_table_mut()
-                .unwrap()["name"] = Value::from(new_name);
+                .unwrap()["name"] = TomlValue::from(new_name);
             maybe_write_config(&config_path, document.to_string())?;
         }
         Server::Add {
