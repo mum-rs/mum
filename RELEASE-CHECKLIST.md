@@ -24,7 +24,7 @@
 - Make sure everything is commited and published.
 - Merge into main: `$ git switch main && git merge --no-ff x.y`.
 - Create a tag: `$ git tag vx.y.z`.
-- Push both branches and the tag.
+- Push main and the tag.
 - Create a new release on Github targeting the pushed tag.
   - Copy the changelog (change headers to `##`-headers).
   - Copy the output of `$ git diff va.b.c..vx.y.z --stat=80` where a.b.c is the

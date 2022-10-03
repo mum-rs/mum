@@ -18,7 +18,7 @@ Requirements (package names are for Arch Linux):
 Build and install the latest published version:
 
 ```sh
-$ cargo install mum
+$ cargo install mum-cli
 ```
 
 You can also build and install from source, for example with

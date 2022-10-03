@@ -843,8 +843,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "mum"
-version = "0.5.0"
+name = "mum-cli"
+version = "0.5.1"
 dependencies = [
  "bincode",
  "bytes",
@@ -891,7 +891,7 @@ dependencies = [
 
 [[package]]
 name = "mumlib"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "chrono",
  "colored",
