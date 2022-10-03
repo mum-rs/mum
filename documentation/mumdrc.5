@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: mumdrc
 .\"    Author: [see the "AUTHOR(S)" section]
-.\" Generator: Asciidoctor 2.0.15
-.\"      Date: 2021-06-08
+.\" Generator: Asciidoctor 2.0.17
+.\"      Date: 2022-10-03
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MUMDRC" "5" "2021-06-08" "\ \&" "\ \&"
+.TH "MUMDRC" "5" "2022-10-03" "\ \&" "\ \&"
 .ie \n(.g .ds Aq \(aq
 .el       .ds Aq '
 .ss \n[.ss] 0
@@ -36,56 +36,115 @@ using mumctl(1).
 .sp
 The following configuration values are supported:
 .sp
-accept_all_invalid_certs
-.RS 4
+\fBaccept_all_invalid_certs\fP
+.sp
+.if n .RS 4
+.nf
+.fam C
 Whether to connect to a server that supplies an invalid server certificate.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
 This is overriden by server\-specific settings. Default false.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 audio.input_volume
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Default 1.0.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 audio.output_volume
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Default 1.0.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 Servers are specified as [[servers]]\-entries and support the following
 variables:
 .sp
 host
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 IP or URL of the server.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 name
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Custom alias for the server.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 port
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 The port to connect to. (Optional)
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 username
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 The username to connect with. (Optional)
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 password
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 The password to supply to the server. (Optional)
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 accept_invalid_cert
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Whether to connect to this server even if it supplies an invalid server
-certificate. This overrides the global accept_all_invalid_certs if set.
-Default false.
-.RE
+certificate.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+If set, this overrides the global accept_all_invalid_certs. Default false.
+.fam
+.fi
+.if n .RE
 .SH "AUTHORS"
 .sp
 Gustav Sörnäs and Eskil Queseth.

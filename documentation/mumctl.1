@@ -1,13 +1,13 @@
 '\" t
 .\"     Title: mumd
 .\"    Author: [see the "AUTHOR(S)" section]
-.\" Generator: Asciidoctor 2.0.15
-.\"      Date: 2021-06-08
+.\" Generator: Asciidoctor 2.0.17
+.\"      Date: 2022-10-03
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "MUMCTL" "1" "2021-06-08" "\ \&" "\ \&"
+.TH "MUMCTL" "1" "2022-10-03" "\ \&" "\ \&"
 .ie \n(.g .ds Aq \(aq
 .el       .ds Aq '
 .ss \n[.ss] 0
@@ -31,7 +31,7 @@
 mumctl \- mumd(1) controller
 .SH "SYNOPSIS"
 .sp
-mumctl <subcommand> [<args>]
+mumctl [OPTIONS] SUBCOMMAND [ARG...]
 .SH "DESCRIPTION"
 .sp
 mumctl is a CLI controller for mumd(1), a client daemon for Mumble, a free and
@@ -39,144 +39,358 @@ open source voice chat system.
 .SH "OPTIONS"
 .sp
 \-h, \-\-help
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Prints help information.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 \-\-version
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Prints version information.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 Subcommands contain additional options.
 .SH "SUBCOMMANDS"
 .sp
-mumctl channel connect <name>
-.RS 4
+\fBmumctl channel connect\fP NAME
+.sp
+.if n .RS 4
+.nf
+.fam C
 Connect to another channel.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl channel list
-.RS 4
+mumctl channel list [\-s|\-\-short]
+.sp
+.if n .RS 4
+.nf
+.fam C
 List all channels in the connected server.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl completions [\-\-bash|\-\-fish|\-\-zsh]
-.RS 4
+mumctl completions [bash|fish|zsh]
+.sp
+.if n .RS 4
+.nf
+.fam C
 Generate a completion file for the specified shell.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl config <key> <value>
-.RS 4
-Set a configuration value in the mumd(1) config\-file. See mumdrc(5).
-.RE
+mumctl config KEY VALUE
+.sp
+.if n .RS 4
+.nf
+.fam C
+Set a configuration value in the mumd(1) configuration file.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+See mumdrc(5) for available keys and their meaning.
+.fam
+.fi
+.if n .RE
 .sp
 mumctl config\-reload
-.RS 4
-Force a reload of the configuration file (e.g. after editing it externally.
-.RE
 .sp
-mumctl connect <host> [\-p|\-\-port <port>] [username]
-.RS 4
-Connect to a server on the specified port. The host may be either the name
-of a saved server or an IP/URL (in which case username needs to be passed
-as well).
+.if n .RS 4
+.nf
+.fam C
+Force a reload of the configuration file (e.g. after editing it externally).
+.fam
+.fi
+.if n .RE
+.sp
+mumctl connect HOST [\-p|\-\-port PORT] [\-\-accept\-invalid\-cert] [USERNAME] [PASSWORD]
+.sp
+.if n .RS 4
+.nf
+.fam C
+Connect to a server on the specified port.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+The host may be either the name of a saved server in the configuration file
+or an IP/URL, in which case a username needs to be passed as well.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
 If omitted, the port defaults to 64738.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 mumctl deafen
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Deafen yourself.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 mumctl disconnect
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Disconnect from the currently connected server.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 mumctl events
-.RS 4
-Print all events that have occured since mumd was started.
-.RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+Print a list of events that have occured.
+.fam
+.fi
+.if n .RE
 .sp
 mumctl help
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Show a help message.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl message channel [\-r|\-\-recursive] <message> [<channel>...]
+mumctl message channel [\-r|\-\-recursive] MESSAGE [CHANNEL...]
+.sp
+.if n .RS 4
+.nf
+.fam C
 Sends a message to all channels specified in the list of channels.
-If the recursive flag is set, the message is also sent to all subchannels in a recursive manner.
-If no channels are given the message is sent to the channel currently
-connected to.
+.fam
+.fi
+.if n .RE
 .sp
-mumctl message user <message> <users>
-Sends a message to all users specified in the list of users.
+.if n .RS 4
+.nf
+.fam C
+If \-\-recursive is set, the message is also sent to all subchannels.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+If no channels are given, the message is sent to the channel we\*(Aqre currently
+connected to.
+.fam
+.fi
+.if n .RE
+.sp
+mumctl message user MESSAGE USER...
+.sp
+.if n .RS 4
+.nf
+.fam C
+Sends a message to one or more users.
+.fam
+.fi
+.if n .RE
 .sp
 mumctl messages [\-f|\-\-follow]
-Prints all received messages since mumd was started, or since this command last was issued,
-whichever happens first.
-If the follow flag is set, mumctl will instead wait for new messages to come in and print
-them as they come in. To exit this loop, issue a Ctrl\-C.
 .sp
-mumctl mute [user]
-.RS 4
+.if n .RS 4
+.nf
+.fam C
+Prints all received messages since the last time this command was run.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+If \-\-follow is set, wait for new messages and print them as they come
+in. To exit this loop, issue a ctrl\-C.
+.fam
+.fi
+.if n .RE
+.sp
+mumctl mute [USER]
+.sp
+.if n .RS 4
+.nf
+.fam C
 Mute yourself or someone else.
-If user is omitted, you mute yourself. Otherwise, the user with the username [user] is muted.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl server add <name> <host> [\-\-port <port>] [<username> | <username> <password>]
-.RS 4
-Add a saved server configuration.
-.RE
+.if n .RS 4
+.nf
+.fam C
+If user is omitted, you mute yourself. Otherwise, that user is muted.
+.fam
+.fi
+.if n .RE
 .sp
-mumctl server config <server> <key> <value>
-.RS 4
+mumctl server add NAME HOST [\-\-port PORT] [USERNAME] [PASSWORD]
+.sp
+.if n .RS 4
+.nf
+.fam C
+Add a new saved server configuration.
+.fam
+.fi
+.if n .RE
+.sp
+mumctl server config SERVER KEY VALUE
+.sp
+.if n .RS 4
+.nf
+.fam C
 Configure a variable in a saved server configuration.
-.RE
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+See mumdrc(5) for available keys.
+.fam
+.fi
+.if n .RE
 .sp
 mumctl server list
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 List all saved servers and how many are connected to them.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl server remove <name>
-.RS 4
+mumctl server remove NAME
+.sp
+.if n .RS 4
+.nf
+.fam C
 Remove a saved server.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl server rename <old name> <new name>
-.RS 4
+mumctl server rename OLD_NAME NEW_NAME
+.sp
+.if n .RS 4
+.nf
+.fam C
 Rename a saved server.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
 mumctl status
-.RS 4
-Show the currently conneced channel and server.
-.RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+Show the currently connected channel and server.
+.fam
+.fi
+.if n .RE
 .sp
 mumctl undeafen
-.RS 4
+.sp
+.if n .RS 4
+.nf
+.fam C
 Undeafen yourself.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl unmute [user]
-.RS 4
+mumctl unmute [USER]
+.sp
+.if n .RS 4
+.nf
+.fam C
 Unmute yourself or someone else.
-If user is omitted, unmute yourself. Otherwise, the user with the username [user] is unmuted.
-.RE
+.fam
+.fi
+.if n .RE
 .sp
-mumctl volume set <volume>
-.RS 4
-Set the outgoing volume level.
-1.0 is the default.
-.RE
+.if n .RS 4
+.nf
+.fam C
+If user is omitted, unmute yourself. Otherwise, that user is unmuted.
+.fam
+.fi
+.if n .RE
 .sp
-mumctl volume <user> set <volume>
-.RS 4
-Set the volume of another user\(cqs incoming audio.
+mumctl volume VOLUME
+.sp
+.if n .RS 4
+.nf
+.fam C
+Set the volume of outgoing audio.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
 1.0 is the default.
-.RE
+.fam
+.fi
+.if n .RE
+.sp
+mumctl volume USER VOLUME
+.sp
+.if n .RS 4
+.nf
+.fam C
+Set the volume of another user\*(Aqs incoming audio.
+.fam
+.fi
+.if n .RE
+.sp
+.if n .RS 4
+.nf
+.fam C
+1.0 is the default.
+.fam
+.fi
+.if n .RE
 .SH "AUTHORS"
 .sp
 Gustav Sörnäs and Eskil Queseth.

@@ -9,7 +9,7 @@ mumctl - mumd(1) controller
 Synopsis
 --------
 
-mumctl <subcommand> [<args>]
+mumctl [OPTIONS] SUBCOMMAND [ARG...]
 
 Description
 -----------
@@ -20,10 +20,12 @@ open source voice chat system.
 Options
 -------
 
--h, --help ::
+-h, --help
+
     Prints help information.
 
---version ::
+--version
+
     Prints version information.
 
 Subcommands contain additional options.
@@ -31,89 +33,125 @@ Subcommands contain additional options.
 Subcommands
 -----------
 
-mumctl channel connect <name> ::
+**mumctl channel connect** NAME
+
     Connect to another channel.
 
-mumctl channel list ::
+mumctl channel list [-s|--short]
+
     List all channels in the connected server.
 
-mumctl completions [--bash|--fish|--zsh] ::
+mumctl completions [bash|fish|zsh]
+
     Generate a completion file for the specified shell.
 
-mumctl config <key> <value> ::
-    Set a configuration value in the mumd(1) config-file. See mumdrc(5).
+mumctl config KEY VALUE
 
-mumctl config-reload ::
-    Force a reload of the configuration file (e.g. after editing it externally.
+    Set a configuration value in the mumd(1) configuration file.
 
-mumctl connect <host> [-p|--port <port>] [username] ::
-    Connect to a server on the specified port. The host may be either the name
-    of a saved server or an IP/URL (in which case username needs to be passed
-    as well).
+    See mumdrc(5) for available keys and their meaning.
+
+mumctl config-reload
+
+    Force a reload of the configuration file (e.g. after editing it externally).
+
+mumctl connect HOST [-p|--port PORT] [--accept-invalid-cert] [USERNAME] [PASSWORD]
+
+    Connect to a server on the specified port.
+
+    The host may be either the name of a saved server in the configuration file
+    or an IP/URL, in which case a username needs to be passed as well.
+
     If omitted, the port defaults to 64738.
 
-mumctl deafen ::
+mumctl deafen
+
     Deafen yourself.
 
-mumctl disconnect ::
+mumctl disconnect
+
     Disconnect from the currently connected server.
 
-mumctl events ::
-    Print all events that have occured since mumd was started.
+mumctl events
 
-mumctl help ::
+    Print a list of events that have occured.
+
+mumctl help
+
     Show a help message.
 
-mumctl message channel [-r|--recursive] <message> [<channel>...]
+mumctl message channel [-r|--recursive] MESSAGE [CHANNEL...]
+
     Sends a message to all channels specified in the list of channels.
-    If the recursive flag is set, the message is also sent to all subchannels in a recursive manner.
-    If no channels are given the message is sent to the channel currently
+
+    If --recursive is set, the message is also sent to all subchannels.
+
+    If no channels are given, the message is sent to the channel we're currently
     connected to.
 
-mumctl message user <message> <users>
-    Sends a message to all users specified in the list of users.
+mumctl message user MESSAGE USER...
+
+    Sends a message to one or more users.
 
 mumctl messages [-f|--follow]
-    Prints all received messages since mumd was started, or since this command last was issued,
-    whichever happens first.
-    If the follow flag is set, mumctl will instead wait for new messages to come in and print
-    them as they come in. To exit this loop, issue a Ctrl-C.
 
-mumctl mute [user] ::
+    Prints all received messages since the last time this command was run.
+
+    If --follow is set, wait for new messages and print them as they come
+    in. To exit this loop, issue a ctrl-C.
+
+mumctl mute [USER]
+
     Mute yourself or someone else.
-    If user is omitted, you mute yourself. Otherwise, the user with the username [user] is muted.
 
-mumctl server add <name> <host> [--port <port>] [<username> | <username> <password>] ::
-    Add a saved server configuration.
+    If user is omitted, you mute yourself. Otherwise, that user is muted.
 
-mumctl server config <server> <key> <value> ::
+mumctl server add NAME HOST [--port PORT] [USERNAME] [PASSWORD]
+
+    Add a new saved server configuration.
+
+mumctl server config SERVER KEY VALUE
+
     Configure a variable in a saved server configuration.
 
-mumctl server list ::
+    See mumdrc(5) for available keys.
+
+mumctl server list
+
     List all saved servers and how many are connected to them.
 
-mumctl server remove <name> ::
+mumctl server remove NAME
+
     Remove a saved server.
 
-mumctl server rename <old name> <new name> ::
+mumctl server rename OLD_NAME NEW_NAME
+
     Rename a saved server.
 
-mumctl status ::
-    Show the currently conneced channel and server.
+mumctl status
 
-mumctl undeafen ::
+    Show the currently connected channel and server.
+
+mumctl undeafen
+
     Undeafen yourself.
 
-mumctl unmute [user] ::
-    Unmute yourself or someone else.
-    If user is omitted, unmute yourself. Otherwise, the user with the username [user] is unmuted.
+mumctl unmute [USER]
 
-mumctl volume set <volume> ::
-    Set the outgoing volume level.
+    Unmute yourself or someone else.
+
+    If user is omitted, unmute yourself. Otherwise, that user is unmuted.
+
+mumctl volume VOLUME
+
+    Set the volume of outgoing audio.
+
     1.0 is the default.
 
-mumctl volume <user> set <volume> ::
+mumctl volume USER VOLUME
+
     Set the volume of another user's incoming audio.
+
     1.0 is the default.
 
 Authors
