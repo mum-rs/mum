@@ -14,7 +14,9 @@ use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::thread;
 use toml_edit::ser::to_item;
-use toml_edit::{value as toml_value, Document, Item as TomlItem, Table, Value as TomlValue};
+use toml_edit::{
+    value as toml_value, ArrayOfTables, Document, Item as TomlItem, Table, Value as TomlValue,
+};
 
 const INDENTATION: &str = "  ";
 
@@ -532,11 +534,9 @@ fn match_server_command(
                 .find(|(_, s)| s.name == server_name)
                 .ok_or(CliError::NoServerFound(server_name))?;
             let server_document = document["servers"]
-                .as_array_mut()
+                .as_array_of_tables_mut()
                 .unwrap()
                 .get_mut(server_index)
-                .unwrap()
-                .as_inline_table_mut()
                 .unwrap();
 
             match (key.as_deref(), value) {
@@ -612,25 +612,27 @@ fn match_server_command(
                     return Err(CliError::UseServerRename.into());
                 }
                 (Some("host"), Some(value)) => {
-                    server_document["host"] = TomlValue::from(value);
+                    server_document["host"] = TomlItem::Value(TomlValue::from(value));
                     maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("port"), Some(value)) => {
-                    server_document["port"] = TomlValue::from(value.parse::<i64>().unwrap());
+                    server_document["port"] =
+                        TomlItem::Value(TomlValue::from(value.parse::<i64>().unwrap()));
                     maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("username"), Some(value)) => {
-                    server_document["username"] = TomlValue::from(value);
+                    server_document["username"] = TomlItem::Value(TomlValue::from(value));
                     maybe_write_config(&config_path, document.to_string())?;
                 }
                 (Some("password"), Some(value)) => {
-                    server_document["password"] = TomlValue::from(value);
+                    server_document["password"] = TomlItem::Value(TomlValue::from(value));
                     maybe_write_config(&config_path, document.to_string())?;
                     //TODO ask stdin if empty
                 }
                 (Some("accept_invalid_cert"), Some(value)) => match value.parse::<bool>() {
                     Ok(b) => {
-                        server_document["accept_invalid_cert"] = TomlValue::from(b);
+                        server_document["accept_invalid_cert"] =
+                            TomlItem::Value(TomlValue::from(b));
                         maybe_write_config(&config_path, document.to_string())?;
                     }
                     Err(e) => warn!("{}", e),
@@ -642,15 +644,12 @@ fn match_server_command(
         }
         Server::Rename { old_name, new_name } => {
             document["servers"]
-                .as_array_mut()
+                .as_array_of_tables_mut()
                 .unwrap()
                 .iter_mut()
-                .find(|server| {
-                    server.as_inline_table().unwrap()["name"].as_str().unwrap() == old_name
-                })
-                .ok_or(CliError::NoServerFound(old_name))?
-                .as_inline_table_mut()
-                .unwrap()["name"] = TomlValue::from(new_name);
+                .find(|server| server["name"].as_str().unwrap() == old_name)
+                .ok_or(CliError::NoServerFound(old_name))?["name"] =
+                TomlItem::Value(TomlValue::from(new_name));
             maybe_write_config(&config_path, document.to_string())?;
         }
         Server::Add {
@@ -663,19 +662,23 @@ fn match_server_command(
             if config.servers.iter().flatten().any(|s| s.name == name) {
                 return Err(CliError::ServerAlreadyExists(name).into());
             } else {
-                document["servers"].as_array_mut().unwrap().push(
-                    to_item(&ServerConfig {
-                        name,
-                        host,
-                        port,
-                        username,
-                        password,
-                        accept_invalid_cert: None,
-                    })
+                document["servers"]
+                    .or_insert(TomlItem::ArrayOfTables(ArrayOfTables::new()))
+                    .as_array_of_tables_mut()
                     .unwrap()
-                    .as_value()
-                    .unwrap(),
-                );
+                    .push(
+                        to_item(&ServerConfig {
+                            name,
+                            host,
+                            port,
+                            username,
+                            password,
+                            accept_invalid_cert: None,
+                        })
+                        .unwrap()
+                        .into_table()
+                        .unwrap(),
+                    );
                 maybe_write_config(&config_path, document.to_string())?;
             }
         }
@@ -686,7 +689,10 @@ fn match_server_command(
                 .flatten()
                 .position(|s| s.name == name)
                 .ok_or(CliError::NoServerFound(name))?;
-            document["servers"].as_array_mut().unwrap().remove(idx);
+            document["servers"]
+                .as_array_of_tables_mut()
+                .unwrap()
+                .remove(idx);
             maybe_write_config(&config_path, document.to_string())?;
         }
         Server::List => {
