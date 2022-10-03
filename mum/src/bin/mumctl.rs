@@ -629,7 +629,10 @@ fn match_server_command(
                     //TODO ask stdin if empty
                 }
                 (Some("accept_invalid_cert"), Some(value)) => match value.parse::<bool>() {
-                    Ok(b) => server_document["accept_invalid_cert"] = TomlValue::from(b),
+                    Ok(b) => {
+                        server_document["accept_invalid_cert"] = TomlValue::from(b);
+                        maybe_write_config(&config_path, document.to_string())?;
+                    }
                     Err(e) => warn!("{}", e),
                 },
                 (Some(_), _) => {
