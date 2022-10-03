@@ -52,6 +52,15 @@ struct Mum {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Handle channels in the connected server
+    #[clap(subcommand)]
+    Channel(Channel),
+    /// Output CLI completions
+    Completions(Completions),
+    /// Change config values
+    Config { key: String, value: String },
+    /// Reload the config file
+    ConfigReload,
     /// Connect to a server
     Connect {
         host: String,
@@ -62,45 +71,36 @@ enum Command {
         #[clap(long = "accept-invalid-cert")]
         accept_invalid_cert: bool,
     },
-    /// Disconnect from the currently connected server
-    Disconnect,
-    /// Handle servers
-    #[clap(subcommand)]
-    Server(Server),
-    /// Handle channels in the connected server
-    #[clap(subcommand)]
-    Channel(Channel),
-    /// Show current status
-    Status,
-    /// Change config values
-    Config { key: String, value: String },
-    /// Reload the config file
-    ConfigReload,
-    /// Output CLI completions
-    Completions(Completions),
-    /// Change volume of either you or someone else
-    Volume { user: String, volume: Option<f32> },
-    /// Mute someone/yourself
-    Mute { user: Option<String> },
-    /// Unmute someone/yourself
-    Unmute { user: Option<String> },
     /// Deafen yourself
     Deafen,
-    /// Undeafen yourself
-    Undeafen,
-    /// Get messages sent to the server you're currently connected to
-    Messages {
+    /// Disconnect from the currently connected server
+    Disconnect,
+    /// Get events that have happened since we connected
+    Events {
         #[clap(short = 'f', long = "follow")]
         follow: bool,
     },
     /// Send a message to a channel or a user
     #[clap(subcommand)]
     Message(Target),
-    /// Get events that have happened since we connected
-    Events {
+    /// Get messages sent to the server you're currently connected to
+    Messages {
         #[clap(short = 'f', long = "follow")]
         follow: bool,
     },
+    /// Mute someone/yourself
+    Mute { user: Option<String> },
+    /// Handle servers
+    #[clap(subcommand)]
+    Server(Server),
+    /// Show current status
+    Status,
+    /// Undeafen yourself
+    Undeafen,
+    /// Unmute someone/yourself
+    Unmute { user: Option<String> },
+    /// Change volume of either you or someone else
+    Volume { user: String, volume: Option<f32> },
 }
 
 #[derive(Debug, Subcommand)]
@@ -124,14 +124,6 @@ enum Target {
 
 #[derive(Debug, Subcommand)]
 enum Server {
-    /// Configure a saved server
-    Config {
-        server_name: Option<String>,
-        key: Option<String>,
-        value: Option<String>,
-    },
-    /// Rename a saved server
-    Rename { old_name: String, new_name: String },
     /// Add a new saved server
     Add {
         name: String,
@@ -142,20 +134,28 @@ enum Server {
         #[clap(requires = "username")]
         password: Option<String>,
     },
-    /// Remove a saved server
-    Remove { name: String },
+    /// Configure a saved server
+    Config {
+        server_name: Option<String>,
+        key: Option<String>,
+        value: Option<String>,
+    },
     /// List saved servers and number of people connected
     List,
+    /// Rename a saved server
+    Rename { old_name: String, new_name: String },
+    /// Remove a saved server
+    Remove { name: String },
 }
 
 #[derive(Debug, Subcommand)]
 enum Channel {
+    Connect {
+        name: String,
+    },
     List {
         #[clap(short = 's', long = "short")]
         short: bool,
-    },
-    Connect {
-        name: String,
     },
 }
 

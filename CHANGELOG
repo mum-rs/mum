@@ -1,10 +1,26 @@
 Unreleased
 ----------
 
+Major changes:
+
 - Instead of four crates we now have only two. mumd and mumctl were merged into
-  mum as binary targets.
-- You can now disable the noise gate by setting `disable_noise_gate = true`
-  under `[audio]` in the configuration file.
+  mum as binary targets. The installation instructions have been updated to
+  match this.
+- Disable the noise gate by setting `disable_noise_gate = true` under `[audio]`
+  in the configuration file.
+- The "mumctl config" and "mumctl server config" commands use toml_edit instead
+  of normal toml serialization. This makes it so comments and unknown values
+  aren't removed.
+
+Other:
+
+- Notifications are sent on their own thread so they don't freeze the entire
+  application while waiting for a timeout if a notification daemon isn't
+  present.
+- Rust 2021.
+- Clap 4. The help output formatting has changed a bit but the content remains
+  the same.
+
 
 0.4.0 - 2021-06-19
 ------------------
