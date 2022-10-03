@@ -1,6 +1,9 @@
 Unreleased
 ----------
 
+0.5.0 - 2022-10-03
+------------------
+
 Major changes:
 
 - Instead of four crates we now have only two. mumd and mumctl were merged into
