@@ -26,7 +26,7 @@ clap = { version = "4.0.2", features = ["derive"] }
 clap_complete = "4.0.1"
 chrono = { version = "0.4.19", features = [ "serde" ] }
 colored = "2.0.0"
-cpal = "0.13.5"
+cpal = "0.14.0"
 dasp_interpolate = { version = "0.11.0", features = ["linear"] }
 dasp_ring_buffer = "0.11.0"
 dasp_signal = "0.11.0"
@@ -36,7 +36,7 @@ hound = "3.4.0"
 log = "0.4.16"
 mumble-protocol = "0.4.1"
 native-tls = "0.2.10"
-opus = "0.2.1"
+opus = "0.3.0"
 serde = { version = "1.0.136", features = ["derive"] }
 strum = "0.24.0"
 strum_macros = "0.24.0"
