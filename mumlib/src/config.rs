@@ -8,66 +8,19 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use toml::value::Array;
-use toml::Value;
 
-// FIXME: We shouldn't need the split between TOMLConfig and Config.
-
-/// A TOML-friendly version of [Config].
-// Values need to be placed before tables due to how TOML works.
-#[derive(Debug, Deserialize, Serialize)]
-struct TOMLConfig {
-    // Values
-    accept_all_invalid_certs: Option<bool>,
-
-    // Tables
-    audio: Option<AudioConfig>,
-    servers: Option<Array>,
-}
-
-/// Our representation of the mumdrc config file.
-// Deserialized via [TOMLConfig].
-#[derive(Clone, Debug, Default)]
+/// The mumdrc config file.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
-    /// General audio configuration.
-    pub audio: AudioConfig,
-    /// Saved servers.
-    pub servers: Vec<ServerConfig>,
     /// Whether we allow connecting to servers with invalid server certificates.
     ///
     /// None implies false but we can show a better message to the user.
     pub allow_invalid_server_cert: Option<bool>,
-}
-
-impl Config {
-    /// Writes this config to the specified path.
-    ///
-    /// Pass create = true if you want the file to be created if it doesn't already exist.
-    ///
-    /// # Errors
-    ///
-    /// - [ConfigError::WontCreateFile] if the file doesn't exist and create = false was passed.
-    /// - Any [ConfigError::TOMLErrorSer] encountered when serializing the config.
-    /// - Any [ConfigError::IOError] encountered when writing the file.
-    pub fn write(&self, path: &Path, create: bool) -> Result<(), ConfigError> {
-        // Possible race here. It's fine since it shows when:
-        //   1) the file doesn't exist when checked and is then created
-        //   2) the file exists when checked but is then removed
-        // If 1) we don't do anything anyway so it's fine, and if 2) we
-        // immediately re-create the file which, while not perfect, at least
-        // should work. Unless the file is removed AND the permissions
-        // change, but then we don't have permissions so we can't
-        // do anything anyways.
-
-        if !create && !path.exists() {
-            return Err(ConfigError::WontCreateFile);
-        }
-
-        Ok(fs::write(
-            path,
-            toml::to_string(&TOMLConfig::from(self.clone()))?,
-        )?)
-    }
+    /// General audio configuration.
+    #[serde(default)]
+    pub audio: Option<AudioConfig>,
+    /// Saved servers.
+    pub servers: Option<Vec<ServerConfig>>,
 }
 
 /// Overwrite a specific sound effect with a file that should be played instead.
@@ -86,7 +39,7 @@ pub struct AudioConfig {
     pub input_volume: Option<f32>,
     /// The output main gain.
     pub output_volume: Option<f32>,
-    /// Overriden sound effects.
+    /// Overridden sound effects.
     pub sound_effects: Option<Vec<SoundEffect>>,
     /// If we should disable the noise gate, i.e. send _all_ data from the input to the server.
     pub disable_noise_gate: Option<bool>,
@@ -97,7 +50,7 @@ pub struct AudioConfig {
 pub struct ServerConfig {
     /// The alias of the server.
     pub name: String,
-    /// The host (URL or IP-adress) of the server.
+    /// The host (URL or IP-address) of the server.
     pub host: String,
     /// The port, if non-default.
     pub port: Option<u16>,
@@ -137,76 +90,17 @@ pub fn default_cfg_path() -> PathBuf {
     }
 }
 
-impl TryFrom<TOMLConfig> for Config {
-    type Error = toml::de::Error;
-
-    fn try_from(config: TOMLConfig) -> Result<Self, Self::Error> {
-        Ok(Config {
-            audio: config.audio.unwrap_or_default(),
-            servers: config
-                .servers
-                .map(|servers| {
-                    servers
-                        .into_iter()
-                        .map(|s| s.try_into::<ServerConfig>())
-                        .collect()
-                })
-                .transpose()?
-                .unwrap_or_default(),
-            allow_invalid_server_cert: config.accept_all_invalid_certs,
-        })
-    }
-}
-
-impl From<Config> for TOMLConfig {
-    fn from(config: Config) -> Self {
-        // Only write the AudioConfig if any field is Some. (Otherwise we'd have a lone [audio].)
-        let AudioConfig {
-            input_volume,
-            output_volume,
-            disable_noise_gate,
-            sound_effects,
-        } = &config.audio;
-
-        let audio = if input_volume.is_some()
-            || output_volume.is_some()
-            || disable_noise_gate.is_some()
-            || sound_effects.is_some()
-        {
-            Some(config.audio)
-        } else {
-            None
-        };
-
-        TOMLConfig {
-            audio,
-            servers: Some(
-                config
-                    .servers
-                    .into_iter()
-                    // Safe since all ServerConfigs are valid TOML
-                    .map(|s| Value::try_from::<ServerConfig>(s).unwrap())
-                    .collect(),
-            ),
-            accept_all_invalid_certs: config.allow_invalid_server_cert,
-        }
-    }
-}
-
 /// Reads the config at the specified path.
 ///
 /// If the file isn't found, returns a default config.
 ///
 /// # Errors
 ///
-/// - Any [ConfigError::TOMLErrorDe] encountered when deserializing the config.
+/// - Any [ConfigError::TomlErrorDe] encountered when deserializing the config.
 /// - Any [ConfigError::IOError] encountered when reading the file.
 pub fn read_cfg(path: &Path) -> Result<Config, ConfigError> {
     match fs::read_to_string(path) {
-        Ok(s) => {
-            let toml_config: TOMLConfig = toml::from_str(&s)?;
-            Ok(Config::try_from(toml_config)?)
-        }
+        Ok(s) => Ok(toml_edit::de::from_str(&s)?),
         Err(e) => {
             if matches!(e.kind(), std::io::ErrorKind::NotFound) && !path.exists() {
                 warn!("Config file not found");
