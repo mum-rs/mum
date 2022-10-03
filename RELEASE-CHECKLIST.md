@@ -6,9 +6,7 @@
 
 - Run `$ cargo update`.
 - Check `$ cargo outdated`.
-- Build final version:
-  - `$ MUM_VERSION=x.y.z RUSTFLAGS="--remap-path-prefix=$(pwd)=" cargo build --release`
-  - `$ cp target/release/mum{ctl,d}`
+- Build final version: `$ MUM_VERSION=x.y.z RUSTFLAGS="--remap-path-prefix=$(pwd)=" cargo install --locked --path mum`
 - Basic test:
   - Check `--version`.
   - Connect to server.
@@ -21,13 +19,11 @@
 
 # Publish to Github
 
-- Set the version header and today's date in the changelog.
+- Add the version header and today's date in the changelog.
 - Create a new "Unreleased" header.
-- Final commits:
-  - Cargo.lock and Cargo.toml.
-  - Updated changelog.
-- Create a tag: `$ git tag vx.y.z`.
+- Make sure everything is commited and published.
 - Merge into main: `$ git switch main && git merge --no-ff x.y`.
+- Create a tag: `$ git tag vx.y.z`.
 - Push both branches and the tag.
 - Create a new release on Github targeting the pushed tag.
   - Copy the changelog (change headers to `##`-headers).
